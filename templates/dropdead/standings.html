@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Drop Dead Pool - Standings{% endblock %}
+{% block content %}
+<div class="page-header header-dropdead"><h2><span class="pool-icon">💀</span>Drop Dead Pool Standings</h2></div>
+<div class="table-responsive">
+<table class="table table-striped standings bg-white">
+  <thead><tr><th>Player</th><th>Status</th><th>Picks</th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    <tr>
+      <td>{{ e.user.username }}</td>
+      <td>
+        {% if e.is_active %}<span class="badge badge-alive">Alive</span>
+        {% else %}<span class="badge badge-eliminated">Out - Week {{ e.eliminated_week }}</span>{% endif %}
+      </td>
+      <td>
+        {% for p in e.picks|sort(attribute='week.number') %}
+          {% set complete = week_is_complete(p.week) %}
+          <span class="badge {% if complete and p.result == 'win' %}pick-win{% elif complete and p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
+            Wk{{ p.week.number }}: {{ p.team.name if p.team else '?' }}
+          </span>
+        {% endfor %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

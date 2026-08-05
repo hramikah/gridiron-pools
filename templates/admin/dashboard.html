@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">⚙️</span>Admin Dashboard</h2></div>
+<p>
+  <a href="{{ url_for('admin.reports') }}">Admin Reports</a>
+  &middot; <a href="{{ url_for('admin.loser_points') }}">Manage Loser Pool point values</a>
+  &middot; <a href="{{ url_for('admin.settings') }}">Odds API &amp; season settings</a>
+</p>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Add a Week</h5>
+    <form method="post" action="{{ url_for('admin.new_week') }}" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label">Week #</label>
+        <input type="number" name="number" class="form-control" min="1" max="22" required>
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Pick deadline (Eastern time, e.g. Saturday noon)</label>
+        <input type="datetime-local" name="pick_deadline" class="form-control" required>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Create Week</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h5>Weeks</h5>
+<div class="table-responsive">
+<table class="table bg-white">
+  <thead><tr><th>Week</th><th>Deadline</th><th>Games</th><th></th></tr></thead>
+  <tbody>
+  {% for w in weeks %}
+    <tr>
+      <td>Week {{ w.number }}</td>
+      <td>{{ w.pick_deadline.strftime('%a %b %d, %I:%M %p') }}</td>
+      <td>{{ w.games|length }}</td>
+      <td><a href="{{ url_for('admin.week_detail', week_id=w.id) }}" class="btn btn-sm btn-outline-primary">Manage</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="text-muted">No weeks yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

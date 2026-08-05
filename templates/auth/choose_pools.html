@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Choose Your Pools{% endblock %}
+{% block content %}
+<div class="hero-band text-center">
+  <div class="hero-football mb-2">🏈</div>
+  <h1 class="mb-2">Which pools are you playing?</h1>
+  <p class="mb-0">Check any (or all) of the three pools below to join. You can always join more later from each pool's Rules page.</p>
+</div>
+
+<form method="post">
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="card pool-card pool-dropdead h-100 shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title"><span class="pool-icon">💀</span>Drop Dead Pool</h4>
+        <p class="card-text">Survivor pool. Pick one NFL team to win straight up each week. Lose or tie and you're out. $20/entry.</p>
+        {% if 'dropdead' in existing_pools %}
+        <span class="badge badge-alive fs-6 px-3 py-2">✅ Already joined</span>
+        {% else %}
+        <input type="checkbox" class="btn-check" name="pools" value="dropdead" id="pool-dropdead" autocomplete="off">
+        <label class="btn btn-outline-danger btn-lg w-100 fw-bold" for="pool-dropdead">☐ Join Drop Dead Pool</label>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card pool-card pool-loser h-100 shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title"><span class="pool-icon">📉</span>Loser Pool</h4>
+        <p class="card-text">Pick an NFL team to LOSE each week. Correct picks earn that team's point value; wrong picks deduct it. $20/entry (one per account &mdash; register again for another entry).</p>
+        {% if 'loser' in existing_pools %}
+        <span class="badge badge-alive fs-6 px-3 py-2">✅ Already joined</span>
+        {% else %}
+        <input type="checkbox" class="btn-check" name="pools" value="loser" id="pool-loser" autocomplete="off">
+        <label class="btn btn-outline-dark btn-lg w-100 fw-bold" for="pool-loser">☐ Join Loser Pool</label>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card pool-card pool-gridiron h-100 shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title"><span class="pool-icon">🏆</span>Gridiron Investments</h4>
+        <p class="card-text">Pick 5 NFL/college games against the spread each week (plus optional NFL over/under). $100/entry.</p>
+        {% if 'gridiron' in existing_pools %}
+        <span class="badge badge-alive fs-6 px-3 py-2">✅ Already joined</span>
+        {% else %}
+        <input type="checkbox" class="btn-check" name="pools" value="gridiron" id="pool-gridiron" autocomplete="off">
+        <label class="btn btn-outline-warning btn-lg w-100 fw-bold" for="pool-gridiron">☐ Join Gridiron Investments</label>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mt-4 text-center">
+  <button type="submit" class="btn btn-gridiron btn-lg px-5 py-3 fs-4 fw-bold shadow">🏈 JOIN SELECTED POOLS</button>
+  <div class="mt-3">
+    <a href="{{ url_for('main.index') }}" class="text-muted small">Skip for now</a>
+  </div>
+</div>
+</form>
+
+<script>
+document.querySelectorAll('input.btn-check[type=checkbox]').forEach(function (box) {
+  var label = document.querySelector('label[for="' + box.id + '"]');
+  function refresh() {
+    if (!label) return;
+    label.textContent = label.textContent.replace(/^[☐☑]/, box.checked ? '☑' : '☐');
+  }
+  box.addEventListener('change', refresh);
+});
+</script>
+{% endblock %}

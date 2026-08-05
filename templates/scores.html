@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Final Scores{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">🏈</span>Final Scores</h2></div>
+<p class="text-muted">Every finished NFL and college game this season, final score only &mdash; no spreads or lines.</p>
+
+{% if not by_week %}
+<p class="text-muted">No games have been finalized yet.</p>
+{% endif %}
+
+{% for week, games in by_week %}
+<h5 class="mt-4">Week {{ week.number }}</h5>
+<div class="table-responsive mb-4">
+<table class="table table-striped standings bg-white">
+  <thead><tr><th>Sport</th><th>Away</th><th></th><th>Home</th><th>Final</th></tr></thead>
+  <tbody>
+  {% for g in games %}
+    {% set away_win = g.away_score is not none and g.home_score is not none and g.away_score > g.home_score %}
+    {% set home_win = g.away_score is not none and g.home_score is not none and g.home_score > g.away_score %}
+    <tr>
+      <td>{% if g.sport == 'college' %}College{% else %}NFL{% endif %}</td>
+      <td{% if away_win %} class="fw-bold"{% endif %}>{{ g.away_team }}</td>
+      <td class="text-muted">@</td>
+      <td{% if home_win %} class="fw-bold"{% endif %}>{{ g.home_team }}</td>
+      <td>{{ g.away_score }} &ndash; {{ g.home_score }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Players - Admin{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">👥</span>Players</h2></div>
+<p class="text-muted">Every registered account, which pools they're in, and admin-only account management.</p>
+
+<div class="table-responsive">
+<table class="table table-striped standings bg-white align-middle">
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Email</th>
+      <th>Drop Dead</th>
+      <th>Loser</th>
+      <th>Gridiron</th>
+      <th>Role</th>
+      <th>Allow Max Teams</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for u in users %}
+    {% set entries = entries_by_user.get(u.id, []) %}
+    <tr>
+      <td>{{ u.username }}</td>
+      <td>{{ u.email }}</td>
+      {% for pool in ['dropdead', 'loser', 'gridiron'] %}
+      <td>
+        {% set pool_entries = entries|selectattr('pool', 'equalto', pool)|list %}
+        <form method="post" action="{{ url_for('admin.toggle_pool_membership', user_id=u.id, pool=pool) }}"
+              {% if pool_entries %}onsubmit="return confirm('Remove {{ u.username }} from {{ pool_labels[pool] }}? Any picks they\'ve made in this pool will be deleted too.');"{% endif %}>
+          {% if pool_entries %}
+            <button type="submit" class="btn btn-sm btn-in-pool">
+              In{% if pool_entries|length > 1 %} &times;{{ pool_entries|length }}{% endif %}
+            </button>
+          {% else %}
+            <button type="submit" class="btn btn-sm btn-outline-secondary">+ Add</button>
+          {% endif %}
+        </form>
+      </td>
+      {% endfor %}
+      <td>
+        {% if u.id != current_user.id %}
+        <form method="post" action="{{ url_for('admin.toggle_admin', user_id=u.id) }}"
+              onsubmit="return confirm('{% if u.is_admin %}Remove admin access from{% else %}Make{% endif %} {{ u.username }} {% if not u.is_admin %}an admin{% endif %}?');">
+          <button type="submit" class="btn btn-sm {% if u.is_admin %}btn-dark{% else %}btn-outline-secondary{% endif %}">
+            {% if u.is_admin %}Admin{% else %}Player{% endif %}
+          </button>
+        </form>
+        {% else %}
+        <span class="badge bg-dark">Admin</span> <span class="text-muted small">(you)</span>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('admin.set_max_teams', user_id=u.id) }}">
+          <select name="max_teams" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+            {% for n in range(1, 11) %}
+            <option value="{{ n }}" {% if u.max_teams == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </td>
+      <td>
+        {% if u.id != current_user.id %}
+        <form method="post" action="{{ url_for('admin.delete_player', user_id=u.id) }}"
+              onsubmit="return confirm('Delete {{ u.username }} and all their picks/entries? This can\'t be undone.');">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+        {% else %}
+        <span class="text-muted small">&mdash;</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="text-muted">No players registered yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

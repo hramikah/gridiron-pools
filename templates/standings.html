@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}Master Standings{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">🏆</span>Master Standings</h2></div>
+<p class="text-muted">Combined leaderboard across all three pools.</p>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="dropdead-tab" data-bs-toggle="tab" data-bs-target="#dropdead-pane" type="button" role="tab">💀 Drop Dead Pool</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="loser-tab" data-bs-toggle="tab" data-bs-target="#loser-pane" type="button" role="tab">📉 Loser Pool</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="gridiron-tab" data-bs-toggle="tab" data-bs-target="#gridiron-pane" type="button" role="tab">🏈 Gridiron Investments</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button" role="tab">📅 Week History</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="player-tab" data-bs-toggle="tab" data-bs-target="#player-pane" type="button" role="tab">🔍 By Player</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="allweeks-tab" data-bs-toggle="tab" data-bs-target="#allweeks-pane" type="button" role="tab">📊 All Weeks</button>
+  </li>
+</ul>
+
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="dropdead-pane" role="tabpanel">
+    <table class="table table-striped standings bg-white">
+      <thead><tr><th>Player</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for e in dropdead_entries %}
+        <tr>
+          <td>{{ e.user.username }}</td>
+          <td>
+            {% if e.is_active %}<span class="badge badge-alive">Alive</span>
+            {% else %}<span class="badge badge-eliminated">Out - Week {{ e.eliminated_week }}</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="2" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tab-pane fade" id="loser-pane" role="tabpanel">
+    <table class="table table-striped standings bg-white">
+      <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead>
+      <tbody>
+      {% for entry, total in loser_rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ entry.user.username }}</td>
+          <td><strong>{{ total }}</strong></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tab-pane fade" id="gridiron-pane" role="tabpanel">
+    {% if gridiron_recent_week %}
+    <p class="text-muted small mb-2">Each player's Week {{ gridiron_recent_week }} picks are shown under their row, colored green for a win and red for a loss.</p>
+    {% endif %}
+    <table class="table table-striped standings bg-white">
+      <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for entry, wins, losses, ties in gridiron_rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ entry.user.username }}</td>
+          <td>{{ wins }}</td>
+          <td>{{ losses }}</td>
+          <td>{{ ties }}</td>
+          <td>
+            {% if entry.is_active %}<span class="badge badge-alive">Active</span>
+            {% else %}<span class="badge badge-eliminated">Benched (Wk{{ entry.eliminated_week }})</span>{% endif %}
+          </td>
+        </tr>
+        {% if gridiron_recent_week %}
+        <tr>
+          <td></td>
+          <td colspan="5">
+            {% set recent_picks = gridiron_recent_picks.get(entry.id) %}
+            {% if recent_picks %}
+              {% for wp in recent_picks %}
+              <span class="me-3 {% if wp.result == 'win' %}text-success fw-bold{% elif wp.result == 'loss' %}text-danger fw-bold{% endif %}">{{ wp.label }}</span>
+              {% endfor %}
+            {% else %}<span class="text-muted small">No picks Week {{ gridiron_recent_week }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+      {% else %}
+        <tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="text-muted small">A tie is a push against the spread. Missed weeks are scored 0-5 and unlock an 8-pick makeup week; missing more than 5 weeks benches the entry.</p>
+  </div>
+
+  <div class="tab-pane fade" id="history-pane" role="tabpanel">
+    <p class="text-muted">See where things stood as of the end of any past week (weeks unlock here once their pick deadline has passed).</p>
+    <div class="mb-4">
+      {% for w in unlocked_weeks %}
+        <a href="{{ url_for('main.standings', week=w.number) }}#history-pane"
+           class="btn btn-sm {% if history_week == w.number %}btn-gridiron{% else %}btn-outline-dark{% endif %} me-1 mb-1 history-week-link">
+          Week {{ w.number }}
+        </a>
+      {% else %}
+        <span class="text-muted">No weeks have unlocked yet.</span>
+      {% endfor %}
+    </div>
+
+    {% if history_data %}
+    <h5><span class="pool-icon">💀</span>Drop Dead Pool &mdash; through Week {{ history_week }}</h5>
+    <table class="table table-striped standings bg-white mb-4">
+      <thead><tr><th>Player</th><th>Status</th><th>Week {{ history_week }} Pick</th></tr></thead>
+      <tbody>
+      {% for row in history_data.dropdead %}
+        <tr>
+          <td>{{ row.entry.user.username }}</td>
+          <td>
+            {% if row.is_active %}<span class="badge badge-alive">Alive</span>
+            {% else %}<span class="badge badge-eliminated">Out - Week {{ row.eliminated_week }}</span>{% endif %}
+          </td>
+          <td>
+            {% if row.week_pick and row.week_pick.team %}
+            <span class="{% if row.week_pick.result == 'win' %}text-success fw-bold{% elif row.week_pick.result == 'loss' %}text-danger fw-bold{% endif %}">
+              {{ row.week_pick.team.city }} {{ row.week_pick.team.name }}
+            </span>
+            {% else %}<span class="badge bg-secondary">No Pick</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h5><span class="pool-icon">📉</span>Loser Pool &mdash; through Week {{ history_week }}</h5>
+    <table class="table table-striped standings bg-white mb-4">
+      <thead><tr><th>#</th><th>Player</th><th>Points thru Wk{{ history_week }}</th><th>Week {{ history_week }} Pick</th></tr></thead>
+      <tbody>
+      {% for entry, total, week_pick in history_data.loser %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ entry.user.username }}</td>
+          <td><strong>{{ total }}</strong></td>
+          <td>
+            {% if week_pick and week_pick.team %}
+            <span class="{% if week_pick.result == 'win' %}text-success fw-bold{% elif week_pick.result == 'loss' %}text-danger fw-bold{% endif %}">
+              {{ week_pick.team.city }} {{ week_pick.team.name }}
+            </span>
+            {% else %}<span class="badge bg-secondary">No Pick</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h5><span class="pool-icon">🏈</span>Gridiron Investments &mdash; through Week {{ history_week }}</h5>
+    <table class="table table-striped standings bg-white">
+      <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>Week {{ history_week }} Picks</th></tr></thead>
+      <tbody>
+      {% for entry, wins, losses, ties, week_picks in history_data.gridiron %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ entry.user.username }}</td>
+          <td>{{ wins }}</td>
+          <td>{{ losses }}</td>
+          <td>{{ ties }}</td>
+          <td>
+            {% if week_picks %}
+              {% for wp in week_picks %}
+              <span class="d-block {% if wp.result == 'win' %}text-success fw-bold{% elif wp.result == 'loss' %}text-danger fw-bold{% endif %}">{{ wp.label }}</span>
+              {% endfor %}
+            {% else %}<span class="badge bg-secondary">No Picks</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% elif history_week %}
+    <p class="text-muted">Week {{ history_week }} isn't unlocked yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="tab-pane fade" id="player-pane" role="tabpanel">
+    <p class="text-muted">Pick a player to see every team they've picked this season, colored green for a win and red for a loss.</p>
+    <form method="get" action="{{ url_for('main.standings') }}#player-pane" class="mb-4">
+      <input type="hidden" name="week" value="{{ history_week or '' }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label">Player</label>
+          <select name="player" class="form-select" onchange="this.form.submit()">
+            <option value="">Select a player&hellip;</option>
+            {% for p in players %}
+            <option value="{{ p.id }}" {% if selected_player_id == p.id %}selected{% endif %}>{{ p.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </form>
+
+    {% if player_history %}
+    <table class="table table-striped standings bg-white">
+      <thead><tr><th>Pool</th><th>Wk</th><th>Team / Selection</th><th>Result</th></tr></thead>
+      <tbody>
+      {% for row in player_history %}
+        <tr>
+          <td>
+            {% if row.pool == 'dropdead' %}💀 Drop Dead
+            {% elif row.pool == 'loser' %}📉 Loser
+            {% else %}🏈 Gridiron{% endif %}
+          </td>
+          <td>{{ row.week }}</td>
+          <td>
+            <span class="badge {% if row.result == 'win' %}pick-win{% elif row.result == 'loss' %}pick-loss{% elif row.result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
+              {{ row.team }}
+            </span>
+          </td>
+          <td>
+            {% if row.result == 'win' %}✅ Win{% elif row.result == 'loss' %}❌ Loss{% elif row.result == 'push' %}Push{% else %}Pending{% endif %}
+            {% if row.pool == 'loser' and row.result in ('win', 'loss') %} ({{ row.points|int }}){% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% elif selected_player_id %}
+    <p class="text-muted">No picks found for that player.</p>
+    {% endif %}
+  </div>
+
+  <div class="tab-pane fade" id="allweeks-pane" role="tabpanel">
+    <p class="text-muted">Every unlocked week side by side, per pool.</p>
+
+    <h5><span class="pool-icon">💀</span>Drop Dead Pool</h5>
+    <div class="table-responsive mb-4">
+    <table class="table table-striped standings bg-white">
+      <thead>
+        <tr>
+          <th>Player</th>
+          {% for wn in unlocked_week_numbers %}<th>Wk{{ wn }}</th>{% endfor %}
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in all_weeks_data.dropdead %}
+        <tr>
+          <td>{{ row.entry.user.username }}</td>
+          {% for wn in unlocked_week_numbers %}
+            {% set p = row.cells[wn] %}
+            <td>
+              {% if p %}
+              <span class="badge {% if p.result == 'win' %}pick-win{% elif p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
+                {{ p.team.name if p.team else '?' }}
+              </span>
+              {% else %}<span class="badge bg-secondary">No Pick</span>{% endif %}
+            </td>
+          {% endfor %}
+          <td>
+            {% if row.entry.is_active %}<span class="badge badge-alive">Alive</span>
+            {% else %}<span class="badge badge-eliminated">Out - Wk{{ row.entry.eliminated_week }}</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ unlocked_week_numbers|length + 2 }}" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <h5><span class="pool-icon">📉</span>Loser Pool</h5>
+    <div class="table-responsive mb-4">
+    <table class="table table-striped standings bg-white">
+      <thead>
+        <tr>
+          <th>Player</th>
+          {% for wn in unlocked_week_numbers %}<th>Wk{{ wn }}</th>{% endfor %}
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in all_weeks_data.loser %}
+        <tr>
+          <td>{{ row.entry.user.username }}</td>
+          {% for wn in unlocked_week_numbers %}
+            {% set p = row.cells[wn] %}
+            <td>
+              {% if p %}
+              <span class="badge {% if p.result == 'win' %}pick-win{% elif p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
+                {{ p.team.name if p.team else '?' }}{% if p.result in ('win', 'loss') %} ({{ p.points|int }}){% endif %}
+              </span>
+              {% else %}<span class="badge bg-secondary">No Pick</span>{% endif %}
+            </td>
+          {% endfor %}
+          <td><strong>{{ row.total }}</strong></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ unlocked_week_numbers|length + 2 }}" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <h5><span class="pool-icon">🏈</span>Gridiron Investments</h5>
+    <div class="table-responsive">
+    <table class="table table-striped standings bg-white">
+      <thead>
+        <tr>
+          <th>Player</th>
+          {% for wn in unlocked_week_numbers %}<th>Wk{{ wn }}</th>{% endfor %}
+          <th>Season</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in all_weeks_data.gridiron %}
+        <tr>
+          <td>{{ row.entry.user.username }}</td>
+          {% for wn in unlocked_week_numbers %}
+            {% set c = row.cells[wn] %}
+            <td>
+              {% if c %}
+              <span class="badge {% if c.wins > c.losses %}pick-win{% elif c.losses > c.wins %}pick-loss{% else %}bg-secondary{% endif %}">
+                {% if c.missed %}MISSED (0-5){% else %}{{ c.wins }}-{{ c.losses }}-{{ c.ties }}{% endif %}
+              </span>
+              {% else %}<span class="badge bg-secondary">No Pick</span>{% endif %}
+            </td>
+          {% endfor %}
+          <td><strong>{{ row.wins }}-{{ row.losses }}-{{ row.ties }}</strong></td>
+          <td>
+            {% if row.entry.is_active %}<span class="badge badge-alive">Active</span>
+            {% else %}<span class="badge badge-eliminated">Benched</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ unlocked_week_numbers|length + 3 }}" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+{% if history_week or selected_player_id %}
+<script>
+  window.addEventListener('DOMContentLoaded', function () {
+    {% if selected_player_id %}
+    new bootstrap.Tab(document.getElementById('player-tab')).show();
+    {% elif history_week %}
+    new bootstrap.Tab(document.getElementById('history-tab')).show();
+    {% endif %}
+  });
+</script>
+{% endif %}
+{% endblock %}

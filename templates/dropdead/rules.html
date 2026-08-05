@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Drop Dead Pool Rules{% endblock %}
+{% block content %}
+<div class="page-header header-dropdead"><h2><span class="pool-icon">💀</span>Drop Dead Pool</h2></div>
+<p class="text-muted">The object is to be the last guy or gal standing. $20 entry fee per line: 70% to first place, 20% to second, 10% to third.</p>
+
+<ol class="mb-4">
+  <li>For each week of the NFL regular season, one NFL team is selected to win straight up with <strong>NO</strong> point spread.</li>
+  <li>Each of the 32 NFL teams may be selected <strong>ONLY ONCE</strong> during the 18 week season.</li>
+  <li>If your selected team loses or ties, or if you fail to turn in a pick by Saturday at noon (EST), you're done &mdash; unless you buy back in.</li>
+  <li>The competition ceases when there remains only one player standing, or, when fewer than 5 players remain and all lose in a week, the pool concludes at the end of that NFL week. If 5+ remain and all lose, the competition continues. Ties at the end are split pro-rata.</li>
+  <li>If a tie remains after the regular 18-week season, survivors continue into the playoffs using the 12 playoff teams (each usable once). A tie after the Super Bowl splits the pool equally.</li>
+  <li>Buy-back: any entrant who would be eliminated in weeks 1-4 may revive their entry for a $30 fee per buy-back. Teams already used remain unavailable.</li>
+  <li>Picks are due Saturday at noon (EST).</li>
+</ol>
+
+{% if current_user.is_authenticated %}
+<form method="post" action="{{ url_for('dropdead.join') }}">
+  <button type="submit" class="btn btn-dropdead">🏈 Join the Drop Dead Pool</button>
+</form>
+{% else %}
+<a href="{{ url_for('auth.login') }}" class="btn btn-dropdead">Log in to join</a>
+{% endif %}
+{% endblock %}

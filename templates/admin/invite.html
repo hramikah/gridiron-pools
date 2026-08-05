@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Invite Players - Admin{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">✉️</span>Invite Players</h2></div>
+<p class="text-muted">Enter one email per line (or comma-separated) for a single invite or a bulk batch. Each address gets the same invite email with the app link.</p>
+
+<div class="card" style="max-width: 600px;">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">Email address(es)</label>
+        <textarea name="emails" class="form-control" rows="8" placeholder="player1@example.com&#10;player2@example.com&#10;player3@example.com" required></textarea>
+        <div class="form-text">One per line, or separated by commas.</div>
+      </div>
+      <button type="submit" class="btn btn-gridiron">✉️ Send Invite(s)</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Loser Pool - Standings{% endblock %}
+{% block content %}
+<div class="page-header header-loser"><h2><span class="pool-icon">📉</span>Loser Pool Standings</h2></div>
+<div class="table-responsive">
+<table class="table table-striped standings bg-white">
+  <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead>
+  <tbody>
+  {% for entry, total in rows %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ entry.user.username }}</td>
+      <td><strong>{{ total }}</strong></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

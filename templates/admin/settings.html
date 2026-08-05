@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Settings - Admin{% endblock %}
+{% block content %}
+<h2>Settings</h2>
+
+<div class="card mb-4" style="max-width: 600px;">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">The Odds API key</label>
+        <input type="text" name="odds_api_key" class="form-control" value="{{ odds_api_key }}" placeholder="paste your the-odds-api.com key">
+        <div class="form-text">Used to auto-publish NFL/NCAAF spreads &amp; totals every Thursday.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Season Week 1 Thursday</label>
+        <input type="date" name="season_start_thursday" class="form-control" value="{{ season_start_thursday }}">
+        <div class="form-text">The Thursday that kicks off Week 1. Used to compute week numbers and each week's Thu&ndash;Wed window / Saturday-noon deadline.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">App link (used in invite emails)</label>
+        <input type="text" name="site_url" class="form-control" value="{{ site_url }}" placeholder="http://100.71.232.56:8090">
+        <div class="form-text">The URL players use to reach the app &mdash; update this if your Tailscale IP or domain changes.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+    </form>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('admin.publish_now') }}">
+  <button type="submit" class="btn btn-success" onclick="return confirm('Fetch current lines from The Odds API and publish/update this week\'s games now?')">
+    Publish This Week's Lines Now
+  </button>
+</form>
+{% endblock %}

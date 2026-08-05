@@ -1,0 +1,181 @@
+:root {
+  /* Tampa Bay Buccaneers palette: Buccaneer Red, Pewter, Black, Bay Orange */
+  --field-green: #34302b;
+  --field-green-dark: #0a0a08;
+  --pigskin: #8b5a2b;
+  --gold: #ff7900;
+  --chalk: #f5f5f0;
+  --dropdead-accent: #d50a0a;
+  --dropdead-accent-dark: #970606;
+  --loser-accent: #0a0a08;
+  --loser-accent-dark: #000000;
+  --gridiron-accent: #ff7900;
+  --gridiron-accent-dark: #cc6100;
+}
+
+body {
+  background-color: #eeecea;
+  background-image:
+    repeating-linear-gradient(180deg, rgba(52,48,43,0.045) 0px, rgba(52,48,43,0.045) 2px, transparent 2px, transparent 42px);
+}
+
+/* Navbar */
+.navbar.bg-dark {
+  background: linear-gradient(90deg, var(--field-green-dark), var(--field-green)) !important;
+  border-bottom: 4px solid var(--gold);
+}
+.navbar .nav-link:hover {
+  color: var(--gold) !important;
+}
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+
+/* Hero band on the home page */
+.hero-band {
+  background: linear-gradient(135deg, var(--field-green-dark) 0%, var(--field-green) 55%, var(--pigskin) 100%);
+  background-image:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0.06) 2px, transparent 2px, transparent 60px),
+    linear-gradient(135deg, var(--field-green-dark) 0%, var(--field-green) 55%, var(--pigskin) 100%);
+  color: #fff;
+  border-radius: .75rem;
+  padding: 2.5rem 2rem;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.hero-band h1 {
+  font-weight: 800;
+}
+.hero-football {
+  font-size: 3rem;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.4));
+}
+
+/* Pool cards */
+.pool-card {
+  transition: transform .15s ease-in-out, box-shadow .15s ease-in-out;
+  border-top: 6px solid var(--gridiron-accent);
+  overflow: hidden;
+}
+.pool-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 .75rem 1.5rem rgba(0,0,0,.15) !important;
+}
+.pool-card.pool-dropdead { border-top-color: var(--dropdead-accent); }
+.pool-card.pool-loser { border-top-color: var(--loser-accent); }
+.pool-card.pool-gridiron { border-top-color: var(--gridiron-accent); }
+
+.pool-icon {
+  font-size: 1.6rem;
+  margin-right: .35rem;
+}
+
+/* Themed page headers per pool */
+.page-header {
+  border-left: 6px solid var(--gridiron-accent);
+  background: #fff;
+  padding: .75rem 1rem;
+  border-radius: .375rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 .125rem .375rem rgba(0,0,0,.06);
+}
+.page-header.header-dropdead { border-left-color: var(--dropdead-accent); }
+.page-header.header-loser { border-left-color: var(--loser-accent); }
+.page-header.header-gridiron { border-left-color: var(--gridiron-accent); }
+.page-header h2 { margin-bottom: 0; }
+
+/* Themed buttons */
+.btn-dropdead { background-color: var(--dropdead-accent); border-color: var(--dropdead-accent-dark); color: #fff; }
+.btn-dropdead:hover { background-color: var(--dropdead-accent-dark); color: #fff; }
+.btn-loser { background-color: var(--loser-accent); border-color: var(--loser-accent-dark); color: #fff; }
+.btn-loser:hover { background-color: var(--loser-accent-dark); color: #fff; }
+.btn-gridiron { background-color: var(--gridiron-accent); border-color: var(--gridiron-accent-dark); color: #fff; }
+.btn-gridiron:hover { background-color: var(--gridiron-accent-dark); color: #fff; }
+
+.badge-eliminated {
+  background-color: #dc3545;
+}
+.badge-alive {
+  background-color: #198754;
+}
+.btn-in-pool {
+  background-color: #198754;
+  border-color: #198754;
+  color: #fff;
+}
+.btn-in-pool:hover {
+  background-color: #157347;
+  border-color: #146c43;
+  color: #fff;
+}
+
+/* Scoreboard-style tables */
+table.standings thead th {
+  background: linear-gradient(90deg, var(--field-green-dark), var(--field-green));
+  color: #fff;
+  border-color: var(--field-green-dark);
+}
+table.standings {
+  box-shadow: 0 .125rem .375rem rgba(0,0,0,.08);
+}
+table.standings th, table.standings td {
+  vertical-align: middle;
+}
+
+/* Nav tabs themed */
+.nav-tabs .nav-link.active {
+  border-top: 3px solid var(--gold);
+  font-weight: 600;
+}
+
+.pick-win {
+  background-color: #198754 !important;
+  color: #fff !important;
+}
+.pick-loss {
+  background-color: #dc3545 !important;
+  color: #fff !important;
+}
+.pick-push {
+  background-color: #6c757d !important;
+  color: #fff !important;
+}
+
+/* Locked-in pick lists (gridiron pick page) use block-level badges with
+   long matchup text -- override Bootstrap's badge nowrap so they wrap
+   instead of overflowing the card on narrow screens. */
+li.badge {
+  white-space: normal;
+  text-align: left;
+}
+
+/* Big live clock on pick pages */
+.live-clock {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--field-green-dark);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 576px) {
+  .live-clock { font-size: 2rem; }
+}
+
+/* Football laces divider */
+.laces-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  margin: 1.5rem 0;
+  color: var(--pigskin);
+  opacity: .6;
+}
+.laces-divider::before, .laces-divider::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  background: var(--pigskin);
+  opacity: .35;
+}

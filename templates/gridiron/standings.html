@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Gridiron Investments - Standings{% endblock %}
+{% block content %}
+<div class="page-header header-gridiron"><h2><span class="pool-icon">🏈</span>Gridiron Investments Standings</h2></div>
+<div class="table-responsive">
+<table class="table table-striped standings bg-white">
+  <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for entry, wins, losses, ties in rows %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ entry.user.username }}</td>
+      <td>{{ wins }}</td>
+      <td>{{ losses }}</td>
+      <td>{{ ties }}</td>
+      <td>
+        {% if entry.is_active %}<span class="badge badge-alive">Active</span>
+        {% else %}<span class="badge badge-eliminated">Benched (Wk{{ entry.eliminated_week }})</span>{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="text-muted small">A tie is a push against the spread (the final margin lands exactly on the line). Missed weeks are scored 0-5 and unlock an 8-pick makeup week; missing more than 5 weeks benches the entry.</p>
+{% endblock %}

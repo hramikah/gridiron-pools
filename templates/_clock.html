@@ -1,0 +1,19 @@
+<div class="text-center mb-4">
+  <div id="live-clock" class="live-clock">&nbsp;</div>
+  <div class="text-muted small">Current time &mdash; Eastern (picks lock at the deadline shown below)</div>
+</div>
+<script>
+(function () {
+  var el = document.getElementById('live-clock');
+  var options = {
+    timeZone: 'America/New_York', weekday: 'short', year: 'numeric', month: 'short',
+    day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+  };
+  var formatter = new Intl.DateTimeFormat('en-US', options);
+  function tick() {
+    el.textContent = formatter.format(new Date());
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>

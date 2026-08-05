@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Payments - Admin{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">💵</span>Payments</h2></div>
+<p class="text-muted">Entry-fee tracking, admin-only &mdash; players never see this. Drop Dead and Loser Pool are $20/entry; Gridiron Investments is $100/entry.</p>
+
+<h5 class="mt-2">By Player &mdash; Who Owes What</h5>
+<div class="table-responsive mb-4">
+<table class="table table-striped standings bg-white">
+  <thead><tr><th>Player</th><th>Drop Dead</th><th>Loser</th><th>Gridiron</th><th>Total Owed</th></tr></thead>
+  <tbody>
+  {% for username, row in player_rows %}
+    <tr>
+      <td>{{ username }}</td>
+      {% for pool in ['dropdead', 'loser', 'gridiron'] %}
+      <td>
+        {% if row[pool] %}
+          {% for e in row[pool] %}
+            {% if e.paid %}<span class="badge badge-alive">Paid</span>{% else %}<span class="badge bg-warning text-dark">Unpaid ${{ fees[pool] }}</span>{% endif %}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        {% else %}
+          <span class="text-muted">&mdash;</span>
+        {% endif %}
+      </td>
+      {% endfor %}
+      <td>{% if row.owed %}<strong>${{ row.owed }}</strong>{% else %}<span class="text-muted">$0</span>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-muted">No entries yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h5>All Entries</h5>
+<div class="table-responsive">
+<table class="table table-striped standings bg-white">
+  <thead><tr><th>Player</th><th>Pool</th><th>Entry</th><th>Fee</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    <tr>
+      <td>{{ e.user.username }}</td>
+      <td>{{ pool_labels[e.pool] }}</td>
+      <td>{{ e.label }}</td>
+      <td>${{ fees[e.pool] }}</td>
+      <td>
+        {% if e.paid %}<span class="badge badge-alive">Paid</span>
+        {% else %}<span class="badge bg-warning text-dark">Unpaid</span>{% endif %}
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('admin.toggle_paid', entry_id=e.id) }}">
+          <button type="submit" class="btn btn-sm {% if e.paid %}btn-outline-secondary{% else %}btn-gridiron{% endif %}">
+            {% if e.paid %}Mark Unpaid{% else %}Mark Paid{% endif %}
+          </button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

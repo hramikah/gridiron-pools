@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Loser Pool Point Values - Admin{% endblock %}
+{% block content %}
+<h2>Loser Pool Point Values ({{ season_year }})</h2>
+<form method="post">
+  <div class="row row-cols-2 row-cols-md-4 g-3">
+    {% for t in teams %}
+    <div class="col">
+      <label class="form-label">{{ t.name }}</label>
+      <input type="number" name="points_{{ t.id }}" class="form-control" value="{{ current_points.get(t.id, '') }}">
+    </div>
+    {% endfor %}
+  </div>
+  <button type="submit" class="btn btn-primary mt-4">Save Point Values</button>
+</form>
+{% endblock %}

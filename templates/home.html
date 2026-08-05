@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Gridiron Pools{% endblock %}
+{% block content %}
+<div class="hero-band text-center">
+  <div class="hero-football mb-2">🏈</div>
+  <h1 class="mb-2">Welcome to Gridiron Pools</h1>
+  <p class="mb-0">Pick 'em pools for the {{ season_year }} NFL season. Pick your entry to see rules, submit weekly picks, and check standings.</p>
+</div>
+
+{% if current_user.is_authenticated and not my_entries %}
+<div class="alert alert-info">
+  You haven't joined any pools yet. <a href="{{ url_for('auth.choose_pools') }}" class="alert-link">Choose your pools</a> to get started.
+</div>
+{% endif %}
+
+<div class="row g-4">
+  {% if not current_user.is_authenticated or my_entries.get('dropdead') %}
+  <div class="col-md-4">
+    <div class="card pool-card pool-dropdead h-100 shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title"><span class="pool-icon">💀</span>Drop Dead Pool</h4>
+        <p class="card-text">Survivor pool. Pick one NFL team to win straight up each week. Lose or tie and you're out &mdash; unless you buy back in during the first four weeks.</p>
+        <a href="{{ url_for('dropdead.rules') }}" class="btn btn-outline-dark btn-sm">Rules</a>
+        <a href="{{ url_for('dropdead.standings') }}" class="btn btn-outline-dark btn-sm">Standings</a>
+        {% if my_entries.get('dropdead') %}
+        <a href="{{ url_for('dropdead.pick') }}" class="btn btn-dropdead btn-sm">Make Pick</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if not current_user.is_authenticated or my_entries.get('loser') %}
+  <div class="col-md-4">
+    <div class="card pool-card pool-loser h-100 shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title"><span class="pool-icon">📉</span>Loser Pool</h4>
+        <p class="card-text">Pick an NFL team to LOSE each week &mdash; any team, any week. Correct picks earn that team's point value; wrong picks deduct it.</p>
+        <a href="{{ url_for('loser.rules') }}" class="btn btn-outline-dark btn-sm">Rules</a>
+        <a href="{{ url_for('loser.standings') }}" class="btn btn-outline-dark btn-sm">Standings</a>
+        {% if my_entries.get('loser') %}
+        <a href="{{ url_for('loser.pick') }}" class="btn btn-loser btn-sm">Make Pick</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if not current_user.is_authenticated or my_entries.get('gridiron') %}
+  <div class="col-md-4">
+    <div class="card pool-card pool-gridiron h-100 shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title"><span class="pool-icon">🏆</span>Gridiron Investments</h4>
+        <p class="card-text">Pick 5 NFL/college games against the spread each week (plus optional NFL over/under). Most correct picks over the season wins.</p>
+        <a href="{{ url_for('gridiron.rules') }}" class="btn btn-outline-dark btn-sm">Rules</a>
+        <a href="{{ url_for('gridiron.standings') }}" class="btn btn-outline-dark btn-sm">Standings</a>
+        {% if my_entries.get('gridiron') %}
+        <a href="{{ url_for('gridiron.pick') }}" class="btn btn-gridiron btn-sm">Make Picks</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if current_user.is_authenticated and my_entries %}
+<p class="text-muted mt-3">Want to join another pool? <a href="{{ url_for('auth.choose_pools') }}">Choose more pools</a>.</p>
+{% endif %}
+
+<div class="laces-divider">🏈🏈🏈</div>
+{% endblock %}

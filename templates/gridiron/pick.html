@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Gridiron Investments - Make Picks{% endblock %}
+{% block content %}
+<div class="page-header header-gridiron"><h2><span class="pool-icon">🏈</span>Gridiron Investments</h2></div>
+{% include "_clock.html" %}
+
+{% if not entries %}
+<p>You don't have an entry yet. <a href="{{ url_for('gridiron.rules') }}">Join here.</a></p>
+{% else %}
+
+{% if week %}
+<p class="text-muted">Week {{ week.number }} &mdash; Picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
+  {% if locked %}<span class="badge bg-danger">Deadline passed</span>{% endif %}
+</p>
+{% if not games %}<p class="text-muted">No games have been posted for this week yet.</p>{% endif %}
+{% else %}
+<p class="text-muted">No weeks have been set up yet.</p>
+{% endif %}
+
+{% for entry in entries %}
+{% set limit = pick_limits.get(entry.id, 5) %}
+{% set remaining = remaining_by_entry.get(entry.id, 0) %}
+<div class="card mb-4">
+  <div class="card-body">
+    {% if not entry.is_active %}
+    <h5 class="card-title"><span class="badge badge-eliminated">Benched (missed 5+ weeks)</span></h5>
+    {% endif %}
+    {% if entry.is_active and limit > 5 %}
+      <p class="mb-2"><span class="badge bg-warning text-dark">Makeup week: 8 picks allowed (missed last week)</span></p>
+    {% endif %}
+    {% set my_picks = picks_this_week.get(entry.id, {}) %}
+
+    {% if not entry.is_active %}
+      <p class="text-muted mb-0">This entry has been benched for missing more than 5 weeks and can no longer submit picks.</p>
+    {% else %}
+      {% if my_picks %}
+      {% set my_results = picks_results_this_week.get(entry.id, {}) %}
+      {% set complete = week_is_complete(week) %}
+      <div class="p-3 mb-3 bg-light rounded border border-2" style="border-left: 5px solid var(--gridiron-accent) !important;">
+      <p class="mb-1"><strong>Locked in so far ({{ my_picks|length }} / {{ limit }}):</strong>
+        <span class="badge bg-secondary">Can't be changed once saved</span>
+      </p>
+      <ul class="list-unstyled mb-0">
+        {% for g in all_games %}
+          {% if my_picks.get((g.id,'spread')) %}
+            {% set result = my_results.get((g.id,'spread')) %}
+            <li class="badge {% if complete and result == 'win' %}pick-win{% elif complete and result == 'loss' %}pick-loss{% elif complete and result == 'push' %}pick-push{% else %}bg-secondary{% endif %} mb-1 d-block text-start">
+              {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ g.home_team if my_picks[(g.id,'spread')] == 'home' else g.away_team }}</strong> (spread)
+            </li>
+          {% endif %}
+          {% if my_picks.get((g.id,'total')) %}
+            {% set result = my_results.get((g.id,'total')) %}
+            <li class="badge {% if complete and result == 'win' %}pick-win{% elif complete and result == 'loss' %}pick-loss{% elif complete and result == 'push' %}pick-push{% else %}bg-secondary{% endif %} mb-1 d-block text-start">
+              {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ my_picks[(g.id,'total')]|capitalize }} {{ g.over_under }}</strong>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+      </div>
+      {% endif %}
+
+      {% if not week %}
+        {# top-level "No weeks have been set up yet" message already covers this #}
+      {% elif remaining <= 0 %}
+        <p class="text-muted mb-0">All {{ limit }} picks are locked in for this week.</p>
+      {% elif locked %}
+        <p class="text-muted mb-0">The pick deadline for this week has passed.</p>
+      {% elif not games %}
+        <p class="text-muted mb-0">No more games are available to pick right now &mdash; picks close 1 hour before each game's kickoff.</p>
+      {% else %}
+    {% macro game_row(g, my_picks, locked, show_total) %}
+          {% set spread_locked = my_picks.get((g.id,'spread')) %}
+          {% set total_locked = my_picks.get((g.id,'total')) %}
+          {% if not (spread_locked and (not g.over_under or total_locked)) %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ g.away_team }} @ {{ g.home_team }}</div>
+              <div class="small text-muted">
+                {% if g.kickoff %}{{ g.kickoff.strftime('%a %b %d, %I:%M %p') }} Eastern &middot; {% endif %}
+                {% if g.favorite == 'home' %}{{ g.home_team }} -{{ g.spread }} / {{ g.away_team }} +{{ g.spread }}
+                {% elif g.favorite == 'away' %}{{ g.away_team }} -{{ g.spread }} / {{ g.home_team }} +{{ g.spread }}
+                {% else %}Pick'em{% endif %}
+                {% if g.over_under %} &middot; O/U {{ g.over_under }}{% endif %}
+                {% if g.is_mnf %} <span class="badge bg-dark">MNF</span>{% endif %}
+              </div>
+            </td>
+            <td>
+              {% if spread_locked %}
+                <span class="badge bg-secondary">Locked: {{ g.home_team if spread_locked == 'home' else g.away_team }}</span>
+              {% else %}
+              <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if locked %}disabled{% endif %}>
+                <label class="btn btn-outline-primary btn-sm" for="sp_{{ g.id }}_away">{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+
+                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if locked %}disabled{% endif %}>
+                <label class="btn btn-outline-primary btn-sm" for="sp_{{ g.id }}_home">{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+
+                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_none" value="" autocomplete="off" checked {% if locked %}disabled{% endif %}>
+                <label class="btn btn-outline-secondary btn-sm d-none" for="sp_{{ g.id }}_none"></label>
+              </div>
+              {% endif %}
+            </td>
+            {% if show_total %}
+            <td>
+              {% if g.over_under %}
+                {% if total_locked %}
+                  <span class="badge bg-secondary">Locked: {{ total_locked|capitalize }} {{ g.over_under }}</span>
+                {% else %}
+                <div class="btn-group" role="group">
+                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_over" value="over" autocomplete="off" {% if locked %}disabled{% endif %}>
+                  <label class="btn btn-outline-success btn-sm" for="ou_{{ g.id }}_over">Over {{ g.over_under }}</label>
+
+                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_under" value="under" autocomplete="off" {% if locked %}disabled{% endif %}>
+                  <label class="btn btn-outline-success btn-sm" for="ou_{{ g.id }}_under">Under {{ g.over_under }}</label>
+
+                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_none" value="" autocomplete="off" checked {% if locked %}disabled{% endif %}>
+                  <label class="btn btn-outline-secondary btn-sm d-none" for="ou_{{ g.id }}_none"></label>
+                </div>
+                {% endif %}
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endif %}
+    {% endmacro %}
+
+    <form method="post" class="gridiron-pick-form" data-max-picks="{{ remaining }}">
+      <input type="hidden" name="entry_id" value="{{ entry.id }}">
+      <p class="text-muted small mb-2">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>
+
+      {% set nfl_games = games|selectattr('sport', 'equalto', 'nfl')|list %}
+      {% set college_games = games|selectattr('sport', 'equalto', 'college')|list %}
+
+      {% if nfl_games %}
+      <h6 class="text-uppercase text-muted fw-bold mt-3 mb-2">🏈 NFL</h6>
+      <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Game</th><th>Spread pick</th>{% if nfl_games|selectattr('over_under')|list %}<th>Total pick</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for g in nfl_games %}{{ game_row(g, my_picks, locked, nfl_games|selectattr('over_under')|list|length > 0) }}{% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% endif %}
+
+      {% if college_games %}
+      <h6 class="text-uppercase text-muted fw-bold mt-4 mb-2 pt-3 border-top">🎓 College</h6>
+      <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Game</th><th>Spread pick</th></tr></thead>
+        <tbody>
+        {% for g in college_games %}{{ game_row(g, my_picks, locked, false) }}{% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-gridiron gridiron-submit" {% if locked %}disabled{% endif %}>Save Picks (max {{ remaining }})</button>
+      <span class="ms-2 gridiron-pick-count text-muted"></span>
+    </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<script>
+(function () {
+  document.querySelectorAll('form.gridiron-pick-form').forEach(function (form) {
+    var maxPicks = parseInt(form.dataset.maxPicks, 10) || 5;
+    var countEl = form.querySelector('.gridiron-pick-count');
+    var submitBtn = form.querySelector('.gridiron-submit');
+
+    function countSelections() {
+      var radios = form.querySelectorAll('input[type=radio][name^="sel_"]');
+      var count = 0;
+      radios.forEach(function (r) {
+        if (r.checked && r.value !== '') count++;
+      });
+      return count;
+    }
+
+    function refresh() {
+      var count = countSelections();
+      var over = count > maxPicks;
+      countEl.textContent = count + ' / ' + maxPicks + ' selected' + (over ? ' — too many, remove one' : '');
+      countEl.classList.toggle('text-danger', over);
+      countEl.classList.toggle('text-muted', !over);
+      submitBtn.disabled = over || submitBtn.dataset.locked === 'true';
+    }
+
+    if (submitBtn.disabled) {
+      submitBtn.dataset.locked = 'true';
+    }
+
+    form.addEventListener('change', refresh);
+    refresh();
+  });
+
+  function updateClearLabel(name) {
+    var radios = document.querySelectorAll('input[type=radio][name="' + CSS.escape(name) + '"]');
+    var noneRadio = null, hasPick = false;
+    radios.forEach(function (r) {
+      if (r.value === '') noneRadio = r;
+      else if (r.checked) hasPick = true;
+    });
+    if (noneRadio) {
+      var label = document.querySelector('label[for="' + noneRadio.id + '"]');
+      if (label) {
+        label.textContent = 'Clear Selection';
+        label.classList.toggle('d-none', !hasPick);
+      }
+    }
+  }
+
+  document.querySelectorAll('input[type=radio][name^="sel_"]').forEach(function (radio) {
+    updateClearLabel(radio.name);
+    radio.addEventListener('change', function () {
+      updateClearLabel(radio.name);
+    });
+  });
+})();
+</script>
+{% endblock %}

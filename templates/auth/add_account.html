@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Add Another Account - Gridiron Pools{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5">
+    <h2 class="mb-4 text-center"><span class="pool-icon">🏈</span>Add another account</h2>
+    <p class="text-muted">Creates a new login for another entry, linked to your same email (<strong>{{ email }}</strong>). Pick a different username and password &mdash; you'll be switched into the new account and asked which pools to join.</p>
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">New username</label>
+        <input type="text" class="form-control" name="username" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-control" name="password" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary">Create Account</button>
+      <a href="{{ url_for('main.index') }}" class="btn btn-link">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

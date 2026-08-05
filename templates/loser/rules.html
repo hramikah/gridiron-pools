@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Loser Pool Rules{% endblock %}
+{% block content %}
+<div class="page-header header-loser"><h2><span class="pool-icon">📉</span>Loser Pool</h2></div>
+<p class="text-muted">NO point spreads &mdash; just pick losers! $20 per entry, good for the whole season. More than one entry per person is permitted &mdash; one entry per account, so register a separate account for each additional entry. 70% to first, 20% to second, 10% to third.</p>
+
+<ul class="mb-4">
+  <li>Pick one NFL team to LOSE each week of the 18-week regular season. Any team may be selected any week (NFL only).</li>
+  <li>For each correct LOSER pick, you accumulate that team's point value (see table below).</li>
+  <li>If your picked team wins or ties, its point value is <strong>deducted</strong> from your total.</li>
+  <li>Highest accumulated points at season's end wins.</li>
+  <li>Picks are due Saturday at noon (EST). If you forget, the visiting team on that week's Monday Night Football game becomes your automatic pick.</li>
+</ul>
+
+<h5>{{ season_year }} Point Values</h5>
+<div class="row">
+  {% for lp in points %}
+  <div class="col-6 col-md-3 mb-1"><span class="badge bg-secondary">{{ lp.points }}</span> {{ lp.team.name }}</div>
+  {% endfor %}
+</div>
+
+<div class="mt-4">
+{% if current_user.is_authenticated %}
+<form method="post" action="{{ url_for('loser.join') }}">
+  <button type="submit" class="btn btn-loser">🏈 Join the Loser Pool</button>
+</form>
+{% else %}
+<a href="{{ url_for('auth.login') }}" class="btn btn-loser">Log in to join</a>
+{% endif %}
+</div>
+{% endblock %}

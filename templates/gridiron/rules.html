@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Gridiron Investments Rules{% endblock %}
+{% block content %}
+<div class="page-header header-gridiron"><h2><span class="pool-icon">🏈</span>Gridiron Investments</h2></div>
+<p class="text-muted">$100 entry fee per line. Payouts are tiered based on total entries (roughly the top 12% of the field is paid), plus 1st/2nd half and specialty awards.</p>
+
+<ol class="mb-4">
+  <li>Each participant makes five (5) picks weekly. A pick week runs Thursday through the following Wednesday.</li>
+  <li>Picks may combine NFL and college games, using lines provided weekly. Picks are against the spread; NFL games may also offer an Over/Under selection (you may pick both the spread winner <em>and</em> the O/U for the same game, but not both sides of the same market).</li>
+  <li>The season runs 90 total picks across the 18-week NFL regular season, including any college games (bowl games included) played in that window.</li>
+  <li>Picks are due by Saturday at noon (EST). Games kicking off earlier must be picked at least one hour before kickoff.</li>
+  <li>Standings are ranked by total correct picks (wins) for the season, with ties broken by fewest incorrect picks.</li>
+  <li>If you fail to submit picks for a week, that week is automatically scored 0-5, and you're allowed 8 picks (instead of 5) the following week to make up for it. Missing more than 5 weeks benches the entry for the rest of the season.</li>
+</ol>
+
+<div class="mt-4">
+{% if current_user.is_authenticated %}
+<form method="post" action="{{ url_for('gridiron.join') }}">
+  <button type="submit" class="btn btn-gridiron">🏈 Join Gridiron Investments</button>
+</form>
+{% else %}
+<a href="{{ url_for('auth.login') }}" class="btn btn-gridiron">Log in to join</a>
+{% endif %}
+</div>
+{% endblock %}

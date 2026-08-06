@@ -65,7 +65,7 @@
       {% for g in pending_games %}
         <tr>
           <td>Week {{ g.week.number }}</td>
-          <td><a href="{{ url_for('admin.week_detail', week_id=g.week_id) }}">{{ g.away_team }} @ {{ g.home_team }}</a></td>
+          <td><a href="{{ url_for('admin.pool_week', pool=g.pool, week_id=g.week_id) }}">{{ g.away_team }} @ {{ g.home_team }}</a></td>
           <td>{{ g.kickoff.strftime('%a %b %d, %I:%M %p') if g.kickoff else '—' }}</td>
         </tr>
       {% endfor %}

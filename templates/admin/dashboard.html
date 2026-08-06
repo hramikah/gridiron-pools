@@ -1,48 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Admin{% endblock %}
+{% block title %}Pick Manager{% endblock %}
 {% block content %}
-<div class="page-header"><h2><span class="pool-icon">⚙️</span>Admin Dashboard</h2></div>
+<div class="page-header"><h2><span class="pool-icon">⚙️</span>Pick Manager</h2></div>
 <p>
   <a href="{{ url_for('admin.reports') }}">Admin Reports</a>
   &middot; <a href="{{ url_for('admin.loser_points') }}">Manage Loser Pool point values</a>
   &middot; <a href="{{ url_for('admin.settings') }}">Odds API &amp; season settings</a>
 </p>
 
-<div class="card mb-4">
-  <div class="card-body">
-    <h5>Add a Week</h5>
-    <form method="post" action="{{ url_for('admin.new_week') }}" class="row g-2 align-items-end">
-      <div class="col-auto">
-        <label class="form-label">Week #</label>
-        <input type="number" name="number" class="form-control" min="1" max="22" required>
+<h5 class="mb-3">Choose a pool to manage its weeks, deadlines, lines &amp; results</h5>
+<div class="row g-3 mb-2">
+  {% set pool_icons = {'dropdead': '💀', 'loser': '📉', 'gridiron': '🏈'} %}
+  {% set pool_blurbs = {
+      'dropdead': 'Straight-up NFL survival — no spreads. Weekly matchups, results, eliminations.',
+      'loser': 'Pick a team to lose — no spreads. Matchups, results, and point values.',
+      'gridiron': 'Against the spread, NFL + college. Lines (spreads &amp; over/unders).'
+  } %}
+  {% for p in pools %}
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title"><span class="pool-icon">{{ pool_icons[p] }}</span>{{ pool_labels[p] }}</h5>
+        <p class="card-text text-muted small flex-grow-1">{{ pool_blurbs[p]|safe }}</p>
+        <div>
+          <span class="badge bg-secondary">{{ week_counts[p] }} week(s)</span>
+          <span class="badge bg-secondary">{{ game_counts[p] }} game(s)</span>
+        </div>
+        <a href="{{ url_for('admin.pool_manager', pool=p) }}" class="btn btn-primary mt-3">Manage {{ pool_labels[p] }}</a>
       </div>
-      <div class="col-auto">
-        <label class="form-label">Pick deadline (Eastern time, e.g. Saturday noon)</label>
-        <input type="datetime-local" name="pick_deadline" class="form-control" required>
-      </div>
-      <div class="col-auto">
-        <button type="submit" class="btn btn-primary">Create Week</button>
-      </div>
-    </form>
+    </div>
   </div>
-</div>
-
-<h5>Weeks</h5>
-<div class="table-responsive">
-<table class="table bg-white">
-  <thead><tr><th>Week</th><th>Deadline</th><th>Games</th><th></th></tr></thead>
-  <tbody>
-  {% for w in weeks %}
-    <tr>
-      <td>Week {{ w.number }}</td>
-      <td>{{ w.pick_deadline.strftime('%a %b %d, %I:%M %p') }}</td>
-      <td>{{ w.games|length }}</td>
-      <td><a href="{{ url_for('admin.week_detail', week_id=w.id) }}" class="btn btn-sm btn-outline-primary">Manage</a></td>
-    </tr>
-  {% else %}
-    <tr><td colspan="4" class="text-muted">No weeks yet.</td></tr>
   {% endfor %}
-  </tbody>
-</table>
 </div>
+<p class="text-muted small">Each pool keeps its own weeks and deadlines — create and manage them inside each pool.</p>
 {% endblock %}

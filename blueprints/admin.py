@@ -9,7 +9,7 @@ from mailer import send_invite_emails
 from models import POOL_LABELS, POOLS, ContactMessage, Entry, Game, GridironMiss, LoserPoolPoints, Pick, Team, User, Week, db
 from notifications import email_week_picks
 from publisher import publish_week
-from scoring import process_missed_picks, score_game
+from scoring import ensure_missed_processed, gridiron_pick_limit, process_missed_picks, score_game
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -26,8 +26,96 @@ def guard():
 @bp.route("/")
 def dashboard():
     season_year = current_app.config["CURRENT_SEASON"]
-    weeks = Week.query.filter_by(season_year=season_year).order_by(Week.number).all()
-    return render_template("admin/dashboard.html", weeks=weeks)
+    # per-pool summary for the landing cards: week count + game count
+    week_counts = {pool: 0 for pool in POOLS}
+    for w in Week.query.filter_by(season_year=season_year).all():
+        week_counts[w.pool] = week_counts.get(w.pool, 0) + 1
+    game_counts = {pool: 0 for pool in POOLS}
+    for g in Game.query.join(Week).filter(Week.season_year == season_year).all():
+        game_counts[g.pool] = game_counts.get(g.pool, 0) + 1
+    return render_template(
+        "admin/dashboard.html",
+        pools=POOLS,
+        pool_labels=POOL_LABELS,
+        week_counts=week_counts,
+        game_counts=game_counts,
+    )
+
+
+@bp.route("/pool/<pool>")
+def pool_manager(pool):
+    if pool not in POOLS:
+        flash("Unknown pool.", "error")
+        return redirect(url_for("admin.dashboard"))
+    season_year = current_app.config["CURRENT_SEASON"]
+    weeks = (
+        Week.query.filter_by(season_year=season_year, pool=pool)
+        .order_by(Week.number)
+        .all()
+    )
+    for w in weeks:
+        ensure_missed_processed(w)  # apply penalties for any past-deadline week
+    game_counts = {}
+    for g in Game.query.join(Week).filter(Week.season_year == season_year, Game.pool == pool).all():
+        game_counts[g.week_id] = game_counts.get(g.week_id, 0) + 1
+    entry_total = Entry.query.filter_by(pool=pool, season_year=season_year).count()
+    entry_active = Entry.query.filter_by(pool=pool, season_year=season_year, is_active=True).count()
+    return render_template(
+        "admin/pool_manager.html",
+        pool=pool,
+        pool_label=POOL_LABELS[pool],
+        weeks=weeks,
+        game_counts=game_counts,
+        entry_total=entry_total,
+        entry_active=entry_active,
+    )
+
+
+@bp.route("/pool/<pool>/weeks/<int:week_id>")
+def pool_week(pool, week_id):
+    if pool not in POOLS:
+        flash("Unknown pool.", "error")
+        return redirect(url_for("admin.dashboard"))
+    week = Week.query.get_or_404(week_id)
+    if week.pool != pool:
+        flash("That week belongs to a different pool.", "error")
+        return redirect(url_for("admin.pool_manager", pool=pool))
+    ensure_missed_processed(week)  # apply penalties if the deadline has passed
+    teams = Team.query.order_by(Team.name).all()
+    games = Game.query.filter_by(week_id=week.id, pool=pool).all()
+
+    # Gridiron: build a per-player picks grid (username + up to N pick slots)
+    picks_grid = None
+    max_slots = 0
+    if pool == "gridiron":
+        entries = (
+            Entry.query.filter_by(pool="gridiron", season_year=week.season_year)
+            .join(User)
+            .order_by(User.username, Entry.id)
+            .all()
+        )
+        picks_grid = []
+        for e in entries:
+            eps = sorted(
+                (p for p in e.picks if p.week_id == week.id and p.pool == "gridiron"),
+                key=lambda p: p.id,
+            )
+            limit = gridiron_pick_limit(e, week)
+            max_slots = max(max_slots, limit, len(eps))
+            picks_grid.append({"entry": e, "picks": eps, "limit": limit})
+        max_slots = max_slots or 5
+
+    return render_template(
+        "admin/pool_week.html",
+        pool=pool,
+        pool_label=POOL_LABELS[pool],
+        week=week,
+        teams=teams,
+        games=games,
+        deadline_passed=deadline_passed(week),
+        picks_grid=picks_grid,
+        max_slots=max_slots,
+    )
 
 
 @bp.route("/players")
@@ -117,64 +205,128 @@ def delete_player(user_id):
     return redirect(url_for("admin.players"))
 
 
-@bp.route("/weeks/new", methods=["POST"])
-def new_week():
+@bp.route("/pool/<pool>/weeks/new", methods=["POST"])
+def new_week(pool):
+    if pool not in POOLS:
+        flash("Unknown pool.", "error")
+        return redirect(url_for("admin.dashboard"))
     season_year = current_app.config["CURRENT_SEASON"]
     number = int(request.form["number"])
     deadline_str = request.form["pick_deadline"]
     deadline = datetime.fromisoformat(deadline_str)
-    if Week.query.filter_by(season_year=season_year, number=number).first():
-        flash(f"Week {number} already exists.", "error")
-        return redirect(url_for("admin.dashboard"))
-    db.session.add(Week(season_year=season_year, number=number, pick_deadline=deadline))
+    if Week.query.filter_by(season_year=season_year, number=number, pool=pool).first():
+        flash(f"Week {number} already exists for {POOL_LABELS[pool]}.", "error")
+        return redirect(url_for("admin.pool_manager", pool=pool))
+    db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline))
     db.session.commit()
-    flash(f"Week {number} created.", "success")
-    return redirect(url_for("admin.dashboard"))
+    flash(f"Week {number} created for {POOL_LABELS[pool]}.", "success")
+    return redirect(url_for("admin.pool_manager", pool=pool))
 
 
-@bp.route("/weeks/<int:week_id>")
-def week_detail(week_id):
+@bp.route("/weeks/<int:week_id>/deadline", methods=["POST"])
+def update_deadline(week_id):
     week = Week.query.get_or_404(week_id)
-    teams = Team.query.order_by(Team.name).all()
-    games = Game.query.filter_by(week_id=week.id).all()
-    return render_template(
-        "admin/week_detail.html",
-        week=week,
-        teams=teams,
-        games=games,
-        deadline_passed=deadline_passed(week),
+    deadline_str = request.form.get("pick_deadline", "")
+    try:
+        week.pick_deadline = datetime.fromisoformat(deadline_str)
+    except ValueError:
+        flash("Enter a valid date and time.", "error")
+        return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
+    db.session.commit()
+    flash(
+        f"Deadline for {POOL_LABELS[week.pool]} Week {week.number} updated to "
+        f"{week.pick_deadline.strftime('%a %b %d, %I:%M %p')} Eastern.",
+        "success",
     )
+    return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
+
+
+def _read_game_fields(form, pool):
+    """Parse the add/edit game form into Game field values. Shared by
+    new_game and edit_game so the two never drift apart.
+
+    Drop Dead & Loser are straight-up NFL matchups (no spread/O-U); their team
+    names are derived from the selected NFL team so it never depends on client
+    JS. Gridiron carries lines (spread, over/under) and can include college.
+    """
+    sport = form.get("sport", "nfl")
+    home_team = form.get("home_team", "").strip()
+    away_team = form.get("away_team", "").strip()
+    home_team_id = form.get("home_team_id") or None
+    away_team_id = form.get("away_team_id") or None
+    is_mnf = bool(form.get("is_mnf"))
+
+    kickoff_str = form.get("kickoff", "").strip()
+    kickoff = None
+    if kickoff_str:
+        try:
+            kickoff = datetime.fromisoformat(kickoff_str)
+        except ValueError:
+            kickoff = None
+
+    if pool == "gridiron":
+        favorite = form.get("favorite") or None
+        spread = form.get("spread") or None
+        over_under = form.get("over_under") or None
+    else:
+        sport = "nfl"
+        favorite = spread = over_under = None
+        if away_team_id:
+            t = Team.query.get(int(away_team_id))
+            if t:
+                away_team = t.name
+        if home_team_id:
+            t = Team.query.get(int(home_team_id))
+            if t:
+                home_team = t.name
+
+    return {
+        "sport": sport,
+        "home_team": home_team,
+        "away_team": away_team,
+        "home_team_id": int(home_team_id) if home_team_id else None,
+        "away_team_id": int(away_team_id) if away_team_id else None,
+        "favorite": favorite,
+        "spread": float(spread) if spread else None,
+        "over_under": float(over_under) if over_under else None,
+        "is_mnf": is_mnf,
+        "kickoff": kickoff,
+    }
 
 
 @bp.route("/weeks/<int:week_id>/games/new", methods=["POST"])
 def new_game(week_id):
     week = Week.query.get_or_404(week_id)
-    sport = request.form["sport"]
-    home_team = request.form["home_team"].strip()
-    away_team = request.form["away_team"].strip()
-    home_team_id = request.form.get("home_team_id") or None
-    away_team_id = request.form.get("away_team_id") or None
-    favorite = request.form.get("favorite") or None
-    spread = request.form.get("spread") or None
-    over_under = request.form.get("over_under") or None
-    is_mnf = bool(request.form.get("is_mnf"))
+    pool = week.pool  # a week belongs to exactly one pool
+    fields = _read_game_fields(request.form, pool)
 
-    game = Game(
-        week_id=week.id,
-        sport=sport,
-        home_team=home_team,
-        away_team=away_team,
-        home_team_id=int(home_team_id) if home_team_id else None,
-        away_team_id=int(away_team_id) if away_team_id else None,
-        favorite=favorite,
-        spread=float(spread) if spread else None,
-        over_under=float(over_under) if over_under else None,
-        is_mnf=is_mnf,
-    )
-    db.session.add(game)
+    if not fields["home_team"] or not fields["away_team"]:
+        flash("Both teams are required.", "error")
+        return redirect(url_for("admin.pool_week", pool=pool, week_id=week.id))
+
+    db.session.add(Game(week_id=week.id, pool=pool, **fields))
     db.session.commit()
     flash("Game added.", "success")
-    return redirect(url_for("admin.week_detail", week_id=week.id))
+    return redirect(url_for("admin.pool_week", pool=pool, week_id=week.id))
+
+
+@bp.route("/games/<int:game_id>/edit", methods=["POST"])
+def edit_game(game_id):
+    game = Game.query.get_or_404(game_id)
+    pool = game.pool
+    fields = _read_game_fields(request.form, pool)
+
+    if not fields["home_team"] or not fields["away_team"]:
+        flash("Both teams are required.", "error")
+        return redirect(url_for("admin.pool_week", pool=pool, week_id=game.week_id))
+
+    for key, value in fields.items():
+        setattr(game, key, value)
+    db.session.commit()
+    if game.is_final:
+        score_game(game)  # re-score picks against the edited line/teams/scores
+    flash("Game updated.", "success")
+    return redirect(url_for("admin.pool_week", pool=pool, week_id=game.week_id))
 
 
 @bp.route("/games/<int:game_id>/result", methods=["POST"])
@@ -186,24 +338,163 @@ def enter_result(game_id):
     db.session.commit()
     score_game(game)
     flash(f"{game.label} finalized and picks scored.", "success")
-    return redirect(url_for("admin.week_detail", week_id=game.week_id))
+    return redirect(url_for("admin.pool_week", pool=game.pool, week_id=game.week_id))
 
 @bp.route("/games/<int:game_id>/delete", methods=["POST"])
 def delete_game(game_id):
     game = Game.query.get_or_404(game_id)
     week_id = game.week_id
+    pool = game.pool
+    # Return any player picks tied to this game so deleting it doesn't leave
+    # them stuck with a pick they can no longer change:
+    #  - Gridiron picks reference the game directly (game_id).
+    #  - Drop Dead / Loser picks reference a team, so return picks for either
+    #    team in this matchup (same pool + week).
+    picks_removed = Pick.query.filter_by(game_id=game.id).delete(synchronize_session=False)
+    if pool in ("dropdead", "loser"):
+        team_ids = [tid for tid in (game.home_team_id, game.away_team_id) if tid is not None]
+        if team_ids:
+            picks_removed += (
+                Pick.query.filter(
+                    Pick.pool == pool,
+                    Pick.week_id == week_id,
+                    Pick.team_id.in_(team_ids),
+                ).delete(synchronize_session=False)
+            )
     db.session.delete(game)
     db.session.commit()
-    flash("Game removed.", "success")
-    return redirect(url_for("admin.week_detail", week_id=week_id))
+    note = f" {picks_removed} player pick(s) returned." if picks_removed else ""
+    flash(f"Game removed.{note}", "success")
+    return redirect(url_for("admin.pool_week", pool=pool, week_id=week_id))
+
+
+@bp.route("/picks/<int:pick_id>/delete", methods=["POST"])
+def delete_pick(pick_id):
+    pick = Pick.query.get_or_404(pick_id)
+    week = pick.week
+    pool = pick.pool
+    db.session.delete(pick)
+    db.session.commit()
+    flash("Pick deleted and returned to the player.", "success")
+    return redirect(url_for("admin.pool_week", pool=pool, week_id=week.id))
+
+
+@bp.route("/picks/<int:pick_id>/change", methods=["POST"])
+def change_pick(pick_id):
+    pick = Pick.query.get_or_404(pick_id)
+    week = pick.week
+    back = redirect(url_for("admin.pool_week", pool="gridiron", week_id=week.id))
+
+    try:
+        gid_s, market, side = request.form.get("selection", "").split("|")
+        gid = int(gid_s)
+    except ValueError:
+        flash("Choose a selection.", "error")
+        return back
+
+    valid_sides = {"spread": ("home", "away"), "total": ("over", "under")}
+    if market not in valid_sides or side not in valid_sides[market]:
+        flash("That selection isn't valid.", "error")
+        return back
+
+    game = Game.query.filter_by(id=gid, week_id=week.id, pool="gridiron").first()
+    if not game or (market == "total" and game.over_under is None):
+        flash("That selection isn't available for this week.", "error")
+        return back
+
+    # can't hold both sides of the same market on the same game
+    dup = Pick.query.filter(
+        Pick.entry_id == pick.entry_id,
+        Pick.week_id == week.id,
+        Pick.pool == "gridiron",
+        Pick.game_id == gid,
+        Pick.market == market,
+        Pick.id != pick.id,
+    ).first()
+    if dup:
+        # Surface this as a blocking pop-up (not a subtle top-of-page flash) --
+        # it's an easy, high-impact admin mistake. pool_week shows a modal when
+        # pick_error=dup is present.
+        return redirect(url_for("admin.pool_week", pool="gridiron", week_id=week.id, pick_error="dup"))
+
+    pick.game_id = gid
+    pick.market = market
+    pick.side = side
+    pick.result = "pending"
+    pick.points = 0
+    db.session.commit()
+    if game.is_final:
+        score_game(game)  # re-score against the new selection
+    flash("Pick updated.", "success")
+    return back
+
+
+@bp.route("/entries/<int:entry_id>/weeks/<int:week_id>/pick", methods=["POST"])
+def add_pick(entry_id, week_id):
+    """Admin fills an empty Gridiron pick slot for a player (e.g. after a
+    missed week). Enforces the entry's weekly pick limit and the one-side-per-
+    market rule, and clears the week's GridironMiss since the entry now has a
+    pick (it's no longer a full no-show)."""
+    entry = Entry.query.get_or_404(entry_id)
+    week = Week.query.get_or_404(week_id)
+    back = redirect(url_for("admin.pool_week", pool="gridiron", week_id=week.id))
+    if entry.pool != "gridiron" or week.pool != "gridiron":
+        flash("Adding picks here is Gridiron-only.", "error")
+        return back
+
+    try:
+        gid_s, market, side = request.form.get("selection", "").split("|")
+        gid = int(gid_s)
+    except ValueError:
+        flash("Choose a selection.", "error")
+        return back
+
+    valid_sides = {"spread": ("home", "away"), "total": ("over", "under")}
+    if market not in valid_sides or side not in valid_sides[market]:
+        flash("That selection isn't valid.", "error")
+        return back
+
+    game = Game.query.filter_by(id=gid, week_id=week.id, pool="gridiron").first()
+    if not game or (market == "total" and game.over_under is None):
+        flash("That selection isn't available for this week.", "error")
+        return back
+
+    existing = Pick.query.filter_by(entry_id=entry.id, week_id=week.id, pool="gridiron").count()
+    if existing >= gridiron_pick_limit(entry, week):
+        flash("That entry has already used all its picks for this week.", "error")
+        return back
+
+    dup = Pick.query.filter_by(
+        entry_id=entry.id, week_id=week.id, pool="gridiron", game_id=gid, market=market
+    ).first()
+    if dup:
+        return redirect(url_for("admin.pool_week", pool="gridiron", week_id=week.id, pick_error="dup"))
+
+    # they now have a pick, so they're no longer a full no-show for the week
+    GridironMiss.query.filter_by(entry_id=entry.id, week_id=week.id).delete()
+    db.session.add(
+        Pick(entry_id=entry.id, week_id=week.id, pool="gridiron", game_id=gid, market=market, side=side)
+    )
+    db.session.commit()
+    if game.is_final:
+        score_game(game)
+    flash("Pick added for the player.", "success")
+    return back
 
 
 @bp.route("/weeks/<int:week_id>/process-missed", methods=["POST"])
 def process_missed(week_id):
     week = Week.query.get_or_404(week_id)
     process_missed_picks(week)
-    flash("Missed picks processed: Drop Dead no-shows eliminated, Loser Pool no-shows assigned the MNF visitor, Gridiron no-shows scored 0-5.", "success")
-    return redirect(url_for("admin.week_detail", week_id=week.id))
+    week.missed_processed = True
+    db.session.commit()
+    messages = {
+        "dropdead": "Drop Dead no-shows eliminated for this week.",
+        "loser": "Loser Pool no-shows assigned the MNF visitor for this week.",
+        "gridiron": "Gridiron no-shows scored 0-5 (8-pick makeup unlocked) for this week.",
+    }
+    flash(f"Missed picks processed: {messages.get(week.pool, 'done.')}", "success")
+    return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
 
 
 @bp.route("/weeks/<int:week_id>/email-picks", methods=["POST"])
@@ -211,13 +502,13 @@ def email_picks(week_id):
     week = Week.query.get_or_404(week_id)
     if not deadline_passed(week):
         flash("This week's deadline hasn't passed yet.", "error")
-        return redirect(url_for("admin.week_detail", week_id=week.id))
+        return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
     if week.picks_emailed:
         flash("Picks for this week were already emailed.", "error")
-        return redirect(url_for("admin.week_detail", week_id=week.id))
+        return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
     count = email_week_picks(week)
-    flash(f"Picks recap emailed to {count} player(s) for Week {week.number}.", "success")
-    return redirect(url_for("admin.week_detail", week_id=week.id))
+    flash(f"Picks recap emailed to {count} player(s) for {POOL_LABELS[week.pool]} Week {week.number}.", "success")
+    return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
 
 
 @bp.route("/reports")
@@ -229,18 +520,25 @@ def reports():
         pool: Entry.query.filter_by(pool=pool, season_year=season_year).count() for pool in POOLS
     }
 
-    current_week = get_current_week(season_year)
+    # each pool has its own current week now
+    current_weeks = {pool: get_current_week(season_year, pool) for pool in POOLS}
+    current_week = current_weeks.get("gridiron") or next(
+        (w for w in current_weeks.values() if w), None
+    )
 
     missing_picks = {}
-    if current_week:
-        for pool in POOLS:
-            entries = Entry.query.filter_by(pool=pool, season_year=season_year).all()
-            if pool == "dropdead":
-                entries = [e for e in entries if e.is_active]
-            picked_entry_ids = {
-                p.entry_id for p in Pick.query.filter_by(pool=pool, week_id=current_week.id).all()
-            }
-            missing_picks[pool] = [e for e in entries if e.id not in picked_entry_ids]
+    for pool in POOLS:
+        cw = current_weeks[pool]
+        if not cw:
+            missing_picks[pool] = []
+            continue
+        entries = Entry.query.filter_by(pool=pool, season_year=season_year).all()
+        if pool == "dropdead":
+            entries = [e for e in entries if e.is_active]
+        picked_entry_ids = {
+            p.entry_id for p in Pick.query.filter_by(pool=pool, week_id=cw.id).all()
+        }
+        missing_picks[pool] = [e for e in entries if e.id not in picked_entry_ids]
 
     pending_games = (
         Game.query.join(Week)

@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+{% block title %}{{ pool_label }} — Week {{ week.number }}{% endblock %}
+{% block content %}
+{% set pool_icons = {'dropdead': '💀', 'loser': '📉', 'gridiron': '🏈'} %}
+<p class="mb-1">
+  <a href="{{ url_for('admin.dashboard') }}">Pick Manager</a> &rsaquo;
+  <a href="{{ url_for('admin.pool_manager', pool=pool) }}">{{ pool_label }}</a>
+</p>
+<h2><span class="pool-icon">{{ pool_icons[pool] }}</span>{{ pool_label }} — Week {{ week.number }} ({{ week.season_year }})</h2>
+<form method="post" action="{{ url_for('admin.update_deadline', week_id=week.id) }}" class="row g-2 align-items-end mb-3">
+  <div class="col-auto">
+    <label class="form-label text-muted small mb-0">Pick deadline (Eastern time)</label>
+    <input type="datetime-local" name="pick_deadline" class="form-control form-control-sm"
+           value="{{ week.pick_deadline.strftime('%Y-%m-%dT%H:%M') }}" required>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-outline-primary">Update deadline</button>
+  </div>
+</form>
+
+{% set missed_prompts = {
+  'dropdead': 'Eliminate Drop Dead entries with no pick this week?',
+  'loser': 'Auto-assign the MNF visitor to Loser Pool entries with no pick this week?',
+  'gridiron': 'Score Gridiron no-shows 0-5 for this week (unlocking an 8-pick makeup week)?'
+} %}
+<form method="post" action="{{ url_for('admin.process_missed', week_id=week.id) }}" class="mb-2 d-inline-block me-2">
+  <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('{{ missed_prompts[pool] }}')">
+    Process Missed Picks
+  </button>
+</form>
+
+<form method="post" action="{{ url_for('admin.email_picks', week_id=week.id) }}" class="mb-4 d-inline-block">
+  {% if week.picks_emailed %}
+  <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Picks Already Emailed</button>
+  {% elif not deadline_passed %}
+  <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Email Picks (available after deadline)</button>
+  {% else %}
+  <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Email {{ pool_label }} players their locked-in Week {{ week.number }} picks now?')">
+    Email Picks to Players
+  </button>
+  {% endif %}
+</form>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Add a Game{% if pool == 'gridiron' %} &amp; Line{% endif %}</h5>
+    <form method="post" action="{{ url_for('admin.new_game', week_id=week.id) }}" class="row g-2">
+      <input type="hidden" name="pool" value="{{ pool }}">
+
+      {% if pool == 'gridiron' %}
+      {# --- Gridiron: against the spread, NFL + college, with lines --- #}
+      <div class="col-md-2">
+        <label class="form-label">Sport</label>
+        <select name="sport" class="form-select">
+          <option value="nfl">NFL</option>
+          <option value="college">College</option>
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Away team (name)</label>
+        <input type="text" name="away_team" class="form-control" required placeholder="e.g. Steelers">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Home team (name)</label>
+        <input type="text" name="home_team" class="form-control" required placeholder="e.g. Ravens">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Favorite</label>
+        <select name="favorite" class="form-select">
+          <option value="">Pick'em</option>
+          <option value="home">Home</option>
+          <option value="away">Away</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Spread</label>
+        <input type="number" step="0.5" name="spread" class="form-control" placeholder="e.g. 3.5">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Over/Under</label>
+        <input type="number" step="0.5" name="over_under" class="form-control" placeholder="NFL only">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Kickoff (Eastern time)</label>
+        <input type="datetime-local" name="kickoff" class="form-control" required>
+      </div>
+
+      {% else %}
+      {# --- Drop Dead / Loser: straight-up NFL matchups, no spreads --- #}
+      <input type="hidden" name="sport" value="nfl">
+      <div class="col-md-4">
+        <label class="form-label">Away team</label>
+        <select name="away_team_id" class="form-select team-name-src" data-target="away_team" required>
+          <option value="">-- select NFL team --</option>
+          {% for t in teams %}<option value="{{ t.id }}" data-name="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+        </select>
+        <input type="hidden" name="away_team" value="">
+      </div>
+      <div class="col-md-1 text-center align-self-end pb-2 text-muted">@</div>
+      <div class="col-md-4">
+        <label class="form-label">Home team</label>
+        <select name="home_team_id" class="form-select team-name-src" data-target="home_team" required>
+          <option value="">-- select NFL team --</option>
+          {% for t in teams %}<option value="{{ t.id }}" data-name="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+        </select>
+        <input type="hidden" name="home_team" value="">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Kickoff (Eastern time)</label>
+        <input type="datetime-local" name="kickoff" class="form-control" required>
+      </div>
+      {% if pool == 'loser' %}
+      <div class="col-md-3 form-check mt-4 ms-2">
+        <input type="checkbox" class="form-check-input" name="is_mnf" id="is_mnf">
+        <label class="form-check-label" for="is_mnf">Monday Night game <span class="text-muted small">(no-show auto-pick)</span></label>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <div class="col-md-2 mt-3">
+        <button type="submit" class="btn btn-primary">Add Game</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h5>Games</h5>
+<div class="table-responsive">
+<table class="table bg-white align-middle">
+  <thead><tr><th>Matchup</th>{% if pool == 'gridiron' %}<th>Line</th>{% endif %}<th>Score</th><th>Enter Result</th><th></th></tr></thead>
+  <tbody>
+  {% for g in games %}
+    <tr>
+      <td>
+        {{ g.away_team }} @ {{ g.home_team }}
+        {% if pool == 'gridiron' %}<span class="badge bg-secondary">{{ g.sport }}</span>{% endif %}
+        {% if g.is_mnf %}<span class="badge bg-dark">MNF</span>{% endif %}
+        <div class="small {{ 'text-muted' if g.kickoff else 'text-danger' }}">
+          {% if g.kickoff %}Kickoff: {{ g.kickoff.strftime('%a %b %d, %I:%M %p') }} ET{% else %}No kickoff time set{% endif %}
+        </div>
+      </td>
+      {% if pool == 'gridiron' %}
+      <td>
+        {% if g.favorite == 'home' %}{{ g.home_team }} -{{ g.spread }}{% elif g.favorite == 'away' %}{{ g.away_team }} -{{ g.spread }}{% else %}PK{% endif %}
+        {% if g.over_under %} / O/U {{ g.over_under }}{% endif %}
+      </td>
+      {% endif %}
+      <td>
+        {% if g.is_final %}
+          <strong>{{ g.away_team }} {{ g.away_score }} &ndash; {{ g.home_team }} {{ g.home_score }}</strong> <span class="badge bg-success">Final</span>
+        {% else %}<span class="text-muted">pending</span>{% endif %}
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('admin.enter_result', game_id=g.id) }}" class="d-flex gap-2 align-items-end">
+          <div class="d-flex flex-column align-items-center">
+            <span class="small text-muted">{{ g.away_team }} <span class="text-secondary">(away)</span></span>
+            <input type="number" name="away_score" class="form-control form-control-sm text-center" style="width:80px" value="{{ g.away_score if g.away_score is not none else '' }}" required>
+          </div>
+          <div class="d-flex flex-column align-items-center">
+            <span class="small text-muted">{{ g.home_team }} <span class="text-secondary">(home)</span></span>
+            <input type="number" name="home_score" class="form-control form-control-sm text-center" style="width:80px" value="{{ g.home_score if g.home_score is not none else '' }}" required>
+          </div>
+          <button type="submit" class="btn btn-sm btn-success">Finalize</button>
+        </form>
+      </td>
+      <td class="text-nowrap">
+        <button type="button" class="btn btn-sm btn-outline-primary edit-game-btn mb-1"
+          data-action="{{ url_for('admin.edit_game', game_id=g.id) }}"
+          data-sport="{{ g.sport }}"
+          data-away="{{ g.away_team }}"
+          data-home="{{ g.home_team }}"
+          data-away-id="{{ g.away_team_id or '' }}"
+          data-home-id="{{ g.home_team_id or '' }}"
+          data-favorite="{{ g.favorite or '' }}"
+          data-spread="{{ g.spread if g.spread is not none else '' }}"
+          data-ou="{{ g.over_under if g.over_under is not none else '' }}"
+          data-kickoff="{{ g.kickoff.strftime('%Y-%m-%dT%H:%M') if g.kickoff else '' }}"
+          data-mnf="{{ '1' if g.is_mnf else '' }}">Edit</button>
+        <form method="post" action="{{ url_for('admin.delete_game', game_id=g.id) }}" class="d-inline" onsubmit="return confirm('Remove this game?')">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-muted">No {{ pool_label }} games yet for this week.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{# ---- Edit Game modal (all pools; fields prepopulated by the Edit button via JS) ---- #}
+<div class="modal fade" id="editGameModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" id="editGameForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit Game{% if pool == 'gridiron' %} &amp; Line{% endif %}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+          {% if pool == 'gridiron' %}
+            <div class="col-md-3">
+              <label class="form-label">Sport</label>
+              <select name="sport" id="edit_sport" class="form-select">
+                <option value="nfl">NFL</option>
+                <option value="college">College</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Away team (name)</label>
+              <input type="text" name="away_team" id="edit_away_team" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Home team (name)</label>
+              <input type="text" name="home_team" id="edit_home_team" class="form-control" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Favorite</label>
+              <select name="favorite" id="edit_favorite" class="form-select">
+                <option value="">Pick'em</option>
+                <option value="home">Home</option>
+                <option value="away">Away</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Spread</label>
+              <input type="number" step="0.5" name="spread" id="edit_spread" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Over/Under</label>
+              <input type="number" step="0.5" name="over_under" id="edit_over_under" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Kickoff (Eastern time)</label>
+              <input type="datetime-local" name="kickoff" id="edit_kickoff" class="form-control">
+            </div>
+          {% else %}
+            <input type="hidden" name="sport" value="nfl">
+            <div class="col-md-5">
+              <label class="form-label">Away team</label>
+              <select name="away_team_id" id="edit_away_team_id" class="form-select" required>
+                <option value="">-- select NFL team --</option>
+                {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">Home team</label>
+              <select name="home_team_id" id="edit_home_team_id" class="form-select" required>
+                <option value="">-- select NFL team --</option>
+                {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Kickoff (Eastern time)</label>
+              <input type="datetime-local" name="kickoff" id="edit_kickoff" class="form-control">
+            </div>
+            {% if pool == 'loser' %}
+            <div class="col-md-5 form-check mt-2 ms-2">
+              <input type="checkbox" class="form-check-input" name="is_mnf" id="edit_is_mnf">
+              <label class="form-check-label" for="edit_is_mnf">Monday Night game <span class="text-muted small">(no-show auto-pick)</span></label>
+            </div>
+            {% endif %}
+          {% endif %}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var modalEl = document.getElementById('editGameModal');
+  if (!modalEl) return;
+  var form = document.getElementById('editGameForm');
+  function set(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
+  document.querySelectorAll('.edit-game-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var d = btn.dataset;
+      form.action = d.action;
+      set('edit_sport', d.sport || 'nfl');
+      set('edit_away_team', d.away || '');
+      set('edit_home_team', d.home || '');
+      set('edit_away_team_id', d.awayId || '');
+      set('edit_home_team_id', d.homeId || '');
+      set('edit_favorite', d.favorite || '');
+      set('edit_spread', d.spread || '');
+      set('edit_over_under', d.ou || '');
+      set('edit_kickoff', d.kickoff || '');
+      var mnf = document.getElementById('edit_is_mnf');
+      if (mnf) mnf.checked = (d.mnf === '1');
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  });
+});
+</script>
+
+{% if pool == 'gridiron' %}
+{# ---- Player picks grid ---- #}
+{% macro spread_opt(g, side) %}{% if side == 'home' %}{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}{% else %}{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}{% endif %}{% endmacro %}
+{% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }}{% endif %}{% endmacro %}
+{% set result_class = {'win': 'text-success fw-bold', 'loss': 'text-danger fw-bold', 'push': 'text-muted'} %}
+
+<h5 class="mt-4">Player Picks</h5>
+<p class="text-muted small mb-2">Green = win, red = loss, black = not yet final. Delete returns the pick to the player; Change lets you reselect for them.</p>
+<div class="table-responsive">
+<table class="table table-bordered bg-white align-middle small">
+  <thead class="table-light">
+    <tr>
+      <th style="min-width:9rem">Player</th>
+      {% for i in range(max_slots) %}<th class="text-center">Pick {{ i + 1 }}</th>{% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+  {% for row in picks_grid %}
+    <tr>
+      <td>
+        {{ row.entry.user.username }}
+        {% if row.entry.label and row.entry.label != 'Entry 1' %}<span class="text-muted">({{ row.entry.label }})</span>{% endif %}
+      </td>
+      {% for i in range(max_slots) %}
+        <td class="text-center">
+          {% if i < row.picks|length %}
+            {% set p = row.picks[i] %}
+            <div class="{{ result_class.get(p.result, '') }}">{{ pick_label(p) }}</div>
+            <div class="text-muted" style="font-size:.72rem; line-height:1.1">{{ p.game.away_team }} @ {{ p.game.home_team }}</div>
+            <div class="btn-group btn-group-sm mt-1">
+              <button type="button" class="btn btn-outline-primary change-pick-btn"
+                      data-action="{{ url_for('admin.change_pick', pick_id=p.id) }}"
+                      data-current="{{ p.game_id }}|{{ p.market }}|{{ p.side }}">Change</button>
+              <form method="post" action="{{ url_for('admin.delete_pick', pick_id=p.id) }}" class="d-inline"
+                    onsubmit="return confirm('Delete this pick and return it to the player?')">
+                <button type="submit" class="btn btn-outline-danger">Delete</button>
+              </form>
+            </div>
+          {% elif i < row.limit %}
+            {% if deadline_passed %}
+              <div class="text-danger fw-bold">No pick</div>
+              <div class="text-muted" style="font-size:.72rem; line-height:1.1">counts as a loss</div>
+            {% else %}
+              <div class="text-muted fst-italic">Not selected yet</div>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-success change-pick-btn mt-1"
+                    data-action="{{ url_for('admin.add_pick', entry_id=row.entry.id, week_id=week.id) }}"
+                    data-current="">Add pick</button>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+      {% endfor %}
+    </tr>
+  {% else %}
+    <tr><td colspan="{{ max_slots + 1 }}" class="text-muted">No players have joined Gridiron Investments yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{# ---- Change-pick modal (shared; the Change button sets its target + preselection) ---- #}
+<div class="modal fade" id="changePickModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <form method="post" id="changePickForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Change pick</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          {% if games %}
+          {% for g in games %}
+            <div class="fw-semibold mt-2">{{ g.away_team }} @ {{ g.home_team }} <span class="text-muted small">{{ g.sport }}</span></div>
+            {% set order = ['home', 'away'] if g.favorite != 'away' else ['away', 'home'] %}
+            {% for side in order %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="selection" value="{{ g.id }}|spread|{{ side }}" id="sel_{{ g.id }}_spread_{{ side }}">
+              <label class="form-check-label" for="sel_{{ g.id }}_spread_{{ side }}">{{ spread_opt(g, side) }} <span class="text-muted small">(spread)</span></label>
+            </div>
+            {% endfor %}
+            {% if g.over_under %}
+            {% for side in ['over', 'under'] %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="selection" value="{{ g.id }}|total|{{ side }}" id="sel_{{ g.id }}_total_{{ side }}">
+              <label class="form-check-label" for="sel_{{ g.id }}_total_{{ side }}">{{ side|capitalize }} {{ g.over_under }} <span class="text-muted small">(O/U)</span></label>
+            </div>
+            {% endfor %}
+            {% endif %}
+          {% endfor %}
+          {% else %}
+          <p class="text-muted mb-0">Add games to this week first.</p>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save pick</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ---- Blocking error pop-up: admin tried to change a pick to one the entry already holds ---- #}
+{% if request.args.get('pick_error') == 'dup' %}
+<div class="modal fade" id="pickErrorModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger border-2">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">⚠️ Pick not changed</h5>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0"><strong>Error:</strong> You changed a pick to a selection the user has already made for another pick.</p>
+        <p class="text-muted small mb-0 mt-2">The pick was left unchanged. Choose a different game or market.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// Wait for DOMContentLoaded so Bootstrap's bundle (loaded lower in base.html)
+// is available before we create the modal.
+document.addEventListener('DOMContentLoaded', function () {
+  // Surface the duplicate-pick error as a blocking pop-up if present.
+  var errEl = document.getElementById('pickErrorModal');
+  if (errEl) bootstrap.Modal.getOrCreateInstance(errEl).show();
+
+  var modalEl = document.getElementById('changePickModal');
+  if (!modalEl) return;
+  var form = document.getElementById('changePickForm');
+  document.querySelectorAll('.change-pick-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      form.action = btn.dataset.action;
+      form.querySelectorAll('input[name="selection"]').forEach(function (r) {
+        r.checked = (r.value === btn.dataset.current);
+      });
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  });
+});
+</script>
+{% endif %}
+
+{% if pool != 'gridiron' %}
+<script>
+  // Straight-up pools store the matchup by NFL team; mirror the selected
+  // team's name into the hidden text field the model also expects.
+  document.querySelectorAll('.team-name-src').forEach(function (sel) {
+    var hidden = sel.parentElement.querySelector('input[name="' + sel.dataset.target + '"]');
+    sel.addEventListener('change', function () {
+      var opt = sel.options[sel.selectedIndex];
+      hidden.value = opt ? (opt.dataset.name || '') : '';
+    });
+  });
+</script>
+{% endif %}
+{% endblock %}

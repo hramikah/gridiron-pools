@@ -32,17 +32,18 @@ def admin_required(f):
     return wrapper
 
 
-def get_current_week(season_year):
-    """The next week whose deadline hasn't passed, else the most recent week."""
+def get_current_week(season_year, pool):
+    """The next week (for this pool) whose deadline hasn't passed, else the
+    pool's most recent week. Each pool keeps its own weeks and deadlines."""
     n = now_eastern()
     upcoming = (
-        Week.query.filter(Week.season_year == season_year, Week.pick_deadline >= n)
+        Week.query.filter(Week.season_year == season_year, Week.pool == pool, Week.pick_deadline >= n)
         .order_by(Week.pick_deadline.asc())
         .first()
     )
     if upcoming:
         return upcoming
-    return Week.query.filter_by(season_year=season_year).order_by(Week.number.desc()).first()
+    return Week.query.filter_by(season_year=season_year, pool=pool).order_by(Week.number.desc()).first()
 
 
 def deadline_passed(week):
@@ -70,12 +71,16 @@ def game_pickable(game):
     return game.kickoff is None or now_eastern() < game.kickoff - timedelta(hours=1)
 
 
-def team_game_this_week(team_id, week_id):
-    """The Game a team plays in for a given week, or None (e.g. a bye)."""
-    return Game.query.filter(
+def team_game_this_week(team_id, week_id, pool=None):
+    """The Game a team plays in for a given week, or None (e.g. a bye).
+    Pass ``pool`` to resolve within that pool's own lines."""
+    q = Game.query.filter(
         Game.week_id == week_id,
         db.or_(Game.home_team_id == team_id, Game.away_team_id == team_id),
-    ).first()
+    )
+    if pool is not None:
+        q = q.filter(Game.pool == pool)
+    return q.first()
 
 
 def week_unlocked(week):

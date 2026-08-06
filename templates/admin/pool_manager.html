@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ pool_label }} - Pick Manager{% endblock %}
+{% block content %}
+{% set pool_icons = {'dropdead': '💀', 'loser': '📉', 'gridiron': '🏈'} %}
+<p class="mb-1"><a href="{{ url_for('admin.dashboard') }}">&larr; Pick Manager</a></p>
+<div class="page-header"><h2><span class="pool-icon">{{ pool_icons[pool] }}</span>{{ pool_label }}</h2></div>
+
+<p>
+  <span class="badge bg-secondary">{{ entry_total }} entr{{ 'y' if entry_total == 1 else 'ies' }}</span>
+  {% if pool in ('dropdead', 'gridiron') %}
+    <span class="badge bg-success">{{ entry_active }} active</span>
+  {% endif %}
+</p>
+
+{% if pool == 'gridiron' %}
+<p class="text-muted">Gridiron is against the spread (NFL &amp; college). Pick window runs Thursday–Wednesday; games lock 1 hour before kickoff.</p>
+{% elif pool == 'loser' %}
+<p class="text-muted">
+  Loser Pool is straight-up (pick a team to lose), no spreads. Picks due Saturday at noon Eastern.
+  &middot; <a href="{{ url_for('admin.loser_points') }}">Manage point values</a>
+</p>
+{% else %}
+<p class="text-muted">Drop Dead is straight-up NFL survival, no spreads. Picks due Saturday at noon Eastern; losses and no-shows eliminate entries.</p>
+{% endif %}
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Add a Week to {{ pool_label }}</h5>
+    <form method="post" action="{{ url_for('admin.new_week', pool=pool) }}" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label">Week #</label>
+        <input type="number" name="number" class="form-control" min="1" max="22" required>
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Pick deadline (Eastern time)</label>
+        <input type="datetime-local" name="pick_deadline" class="form-control" required>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Create Week</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h5>Weeks</h5>
+<div class="table-responsive">
+<table class="table bg-white align-middle">
+  <thead><tr><th>Week</th><th>Deadline</th><th>Lines</th><th></th></tr></thead>
+  <tbody>
+  {% for w in weeks %}
+    <tr>
+      <td>Week {{ w.number }}</td>
+      <td>{{ w.pick_deadline.strftime('%a %b %d, %I:%M %p') }}</td>
+      <td>{{ game_counts.get(w.id, 0) }} game(s)</td>
+      <td><a href="{{ url_for('admin.pool_week', pool=pool, week_id=w.id) }}" class="btn btn-sm btn-outline-primary">Manage week</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="text-muted">No weeks yet for {{ pool_label }}. Add one above.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

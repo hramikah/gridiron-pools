@@ -2,7 +2,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import week_unlocked
-from models import Entry, Game, User, Week
+from models import POOLS, Entry, Game, User, Week
 from pdf_report import build_week_pdf
 from scoring import (
     dropdead_matrix,
@@ -34,11 +34,23 @@ def index():
 def standings():
     season_year = current_app.config["CURRENT_SEASON"]
     weeks = Week.query.filter_by(season_year=season_year).order_by(Week.number).all()
-    unlocked_weeks = [w for w in weeks if week_unlocked(w)]
+    # Weeks are per-pool now; a week number is "unlocked" for a pool once that
+    # pool's deadline for it has passed. Column headers show the union, but
+    # each pool's matrix only fills columns unlocked in that pool (no leak).
+    unlocked_by_pool = {
+        pool: sorted({w.number for w in weeks if w.pool == pool and week_unlocked(w)})
+        for pool in POOLS
+    }
+    union_numbers = sorted(set().union(*unlocked_by_pool.values())) if weeks else []
+    rep_week = {}
+    for w in weeks:
+        if week_unlocked(w) and w.number not in rep_week:
+            rep_week[w.number] = w
+    unlocked_weeks = [rep_week[n] for n in union_numbers]
 
     history_week = request.args.get("week", type=int)
     history_data = None
-    if history_week is not None and any(w.number == history_week for w in unlocked_weeks):
+    if history_week is not None and history_week in union_numbers:
         history_data = {
             "dropdead": dropdead_status_through_week(season_year, history_week),
             "loser": loser_totals_through_week(season_year, history_week),
@@ -54,15 +66,15 @@ def standings():
     if selected_player_id is not None and any(p.id == selected_player_id for p in players):
         player_history = player_pick_history(season_year, selected_player_id)
 
-    unlocked_week_numbers = [w.number for w in unlocked_weeks]
+    unlocked_week_numbers = union_numbers
     all_weeks_data = {
-        "dropdead": dropdead_matrix(season_year, unlocked_week_numbers),
-        "loser": loser_matrix(season_year, unlocked_week_numbers),
-        "gridiron": gridiron_matrix(season_year, unlocked_week_numbers),
+        "dropdead": dropdead_matrix(season_year, unlocked_by_pool["dropdead"]),
+        "loser": loser_matrix(season_year, unlocked_by_pool["loser"]),
+        "gridiron": gridiron_matrix(season_year, unlocked_by_pool["gridiron"]),
     }
 
     gridiron_recent_picks = {}
-    gridiron_recent_week = max(unlocked_week_numbers) if unlocked_week_numbers else None
+    gridiron_recent_week = max(unlocked_by_pool["gridiron"]) if unlocked_by_pool["gridiron"] else None
     if gridiron_recent_week is not None:
         for entry, _wins, _losses, _ties, week_picks in gridiron_record_through_week(season_year, gridiron_recent_week):
             gridiron_recent_picks[entry.id] = week_picks
@@ -88,17 +100,32 @@ def standings():
 @bp.route("/scores")
 def scores():
     season_year = current_app.config["CURRENT_SEASON"]
-    weeks = Week.query.filter_by(season_year=season_year).order_by(Week.number.desc()).all()
+    weeks = Week.query.filter_by(season_year=season_year).all()
+
+    # Weeks are per-pool, so a given week number spans up to three Week rows.
+    # Group final games by week number and dedupe by matchup (same real game
+    # across pools has one real score).
+    weeks_by_number = {}
+    for w in weeks:
+        weeks_by_number.setdefault(w.number, []).append(w)
 
     by_week = []
-    for week in weeks:
-        games = (
-            Game.query.filter_by(week_id=week.id, is_final=True)
-            .order_by(Game.sport, Game.away_team)
-            .all()
-        )
-        if games:
-            by_week.append((week, games))
+    for number in sorted(weeks_by_number, reverse=True):
+        seen = set()
+        deduped = []
+        for w in weeks_by_number[number]:
+            for g in (
+                Game.query.filter_by(week_id=w.id, is_final=True)
+                .order_by(Game.sport, Game.away_team)
+                .all()
+            ):
+                key = (g.sport, g.away_team, g.home_team)
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(g)
+        if deduped:
+            by_week.append((weeks_by_number[number][0], deduped))
 
     return render_template("scores.html", by_week=by_week)
 
@@ -107,10 +134,16 @@ def scores():
 @login_required
 def reports():
     season_year = current_app.config["CURRENT_SEASON"]
-    weeks = Week.query.filter_by(season_year=season_year).order_by(Week.number).all()
+    weeks = (
+        Week.query.filter_by(season_year=season_year)
+        .order_by(Week.number, Week.pool)
+        .all()
+    )
+    from models import POOL_LABELS
     return render_template(
         "reports.html",
         weeks=[(w, week_unlocked(w)) for w in weeks],
+        pool_labels=POOL_LABELS,
     )
 
 

@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, game_pickable, get_current_week, send_async
 from models import Entry, Game, Pick, db
 from notifications import email_entry_pick_confirmation
-from scoring import gridiron_pick_limit, standings_gridiron
+from scoring import ensure_missed_processed, gridiron_pick_limit, standings_gridiron
 
 bp = Blueprint("gridiron", __name__)
 
@@ -34,9 +34,10 @@ def join():
 def pick():
     season_year = current_app.config["CURRENT_SEASON"]
     entries = Entry.query.filter_by(user_id=current_user.id, pool="gridiron", season_year=season_year).all()
-    week = get_current_week(season_year)
+    week = get_current_week(season_year, "gridiron")
+    ensure_missed_processed(week)
     locked = deadline_passed(week)
-    all_games = Game.query.filter_by(week_id=week.id).all() if week else []
+    all_games = Game.query.filter_by(week_id=week.id, pool="gridiron").all() if week else []
     games = [g for g in all_games if game_pickable(g)]
 
     if request.method == "POST":

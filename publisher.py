@@ -98,9 +98,11 @@ def publish_week(app):
 
         number, window_start, window_end, pick_deadline = week_window(season_start)
 
-        week = Week.query.filter_by(season_year=season_year, number=number).first()
+        # Published lines (spreads/O-U) are Gridiron's; it's the only pool
+        # with lines, so auto-publish targets the Gridiron week.
+        week = Week.query.filter_by(season_year=season_year, number=number, pool="gridiron").first()
         if not week:
-            week = Week(season_year=season_year, number=number, pick_deadline=pick_deadline)
+            week = Week(season_year=season_year, number=number, pool="gridiron", pick_deadline=pick_deadline)
             db.session.add(week)
             db.session.commit()
 
@@ -152,6 +154,7 @@ def publish_week(app):
 
                 game = Game(
                     week_id=week.id,
+                    pool="gridiron",
                     sport=sport,
                     home_team=home_name,
                     away_team=away_name,

@@ -1,7 +1,7 @@
 """Scoring logic for the three pools. Kept separate from routes so admin
 actions and any future batch/cron processing can share the same code."""
 
-from helpers import week_is_complete
+from helpers import deadline_passed, week_is_complete
 from models import Entry, Game, GridironMiss, LoserPoolPoints, Pick, Week, db
 
 GRIDIRON_MISS_PENALTY_LOSSES = 5
@@ -72,13 +72,15 @@ def score_gridiron_pick(pick, game):
 
 
 def score_game(game):
-    """Score every pick tied to this (now-final) game, across all pools."""
-    for pick in Pick.query.filter_by(pool="gridiron", game_id=game.id).all():
-        score_gridiron_pick(pick, game)
+    """Score the picks tied to this (now-final) game. Each pool owns its own
+    lines, so a game scores only the picks belonging to its own pool."""
+    if game.pool == "gridiron":
+        for pick in Pick.query.filter_by(pool="gridiron", game_id=game.id).all():
+            score_gridiron_pick(pick, game)
 
-    if game.home_team_id and game.away_team_id:
+    elif game.pool in ("dropdead", "loser") and game.home_team_id and game.away_team_id:
         team_picks = Pick.query.filter(
-            Pick.pool.in_(["dropdead", "loser"]),
+            Pick.pool == game.pool,
             Pick.week_id == game.week_id,
             Pick.team_id.in_([game.home_team_id, game.away_team_id]),
         ).all()
@@ -95,7 +97,8 @@ def score_game(game):
 
 
 def process_missed_picks(week):
-    """Handle entries that never submitted a pick for this week:
+    """Handle entries that never submitted a pick for this pool's week.
+    Weeks are per-pool, so this applies only the logic for ``week.pool``:
     - Drop Dead: active entries with no pick are eliminated.
     - Loser Pool: entries with no pick are auto-assigned the visiting team
       of the week's Monday Night Football game (per the printed rules).
@@ -104,46 +107,65 @@ def process_missed_picks(week):
       week; an entry with more than 5 missed weeks is benched (is_active
       set to False).
     """
-    picked_dropdead_entry_ids = {
-        p.entry_id
-        for p in Pick.query.filter_by(pool="dropdead", week_id=week.id).all()
-    }
-    for entry in Entry.query.filter_by(pool="dropdead", season_year=week.season_year, is_active=True).all():
-        if entry.id not in picked_dropdead_entry_ids:
-            entry.is_active = False
-            entry.eliminated_week = week.number
-
-    mnf_game = Game.query.filter_by(week_id=week.id, is_mnf=True).first()
-    if mnf_game and mnf_game.away_team_id:
-        picked_loser_entry_ids = {
-            p.entry_id for p in Pick.query.filter_by(pool="loser", week_id=week.id).all()
+    if week.pool == "dropdead":
+        picked_dropdead_entry_ids = {
+            p.entry_id
+            for p in Pick.query.filter_by(pool="dropdead", week_id=week.id).all()
         }
-        for entry in Entry.query.filter_by(pool="loser", season_year=week.season_year).all():
-            if entry.id not in picked_loser_entry_ids:
-                db.session.add(
-                    Pick(
-                        entry_id=entry.id,
-                        week_id=week.id,
-                        pool="loser",
-                        team_id=mnf_game.away_team_id,
+        for entry in Entry.query.filter_by(pool="dropdead", season_year=week.season_year, is_active=True).all():
+            if entry.id not in picked_dropdead_entry_ids:
+                entry.is_active = False
+                entry.eliminated_week = week.number
+
+    elif week.pool == "loser":
+        mnf_game = Game.query.filter_by(week_id=week.id, is_mnf=True).first()
+        if mnf_game and mnf_game.away_team_id:
+            picked_loser_entry_ids = {
+                p.entry_id for p in Pick.query.filter_by(pool="loser", week_id=week.id).all()
+            }
+            for entry in Entry.query.filter_by(pool="loser", season_year=week.season_year).all():
+                if entry.id not in picked_loser_entry_ids:
+                    db.session.add(
+                        Pick(
+                            entry_id=entry.id,
+                            week_id=week.id,
+                            pool="loser",
+                            team_id=mnf_game.away_team_id,
+                        )
                     )
-                )
 
-    picked_gridiron_entry_ids = {
-        p.entry_id for p in Pick.query.filter_by(pool="gridiron", week_id=week.id).all()
-    }
-    for entry in Entry.query.filter_by(pool="gridiron", season_year=week.season_year, is_active=True).all():
-        if entry.id in picked_gridiron_entry_ids:
-            continue
-        if GridironMiss.query.filter_by(entry_id=entry.id, week_id=week.id).first():
-            continue
-        db.session.add(GridironMiss(entry_id=entry.id, week_id=week.id))
-        db.session.flush()
-        total_misses = GridironMiss.query.filter_by(entry_id=entry.id).count()
-        if total_misses > GRIDIRON_BENCH_AFTER_MISSES:
-            entry.is_active = False
-            entry.eliminated_week = week.number
+    elif week.pool == "gridiron":
+        picked_gridiron_entry_ids = {
+            p.entry_id for p in Pick.query.filter_by(pool="gridiron", week_id=week.id).all()
+        }
+        for entry in Entry.query.filter_by(pool="gridiron", season_year=week.season_year, is_active=True).all():
+            if entry.id in picked_gridiron_entry_ids:
+                continue
+            if GridironMiss.query.filter_by(entry_id=entry.id, week_id=week.id).first():
+                continue
+            db.session.add(GridironMiss(entry_id=entry.id, week_id=week.id))
+            db.session.flush()
+            total_misses = GridironMiss.query.filter_by(entry_id=entry.id).count()
+            if total_misses > GRIDIRON_BENCH_AFTER_MISSES:
+                entry.is_active = False
+                entry.eliminated_week = week.number
 
+    db.session.commit()
+
+
+def ensure_missed_processed(week):
+    """Lazily apply this week's missed-pick penalties once its deadline has
+    passed. Runs at most once per week (the ``missed_processed`` flag), so it
+    can be called freely from any page load. The Loser Pool waits until its
+    Monday Night game is entered so the no-show auto-pick can be assigned."""
+    if week is None or week.missed_processed or not deadline_passed(week):
+        return
+    if week.pool == "loser":
+        mnf = Game.query.filter_by(week_id=week.id, is_mnf=True).first()
+        if not (mnf and mnf.away_team_id):
+            return  # retry on a later load, once the MNF game exists
+    process_missed_picks(week)
+    week.missed_processed = True
     db.session.commit()
 
 
@@ -154,6 +176,7 @@ def gridiron_pick_limit(entry, week):
         .filter(
             GridironMiss.entry_id == entry.id,
             Week.season_year == week.season_year,
+            Week.pool == "gridiron",
             Week.number == week.number - 1,
         )
         .first()
@@ -166,6 +189,30 @@ def _gridiron_missed_week_numbers(entry, through_week=None):
     if through_week is not None:
         q = q.filter(Week.number <= through_week)
     return {m.week.number for m in q.all()}
+
+
+def _gridiron_week_empty_losses(entry, week):
+    """After a week's deadline, each pick slot a Gridiron entry left empty
+    counts as a loss. Capped at what was actually pickable that week (number
+    of games x available markets), so an entry is never penalized for slots it
+    couldn't fill. Zero while the deadline hasn't passed (picks still open)."""
+    if week is None or not deadline_passed(week):
+        return 0
+    games = Game.query.filter_by(week_id=week.id, pool="gridiron").all()
+    available = sum(1 + (1 if g.over_under is not None else 0) for g in games)
+    if available == 0:
+        return 0
+    made = sum(1 for p in entry.picks if p.week_id == week.id and p.pool == "gridiron")
+    expected = min(gridiron_pick_limit(entry, week), available)
+    return max(0, expected - made)
+
+
+def _gridiron_empty_losses(entry, through_week=None):
+    """Total empty-slot losses across the entry's locked Gridiron weeks."""
+    q = Week.query.filter_by(season_year=entry.season_year, pool="gridiron")
+    if through_week is not None:
+        q = q.filter(Week.number <= through_week)
+    return sum(_gridiron_week_empty_losses(entry, w) for w in q.all())
 
 
 def standings_dropdead(season_year):
@@ -190,7 +237,7 @@ def standings_gridiron(season_year):
     for e in entries:
         wins = sum(1 for p in e.picks if p.result == "win")
         losses = sum(1 for p in e.picks if p.result == "loss")
-        losses += GRIDIRON_MISS_PENALTY_LOSSES * len(e.gridiron_misses)
+        losses += _gridiron_empty_losses(e)  # empty slots after deadline = losses
         pushes = sum(1 for p in e.picks if p.result == "push")
         rows.append((e, wins, losses, pushes))
     rows.sort(key=lambda r: (-r[1], r[2]))
@@ -239,8 +286,7 @@ def gridiron_record_through_week(season_year, week_number):
         picks_through = [p for p in e.picks if p.week.number <= week_number]
         wins = sum(1 for p in picks_through if p.result == "win")
         losses = sum(1 for p in picks_through if p.result == "loss")
-        misses_through = len(_gridiron_missed_week_numbers(e, week_number))
-        losses += GRIDIRON_MISS_PENALTY_LOSSES * misses_through
+        losses += _gridiron_empty_losses(e, week_number)  # empty slots after deadline = losses
         ties = sum(1 for p in picks_through if p.result == "push")
 
         week_picks = []
@@ -286,17 +332,19 @@ def player_pick_history(season_year, user_id):
                     }
                 )
             if pool_name == "gridiron":
-                for wn in sorted(_gridiron_missed_week_numbers(e)):
-                    rows.append(
-                        {
-                            "pool": pool_name,
-                            "entry_label": e.label,
-                            "week": wn,
-                            "team": "MISSED WEEK",
-                            "result": "loss",
-                            "points": -GRIDIRON_MISS_PENALTY_LOSSES,
-                        }
-                    )
+                for w in Week.query.filter_by(season_year=season_year, pool="gridiron").order_by(Week.number).all():
+                    empty = _gridiron_week_empty_losses(e, w)
+                    if empty > 0:
+                        rows.append(
+                            {
+                                "pool": pool_name,
+                                "entry_label": e.label,
+                                "week": w.number,
+                                "team": ("NO PICK ×%d" % empty) if empty > 1 else "NO PICK",
+                                "result": "loss",
+                                "points": None,
+                            }
+                        )
             elif pool_name == "dropdead" and e.eliminated_week is not None:
                 # Elimination with no Pick row for that week means the entry
                 # never submitted a pick that week (auto-eliminated for a
@@ -345,26 +393,28 @@ def gridiron_matrix(season_year, week_numbers):
     """Every entry's per-week W-L-T record for every unlocked week, plus a
     season total. A missed week shows as a 0-5 penalty cell."""
     entries = Entry.query.filter_by(pool="gridiron", season_year=season_year).all()
+    weeks_by_num = {
+        w.number: w
+        for w in Week.query.filter_by(season_year=season_year, pool="gridiron").all()
+    }
     rows = []
     for e in entries:
-        missed = _gridiron_missed_week_numbers(e)
         cells = {}
         for wn in week_numbers:
-            if wn in missed:
-                cells[wn] = {"wins": 0, "losses": GRIDIRON_MISS_PENALTY_LOSSES, "ties": 0, "missed": True}
-                continue
+            week = weeks_by_num.get(wn)
             week_picks = [p for p in e.picks if p.week.number == wn]
-            if week_picks:
-                cells[wn] = {
-                    "wins": sum(1 for p in week_picks if p.result == "win"),
-                    "losses": sum(1 for p in week_picks if p.result == "loss"),
-                    "ties": sum(1 for p in week_picks if p.result == "push"),
-                    "missed": False,
-                }
-            else:
+            empty = _gridiron_week_empty_losses(e, week)
+            if not week_picks and empty == 0:
                 cells[wn] = None
+                continue
+            cells[wn] = {
+                "wins": sum(1 for p in week_picks if p.result == "win"),
+                "losses": sum(1 for p in week_picks if p.result == "loss") + empty,
+                "ties": sum(1 for p in week_picks if p.result == "push"),
+                "missed": not week_picks and empty > 0,
+            }
         wins = sum(1 for p in e.picks if p.result == "win")
-        losses = sum(1 for p in e.picks if p.result == "loss") + GRIDIRON_MISS_PENALTY_LOSSES * len(missed)
+        losses = sum(1 for p in e.picks if p.result == "loss") + _gridiron_empty_losses(e)
         ties = sum(1 for p in e.picks if p.result == "push")
         rows.append({"entry": e, "cells": cells, "wins": wins, "losses": losses, "ties": ties})
     rows.sort(key=lambda r: (-r["wins"], r["losses"]))

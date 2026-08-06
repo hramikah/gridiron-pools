@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, game_pickable, get_current_week, send_async, team_game_this_week
 from models import Entry, Game, LoserPoolPoints, Pick, Team, db
 from notifications import email_entry_pick_confirmation
-from scoring import standings_loser
+from scoring import ensure_missed_processed, standings_loser
 
 bp = Blueprint("loser", __name__)
 
@@ -41,7 +41,8 @@ def join():
 def pick():
     season_year = current_app.config["CURRENT_SEASON"]
     entries = Entry.query.filter_by(user_id=current_user.id, pool="loser", season_year=season_year).all()
-    week = get_current_week(season_year)
+    week = get_current_week(season_year, "loser")
+    ensure_missed_processed(week)
     locked = deadline_passed(week)
 
     if request.method == "POST":
@@ -57,7 +58,7 @@ def pick():
         if Pick.query.filter_by(entry_id=entry.id, week_id=week.id).first():
             flash("Your pick for this week is already locked in and can't be changed.", "error")
             return redirect(url_for("loser.pick"))
-        team_game = team_game_this_week(team_id, week.id)
+        team_game = team_game_this_week(team_id, week.id, pool="loser")
         if not game_pickable(team_game):
             flash("Too late to pick that team — picks lock 1 hour before their game's kickoff.", "error")
             return redirect(url_for("loser.pick"))
@@ -76,7 +77,7 @@ def pick():
     if week:
         for e in entries:
             picks_this_week[e.id] = Pick.query.filter_by(entry_id=e.id, week_id=week.id).first()
-        for g in Game.query.filter_by(week_id=week.id).all():
+        for g in Game.query.filter_by(week_id=week.id, pool="loser").all():
             if not game_pickable(g):
                 unpickable_team_ids.update(t for t in (g.home_team_id, g.away_team_id) if t is not None)
 

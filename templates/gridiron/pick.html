@@ -61,17 +61,20 @@
 
       {% if not week %}
         {# top-level "No weeks have been set up yet" message already covers this #}
-      {% elif remaining <= 0 %}
+      {% elif remaining <= 0 and not locked %}
         <p class="text-muted mb-0">All {{ limit }} picks are locked in for this week.</p>
-      {% elif locked %}
-        <p class="text-muted mb-0">The pick deadline for this week has passed.</p>
-      {% elif not games %}
-        <p class="text-muted mb-0">No more games are available to pick right now &mdash; picks close 1 hour before each game's kickoff.</p>
       {% else %}
+        {% if locked %}
+        <p class="text-muted mb-0">The pick deadline for this week has passed &mdash; picks are final. Below is every game with your locked-in picks and the options that were available.</p>
+        {% elif not games %}
+        <p class="text-muted mb-0">No more games are available to pick right now &mdash; picks close 1 hour before each game's kickoff.</p>
+        {% endif %}
+        {% set display_games = all_games if locked else games %}
     {% macro game_row(g, my_picks, locked, show_total) %}
           {% set spread_locked = my_picks.get((g.id,'spread')) %}
           {% set total_locked = my_picks.get((g.id,'total')) %}
-          {% if not (spread_locked and (not g.over_under or total_locked)) %}
+          {# Always show the game; picked markets render as "Locked" rather than
+             hiding the whole row (which made fully-picked games vanish). #}
           <tr>
             <td>
               <div class="fw-semibold">{{ g.away_team }} @ {{ g.home_team }}</div>
@@ -88,12 +91,17 @@
               {% if spread_locked %}
                 <span class="badge bg-secondary">Locked: {{ g.home_team if spread_locked == 'home' else g.away_team }}</span>
               {% else %}
-              <div class="btn-group" role="group">
+              {% set away_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if locked %}disabled{% endif %}>
                 <label class="btn btn-outline-primary btn-sm" for="sp_{{ g.id }}_away">{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
-
+              {% endset %}
+              {% set home_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if locked %}disabled{% endif %}>
                 <label class="btn btn-outline-primary btn-sm" for="sp_{{ g.id }}_home">{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+              {% endset %}
+              <div class="btn-group" role="group">
+                {# favorite on the left, underdog on the right (plain away/home order for pick'em) #}
+                {% if g.favorite == 'home' %}{{ home_btn }}{{ away_btn }}{% else %}{{ away_btn }}{{ home_btn }}{% endif %}
 
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_none" value="" autocomplete="off" checked {% if locked %}disabled{% endif %}>
                 <label class="btn btn-outline-secondary btn-sm d-none" for="sp_{{ g.id }}_none"></label>
@@ -121,15 +129,17 @@
             </td>
             {% endif %}
           </tr>
-          {% endif %}
     {% endmacro %}
 
+    {% if display_games %}
     <form method="post" class="gridiron-pick-form" data-max-picks="{{ remaining }}">
       <input type="hidden" name="entry_id" value="{{ entry.id }}">
+      {% if not locked %}
       <p class="text-muted small mb-2">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>
+      {% endif %}
 
-      {% set nfl_games = games|selectattr('sport', 'equalto', 'nfl')|list %}
-      {% set college_games = games|selectattr('sport', 'equalto', 'college')|list %}
+      {% set nfl_games = display_games|selectattr('sport', 'equalto', 'nfl')|list %}
+      {% set college_games = display_games|selectattr('sport', 'equalto', 'college')|list %}
 
       {% if nfl_games %}
       <h6 class="text-uppercase text-muted fw-bold mt-3 mb-2">🏈 NFL</h6>
@@ -155,9 +165,14 @@
       </div>
       {% endif %}
 
-      <button type="submit" class="btn btn-gridiron gridiron-submit" {% if locked %}disabled{% endif %}>Save Picks (max {{ remaining }})</button>
+      {% if locked %}
+      <p class="text-muted mb-0"><em>Picks are final for this week &mdash; no more changes.</em></p>
+      {% else %}
+      <button type="submit" class="btn btn-gridiron gridiron-submit">Save Picks (max {{ remaining }})</button>
       <span class="ms-2 gridiron-pick-count text-muted"></span>
+      {% endif %}
     </form>
+    {% endif %}
       {% endif %}
     {% endif %}
   </div>
@@ -171,6 +186,7 @@
     var maxPicks = parseInt(form.dataset.maxPicks, 10) || 5;
     var countEl = form.querySelector('.gridiron-pick-count');
     var submitBtn = form.querySelector('.gridiron-submit');
+    if (!submitBtn || !countEl) return;  // read-only (deadline passed) form
 
     function countSelections() {
       var radios = form.querySelectorAll('input[type=radio][name^="sel_"]');

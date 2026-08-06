@@ -68,13 +68,15 @@ class Week(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     season_year = db.Column(db.Integer, nullable=False)
     number = db.Column(db.Integer, nullable=False)  # 1-18 regular season
+    pool = db.Column(db.String(20), nullable=False)  # each pool keeps its own weeks + deadline
     pick_deadline = db.Column(db.DateTime, nullable=False)
     picks_emailed = db.Column(db.Boolean, default=False)  # picks recap sent to players
+    missed_processed = db.Column(db.Boolean, default=False, nullable=False)  # missed-pick penalties applied (auto or manual)
 
     games = db.relationship("Game", backref="week", lazy=True, cascade="all, delete-orphan")
     picks = db.relationship("Pick", backref="week", lazy=True, cascade="all, delete-orphan")
 
-    __table_args__ = (db.UniqueConstraint("season_year", "number", name="uq_week_season_number"),)
+    __table_args__ = (db.UniqueConstraint("season_year", "number", "pool", name="uq_week_season_number_pool"),)
 
     def __repr__(self):
         return f"Week {self.number} ({self.season_year})"
@@ -83,6 +85,7 @@ class Week(db.Model):
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     week_id = db.Column(db.Integer, db.ForeignKey("week.id"), nullable=False)
+    pool = db.Column(db.String(20), default="gridiron", nullable=False)  # which pool's line: 'dropdead' / 'loser' / 'gridiron'
     sport = db.Column(db.String(10), default="nfl", nullable=False)  # 'nfl' or 'college'
 
     home_team = db.Column(db.String(80), nullable=False)

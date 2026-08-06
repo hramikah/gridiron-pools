@@ -103,7 +103,13 @@ def build_week_pdf(week):
     sub_style = ParagraphStyle("sub", parent=STYLES["Normal"], textColor=colors.grey)
     heading_style = ParagraphStyle("heading", parent=STYLES["Heading2"], spaceBefore=16, spaceAfter=6)
 
-    story.append(Paragraph(f"Gridiron Pools &mdash; Week {week.number} Picks ({season_year})", title_style))
+    pool_labels = {"dropdead": "Drop Dead Pool", "loser": "Loser Pool", "gridiron": "Gridiron Investments"}
+    story.append(
+        Paragraph(
+            f"Gridiron Pools &mdash; {pool_labels.get(week.pool, '')} Week {week.number} Picks ({season_year})",
+            title_style,
+        )
+    )
     story.append(
         Paragraph(
             f"Pick deadline: {week.pick_deadline.strftime('%A %b %d, %Y %I:%M %p')} Eastern &mdash; all picks below are locked in.",
@@ -112,14 +118,16 @@ def build_week_pdf(week):
     )
     story.append(Spacer(1, 12))
 
-    story.append(Paragraph("Drop Dead Pool", heading_style))
-    story.append(_section_table(_dropdead_rows(week, season_year), [2 * inch, 3 * inch, 1.8 * inch]))
-
-    story.append(Paragraph("Loser Pool", heading_style))
-    story.append(_section_table(_loser_rows(week, season_year), [2 * inch, 3.2 * inch, 1.6 * inch]))
-
-    story.append(Paragraph("Gridiron Investments", heading_style))
-    story.append(_section_table(_gridiron_rows(week, season_year), [1.8 * inch, 5 * inch]))
+    # Weeks are per-pool: a week PDF shows only its own pool's picks.
+    if week.pool == "dropdead":
+        story.append(Paragraph("Drop Dead Pool", heading_style))
+        story.append(_section_table(_dropdead_rows(week, season_year), [2 * inch, 3 * inch, 1.8 * inch]))
+    elif week.pool == "loser":
+        story.append(Paragraph("Loser Pool", heading_style))
+        story.append(_section_table(_loser_rows(week, season_year), [2 * inch, 3.2 * inch, 1.6 * inch]))
+    elif week.pool == "gridiron":
+        story.append(Paragraph("Gridiron Investments", heading_style))
+        story.append(_section_table(_gridiron_rows(week, season_year), [1.8 * inch, 5 * inch]))
 
     doc.build(story)
     buf.seek(0)

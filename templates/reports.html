@@ -2,14 +2,15 @@
 {% block title %}Weekly Picks Reports{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">📋</span>Weekly Picks Reports</h2></div>
-<p class="text-muted">Once a week's pick deadline passes, everyone's Drop Dead, Loser Pool, and Gridiron Investments picks for that week become available here as a printable PDF.</p>
+<p class="text-muted">Each pool has its own weeks and deadlines. Once a pool's pick deadline passes, that pool's picks for the week become available here as a printable PDF.</p>
 
 <div class="table-responsive">
 <table class="table bg-white align-middle">
-  <thead><tr><th>Week</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
+  <thead><tr><th>Pool</th><th>Week</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {% for week, unlocked in weeks %}
     <tr>
+      <td>{{ pool_labels[week.pool] }}</td>
       <td>Week {{ week.number }}</td>
       <td>{{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern</td>
       <td>
@@ -25,7 +26,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="4" class="text-muted">No weeks set up yet.</td></tr>
+    <tr><td colspan="5" class="text-muted">No weeks set up yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

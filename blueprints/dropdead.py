@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, game_pickable, get_current_week, send_async, team_game_this_week
 from models import Entry, Game, Pick, Team, db
 from notifications import email_entry_pick_confirmation
-from scoring import standings_dropdead
+from scoring import ensure_missed_processed, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
 
@@ -34,7 +34,8 @@ def join():
 def pick():
     season_year = current_app.config["CURRENT_SEASON"]
     entries = Entry.query.filter_by(user_id=current_user.id, pool="dropdead", season_year=season_year).all()
-    week = get_current_week(season_year)
+    week = get_current_week(season_year, "dropdead")
+    ensure_missed_processed(week)
     locked = deadline_passed(week)
 
     if request.method == "POST":
@@ -56,7 +57,7 @@ def pick():
         if team_id in entry.used_team_ids():
             flash("You've already used that team this season.", "error")
             return redirect(url_for("dropdead.pick"))
-        team_game = team_game_this_week(team_id, week.id)
+        team_game = team_game_this_week(team_id, week.id, pool="dropdead")
         if not game_pickable(team_game):
             flash("Too late to pick that team — picks lock 1 hour before their game's kickoff.", "error")
             return redirect(url_for("dropdead.pick"))
@@ -73,7 +74,7 @@ def pick():
         for e in entries:
             p = Pick.query.filter_by(entry_id=e.id, week_id=week.id).first()
             picks_this_week[e.id] = p
-        for g in Game.query.filter_by(week_id=week.id).all():
+        for g in Game.query.filter_by(week_id=week.id, pool="dropdead").all():
             if not game_pickable(g):
                 unpickable_team_ids.update(t for t in (g.home_team_id, g.away_team_id) if t is not None)
 
@@ -101,7 +102,7 @@ def buyback(entry_id):
     if not entry.eliminated_week or entry.eliminated_week > 4:
         flash("Buy-backs are only available for eliminations in weeks 1-4.", "error")
         return redirect(url_for("dropdead.pick"))
-    week = get_current_week(entry.season_year)
+    week = get_current_week(entry.season_year, "dropdead")
     if week and week.number != entry.eliminated_week:
         flash("The buy-back window closed once the next week's picks opened.", "error")
         return redirect(url_for("dropdead.pick"))

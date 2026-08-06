@@ -1,125 +1,45 @@
 {% extends "base.html" %}
-{% block title %}Week {{ week.number }} - Admin{% endblock %}
+{% block title %}Week {{ week.number }} — Week Actions{% endblock %}
 {% block content %}
-<h2>Week {{ week.number }} ({{ week.season_year }})</h2>
+<p class="mb-1"><a href="{{ url_for('admin.dashboard') }}">&larr; Pick Manager</a></p>
+<h2>Week {{ week.number }} ({{ week.season_year }}) — Week Actions</h2>
 <p class="text-muted">Deadline: {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }}</p>
-
-<form method="post" action="{{ url_for('admin.process_missed', week_id=week.id) }}" class="mb-2 d-inline-block me-2">
-  <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Eliminate Drop Dead no-shows, auto-assign Loser Pool MNF picks, and score Gridiron no-shows 0-5 (unlocking an 8-pick makeup week) for entries with no submission this week?')">
-    Process Missed Picks
-  </button>
-</form>
-
-<form method="post" action="{{ url_for('admin.email_picks', week_id=week.id) }}" class="mb-4 d-inline-block">
-  {% if week.picks_emailed %}
-  <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Picks Already Emailed</button>
-  {% elif not deadline_passed %}
-  <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Email Picks (available after deadline)</button>
-  {% else %}
-  <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Email every player their locked-in Week {{ week.number }} picks now?')">
-    Email Picks to Players
-  </button>
-  {% endif %}
-</form>
 
 <div class="card mb-4">
   <div class="card-body">
-    <h5>Add a Game</h5>
-    <form method="post" action="{{ url_for('admin.new_game', week_id=week.id) }}" class="row g-2">
-      <div class="col-md-2">
-        <label class="form-label">Sport</label>
-        <select name="sport" class="form-select">
-          <option value="nfl">NFL</option>
-          <option value="college">College</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Away team (name)</label>
-        <input type="text" name="away_team" class="form-control" required placeholder="e.g. Steelers">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Away NFL team (optional)</label>
-        <select name="away_team_id" class="form-select">
-          <option value="">-- college/none --</option>
-          {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Home team (name)</label>
-        <input type="text" name="home_team" class="form-control" required placeholder="e.g. Ravens">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Home NFL team (optional)</label>
-        <select name="home_team_id" class="form-select">
-          <option value="">-- college/none --</option>
-          {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="col-md-2">
-        <label class="form-label">Favorite</label>
-        <select name="favorite" class="form-select">
-          <option value="">Pick'em</option>
-          <option value="home">Home</option>
-          <option value="away">Away</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Spread</label>
-        <input type="number" step="0.5" name="spread" class="form-control" placeholder="e.g. 3.5">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Over/Under</label>
-        <input type="number" step="0.5" name="over_under" class="form-control" placeholder="NFL only">
-      </div>
-      <div class="col-md-2 form-check mt-4">
-        <input type="checkbox" class="form-check-input" name="is_mnf" id="is_mnf">
-        <label class="form-check-label" for="is_mnf">Monday Night game</label>
-      </div>
-      <div class="col-md-2 mt-4">
-        <button type="submit" class="btn btn-primary">Add Game</button>
-      </div>
-    </form>
+    <h5>Manage this week's lines</h5>
+    <p class="text-muted small">Each pool keeps its own lines and results.</p>
+    {% set pool_icons = {'dropdead': '💀', 'loser': '📉', 'gridiron': '🏈'} %}
+    {% for p, label in [('dropdead','Drop Dead Pool'), ('loser','Loser Pool'), ('gridiron','Gridiron Investments')] %}
+      <a href="{{ url_for('admin.pool_week', pool=p, week_id=week.id) }}" class="btn btn-outline-secondary me-1 mb-1">
+        <span class="pool-icon">{{ pool_icons[p] }}</span>{{ label }}
+      </a>
+    {% endfor %}
   </div>
 </div>
 
-<h5>Games</h5>
-<div class="table-responsive">
-<table class="table bg-white align-middle">
-  <thead><tr><th>Matchup</th><th>Line</th><th>Score</th><th>Enter Result</th><th></th></tr></thead>
-  <tbody>
-  {% for g in games %}
-    <tr>
-      <td>
-        {{ g.away_team }} @ {{ g.home_team }} <span class="badge bg-secondary">{{ g.sport }}</span>
-        {% if g.is_mnf %}<span class="badge bg-dark">MNF</span>{% endif %}
-      </td>
-      <td>
-        {% if g.favorite == 'home' %}{{ g.home_team }} -{{ g.spread }}{% elif g.favorite == 'away' %}{{ g.away_team }} -{{ g.spread }}{% else %}PK{% endif %}
-        {% if g.over_under %} / O/U {{ g.over_under }}{% endif %}
-      </td>
-      <td>
-        {% if g.is_final %}
-          <strong>{{ g.away_score }} - {{ g.home_score }}</strong> <span class="badge bg-success">Final</span>
-        {% else %}<span class="text-muted">pending</span>{% endif %}
-      </td>
-      <td>
-        <form method="post" action="{{ url_for('admin.enter_result', game_id=g.id) }}" class="d-flex gap-1">
-          <input type="number" name="away_score" class="form-control form-control-sm" style="width:70px" placeholder="away" value="{{ g.away_score if g.away_score is not none else '' }}" required>
-          <input type="number" name="home_score" class="form-control form-control-sm" style="width:70px" placeholder="home" value="{{ g.home_score if g.home_score is not none else '' }}" required>
-          <button type="submit" class="btn btn-sm btn-success">Finalize</button>
-        </form>
-      </td>
-      <td>
-        <form method="post" action="{{ url_for('admin.delete_game', game_id=g.id) }}" onsubmit="return confirm('Remove this game?')">
-          <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-        </form>
-      </td>
-    </tr>
-  {% else %}
-    <tr><td colspan="5" class="text-muted">No games yet.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Cross-pool actions</h5>
+    <p class="text-muted small">These act on all three pools at once for Week {{ week.number }}.</p>
+
+    <form method="post" action="{{ url_for('admin.process_missed', week_id=week.id) }}" class="mb-2 d-inline-block me-2">
+      <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Eliminate Drop Dead no-shows, auto-assign Loser Pool MNF picks, and score Gridiron no-shows 0-5 (unlocking an 8-pick makeup week) for entries with no submission this week?')">
+        Process Missed Picks
+      </button>
+    </form>
+
+    <form method="post" action="{{ url_for('admin.email_picks', week_id=week.id) }}" class="mb-2 d-inline-block">
+      {% if week.picks_emailed %}
+      <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Picks Already Emailed</button>
+      {% elif not deadline_passed %}
+      <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Email Picks (available after deadline)</button>
+      {% else %}
+      <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Email every player their locked-in Week {{ week.number }} picks now?')">
+        Email Picks to Players
+      </button>
+      {% endif %}
+    </form>
+  </div>
 </div>
 {% endblock %}

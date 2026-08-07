@@ -329,6 +329,148 @@ def edit_game(game_id):
     return redirect(url_for("admin.pool_week", pool=pool, week_id=game.week_id))
 
 
+def _ensure_pool_week(season_year, number, pool):
+    """Return the Week for (season, number, pool), creating it if missing by
+    copying the deadline from an existing same-number week in another pool.
+    Returns None if no same-number week exists anywhere to copy from."""
+    w = Week.query.filter_by(season_year=season_year, number=number, pool=pool).first()
+    if w:
+        return w
+    template = Week.query.filter_by(season_year=season_year, number=number).first()
+    if not template:
+        return None
+    w = Week(season_year=season_year, number=number, pool=pool, pick_deadline=template.pick_deadline)
+    db.session.add(w)
+    db.session.commit()
+    return w
+
+
+@bp.route("/game-creator")
+def game_creator():
+    season_year = current_app.config["CURRENT_SEASON"]
+    numbers = sorted({w.number for w in Week.query.filter_by(season_year=season_year).all()})
+    selected = request.args.get("week", type=int)
+    if selected is None and numbers:
+        selected = numbers[-1]
+    teams = Team.query.order_by(Team.name).all()
+    games_by_pool = {}
+    if selected is not None:
+        for pool in POOLS:
+            wk = Week.query.filter_by(season_year=season_year, number=selected, pool=pool).first()
+            games_by_pool[pool] = Game.query.filter_by(week_id=wk.id).all() if wk else []
+    active_week = get_setting("active_week") or ""
+    return render_template(
+        "admin/game_creator.html",
+        numbers=numbers,
+        selected=selected,
+        teams=teams,
+        games_by_pool=games_by_pool,
+        pool_labels=POOL_LABELS,
+        pools=POOLS,
+        active_week=active_week,
+    )
+
+
+@bp.route("/game-creator/new-week", methods=["POST"])
+def game_creator_new_week():
+    season_year = current_app.config["CURRENT_SEASON"]
+    number = request.form.get("number", type=int)
+    if number is None:
+        flash("Enter a week number.", "error")
+        return redirect(url_for("admin.game_creator"))
+    try:
+        deadline = datetime.fromisoformat(request.form.get("pick_deadline", ""))
+    except ValueError:
+        flash("Enter a valid pick deadline.", "error")
+        return redirect(url_for("admin.game_creator"))
+    created = []
+    for pool in POOLS:
+        if not Week.query.filter_by(season_year=season_year, number=number, pool=pool).first():
+            db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline))
+            created.append(POOL_LABELS[pool])
+    db.session.commit()
+    if created:
+        flash(f"Week {number} created for: {', '.join(created)}. Adjust per-pool deadlines in Pick Manager if they differ.", "success")
+    else:
+        flash(f"Week {number} already exists in all pools.", "error")
+    return redirect(url_for("admin.game_creator", week=number))
+
+
+@bp.route("/game-creator/set-current-week", methods=["POST"])
+def set_current_week():
+    value = request.form.get("active_week", "")
+    if value == "auto" or value == "":
+        set_setting("active_week", "")
+        flash("Current week is now automatic (based on each pool's deadline).", "success")
+    else:
+        set_setting("active_week", str(int(value)))
+        flash(f"Current week pinned to Week {int(value)} for all pools.", "success")
+    return redirect(url_for("admin.game_creator"))
+
+
+@bp.route("/game-creator/add", methods=["POST"])
+def game_creator_add():
+    season_year = current_app.config["CURRENT_SEASON"]
+    number = request.form.get("week", type=int)
+    if number is None:
+        flash("Choose a week.", "error")
+        return redirect(url_for("admin.game_creator"))
+
+    away = Team.query.get(int(request.form["away_team_id"])) if request.form.get("away_team_id") else None
+    home = Team.query.get(int(request.form["home_team_id"])) if request.form.get("home_team_id") else None
+    if not away or not home:
+        flash("Pick both NFL teams.", "error")
+        return redirect(url_for("admin.game_creator", week=number))
+    if away.id == home.id:
+        flash("Away and home team must differ.", "error")
+        return redirect(url_for("admin.game_creator", week=number))
+
+    favorite = request.form.get("favorite") or None
+    spread = request.form.get("spread") or None
+    over_under = request.form.get("over_under") or None
+    is_mnf = bool(request.form.get("is_mnf"))
+    kickoff = None
+    kickoff_str = request.form.get("kickoff", "").strip()
+    if kickoff_str:
+        try:
+            kickoff = datetime.fromisoformat(kickoff_str)
+        except ValueError:
+            kickoff = None
+
+    spread_val = float(spread) if spread else None
+    ou_val = float(over_under) if over_under else None
+    created = []
+
+    # Gridiron carries the full line; Drop Dead / Loser get the straight-up
+    # matchup only (Loser also carries the Monday-Night flag for its auto-pick).
+    gw = _ensure_pool_week(season_year, number, "gridiron")
+    if gw:
+        db.session.add(Game(
+            week_id=gw.id, pool="gridiron", sport="nfl",
+            home_team=home.name, away_team=away.name,
+            home_team_id=home.id, away_team_id=away.id,
+            favorite=favorite, spread=spread_val, over_under=ou_val,
+            is_mnf=is_mnf, kickoff=kickoff,
+        ))
+        created.append("Gridiron")
+
+    for pool in ("dropdead", "loser"):
+        pw = _ensure_pool_week(season_year, number, pool)
+        if pw:
+            db.session.add(Game(
+                week_id=pw.id, pool=pool, sport="nfl",
+                home_team=home.name, away_team=away.name,
+                home_team_id=home.id, away_team_id=away.id,
+                is_mnf=(is_mnf if pool == "loser" else False),
+                kickoff=kickoff,
+            ))
+            created.append(POOL_LABELS[pool])
+
+    db.session.commit()
+    flash(f"{away.name} @ {home.name} added to: {', '.join(created)}.", "success")
+    return redirect(url_for("admin.game_creator", week=number))
+
+
 @bp.route("/games/<int:game_id>/result", methods=["POST"])
 def enter_result(game_id):
     game = Game.query.get_or_404(game_id)

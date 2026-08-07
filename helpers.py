@@ -33,8 +33,22 @@ def admin_required(f):
 
 
 def get_current_week(season_year, pool):
-    """The next week (for this pool) whose deadline hasn't passed, else the
-    pool's most recent week. Each pool keeps its own weeks and deadlines."""
+    """The active week players see for this pool.
+
+    If an admin has pinned the current week (the ``active_week`` setting), that
+    week number wins for every pool. Otherwise it auto-detects: the next week
+    whose deadline hasn't passed, else the pool's most recent week."""
+    override = get_setting("active_week")
+    if override:
+        try:
+            num = int(override)
+        except (TypeError, ValueError):
+            num = None
+        if num is not None:
+            pinned = Week.query.filter_by(season_year=season_year, number=num, pool=pool).first()
+            if pinned:
+                return pinned
+
     n = now_eastern()
     upcoming = (
         Week.query.filter(Week.season_year == season_year, Week.pool == pool, Week.pick_deadline >= n)

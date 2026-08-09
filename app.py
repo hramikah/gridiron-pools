@@ -5,7 +5,7 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 from flask_login import LoginManager, current_user, logout_user
 from flask_wtf import CSRFProtect
 
-from helpers import week_is_complete
+from helpers import get_setting, week_is_complete
 from models import Invite, User, db
 
 csrf = CSRFProtect()
@@ -97,12 +97,25 @@ def create_app():
             invite_row = Invite.query.filter_by(token=invite_token).first()
             has_valid_invite = bool(invite_row and invite_row.used_at is None)
 
+        # Popup announcement: shown once per new announcement, the next page
+        # load after a player is logged in. "Seen" is tracked in the session
+        # (not the DB) keyed to the announcement's id, so a fresh one from
+        # the admin always resets everyone's "have I seen this" state.
+        popup_announcement = None
+        if current_user.is_authenticated:
+            ann_text = get_setting("popup_announcement")
+            ann_id = get_setting("popup_announcement_id")
+            if ann_text and ann_id and session.get("seen_popup_id") != ann_id:
+                popup_announcement = ann_text
+                session["seen_popup_id"] = ann_id
+
         return {
             "current_user": current_user,
             "season_year": app.config["CURRENT_SEASON"],
             "other_accounts": other_accounts,
             "can_add_account": can_add_account,
             "has_valid_invite": has_valid_invite,
+            "popup_announcement": popup_announcement,
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete

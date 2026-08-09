@@ -857,6 +857,27 @@ def settings():
     )
 
 
+@bp.route("/popup-announcement", methods=["GET", "POST"])
+def popup_announcement():
+    if request.method == "POST":
+        body = request.form.get("body", "").strip()
+        set_setting("popup_announcement", body)
+        if body:
+            # bump the id so every player's "have I seen this one" check
+            # resets, even if the text happens to match a previous one
+            next_id = int(get_setting("popup_announcement_id", "0") or "0") + 1
+            set_setting("popup_announcement_id", str(next_id))
+            flash("Popup announcement is live -- players will see it once, next time they load a page.", "success")
+        else:
+            flash("Popup announcement cleared.", "success")
+        return redirect(url_for("admin.popup_announcement"))
+
+    return render_template(
+        "admin/popup_announcement.html",
+        current_body=get_setting("popup_announcement", ""),
+    )
+
+
 @bp.route("/reset-test-data", methods=["POST"])
 def reset_test_data():
     if request.form.get("confirm_text", "").strip() != "DELETE":

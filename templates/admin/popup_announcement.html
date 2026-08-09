@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Popup Announcement - Admin{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">📢</span>Popup Announcement</h2></div>
+<p class="text-muted">Shown once to every player as a popup, the next time they load any page after logging in. Leave it blank and save to turn it off.</p>
+
+<div class="card" style="max-width: 600px;">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">Announcement text</label>
+        <textarea name="body" class="form-control" rows="5" placeholder="e.g. Week 4 picks are due Saturday at noon!">{{ current_body }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-gridiron">Save &amp; Show to Players</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

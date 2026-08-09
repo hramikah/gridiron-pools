@@ -132,7 +132,7 @@
     {% endmacro %}
 
     {% if display_games %}
-    <form method="post" class="gridiron-pick-form" data-max-picks="{{ remaining }}">
+    <form method="post" class="gridiron-pick-form" data-max-picks="{{ remaining }}" data-warn-unsaved>
       <input type="hidden" name="entry_id" value="{{ entry.id }}">
       {% if not locked %}
       <p class="text-muted small mb-2">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>

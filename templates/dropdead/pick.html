@@ -44,7 +44,7 @@
           <span class="badge bg-secondary">Locked in &mdash; picks can't be changed once saved</span>
         </p>
       {% else %}
-      <form method="post" class="row g-2 align-items-end mt-2">
+      <form method="post" class="row g-2 align-items-end mt-2" data-warn-unsaved>
         <input type="hidden" name="entry_id" value="{{ entry.id }}">
         <div class="col-auto">
           <label class="form-label">Week {{ week.number }} pick (team to win outright)</label>

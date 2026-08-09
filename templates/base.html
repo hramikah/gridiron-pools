@@ -107,5 +107,45 @@
       });
     })();
   </script>
+  <script>
+    // Warn before leaving a page with an unsaved pick: any form marked
+    // data-warn-unsaved is snapshotted on load, and a change away from that
+    // snapshot arms a native "leave site?" prompt on tab close/navigation.
+    // Submitting the form (Save) or clearing selections back to the original
+    // state both disarm it -- only a genuine unsaved change blocks leaving.
+    (function () {
+      var guardedForms = document.querySelectorAll('form[data-warn-unsaved]');
+      if (!guardedForms.length) return;
+
+      var dirty = false;
+      var snapshots = new WeakMap();
+
+      function serialize(form) {
+        return new URLSearchParams(new FormData(form)).toString();
+      }
+
+      function refreshDirty() {
+        dirty = false;
+        guardedForms.forEach(function (form) {
+          if (serialize(form) !== snapshots.get(form)) dirty = true;
+        });
+      }
+
+      guardedForms.forEach(function (form) {
+        snapshots.set(form, serialize(form));
+        form.addEventListener('change', refreshDirty);
+        form.addEventListener('submit', function () {
+          snapshots.set(form, serialize(form));
+          dirty = false;
+        });
+      });
+
+      window.addEventListener('beforeunload', function (e) {
+        if (!dirty) return;
+        e.preventDefault();
+        e.returnValue = '';
+      });
+    })();
+  </script>
 </body>
 </html>

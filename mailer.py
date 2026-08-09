@@ -84,16 +84,6 @@ def _send_bulk(recipient_addresses, subject, body):
             _log_email(addr, subject, body, note=" [SEND FAILED, connection error]")
 
 
-def send_announcement_email(author_username, announcement_body, recipient_addresses):
-    subject = "New Announcement - Gridiron Pools"
-    body = (
-        f"{author_username} posted a new announcement:\n\n"
-        f"{announcement_body}\n\n"
-        "-- Gridiron Pools"
-    )
-    _send_bulk(recipient_addresses, subject, body)
-
-
 def send_admin_notification_email(sender_username, message_body, admin_addresses):
     subject = f"New message from {sender_username} - Gridiron Pools"
     body = (

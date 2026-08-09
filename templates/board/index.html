@@ -3,20 +3,6 @@
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">📣</span>Message Board</h2></div>
 
-{% if current_user.is_admin %}
-<div class="card mb-4">
-  <div class="card-body">
-    <h5>Post an Announcement</h5>
-    <form method="post" action="{{ url_for('board.announce') }}">
-      <div class="mb-2">
-        <textarea name="body" class="form-control" rows="3" placeholder="Announcement for all players&hellip;" required></textarea>
-      </div>
-      <button type="submit" class="btn btn-gridiron">Post</button>
-    </form>
-  </div>
-</div>
-{% endif %}
-
 <div class="card mb-4">
   <div class="card-body">
     <h5>Messages with the Admin</h5>

@@ -14,7 +14,9 @@
         <input type="password" class="form-control" name="password" required>
       </div>
       <button type="submit" class="btn btn-primary">Login</button>
+      {% if has_valid_invite %}
       <a href="{{ url_for('auth.register') }}" class="btn btn-link">Need an account?</a>
+      {% endif %}
     </form>
   </div>
 </div>

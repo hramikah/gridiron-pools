@@ -6,7 +6,7 @@ from flask_login import LoginManager, current_user, logout_user
 from flask_wtf import CSRFProtect
 
 from helpers import week_is_complete
-from models import User, db
+from models import Invite, User, db
 
 csrf = CSRFProtect()
 
@@ -87,11 +87,22 @@ def create_app():
             same_email_accounts = other_accounts + [current_user]
             limit = max((u.max_teams for u in same_email_accounts), default=1)
             can_add_account = len(same_email_accounts) < limit
+
+        # The "Register" nav link is invite-only advertising: only show it to
+        # a visitor who has actually arrived via a valid, unused invite link
+        # (remembered in their session), never to a random logged-out visitor.
+        has_valid_invite = User.query.count() == 0  # fresh install: first admin needs to find it too
+        invite_token = session.get("invite_token")
+        if not has_valid_invite and invite_token:
+            invite_row = Invite.query.filter_by(token=invite_token).first()
+            has_valid_invite = bool(invite_row and invite_row.used_at is None)
+
         return {
             "current_user": current_user,
             "season_year": app.config["CURRENT_SEASON"],
             "other_accounts": other_accounts,
             "can_add_account": can_add_account,
+            "has_valid_invite": has_valid_invite,
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete

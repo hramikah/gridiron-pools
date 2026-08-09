@@ -1,4 +1,4 @@
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from helpers import clear_login_attempts, login_rate_limited, record_failed_login
@@ -27,14 +27,17 @@ def register():
     # yet) bootstraps in as admin with no invite needed. Every registration
     # after that requires a valid, unused invite token tied to the email.
     bootstrapping = User.query.count() == 0
-    token = request.values.get("token", "").strip()
+    # A token in the URL/form wins; otherwise fall back to one remembered in
+    # the session (set below), so the nav's plain "Register" link -- shown
+    # only once a valid invite has been seen -- still resolves correctly.
+    token = request.values.get("token", "").strip() or session.get("invite_token", "")
     invite_row = Invite.query.filter_by(token=token).first() if token else None
 
     if not bootstrapping:
-        if not invite_row:
+        if not invite_row or invite_row.used_at is not None:
+            session.pop("invite_token", None)
             return render_template("auth/register.html", invite_error=True, invite=None)
-        if invite_row.used_at is not None:
-            return render_template("auth/register.html", invite_error=True, invite=None)
+        session["invite_token"] = token
 
     if request.method == "POST":
         username = request.form["username"].strip()
@@ -53,6 +56,7 @@ def register():
         db.session.add(user)
         if invite_row:
             invite_row.used_at = _now()
+            session.pop("invite_token", None)
         db.session.commit()
         send_welcome_email(user)
         login_user(user)

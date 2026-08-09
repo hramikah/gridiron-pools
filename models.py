@@ -191,15 +191,27 @@ class Announcement(db.Model):
 
 
 class ContactMessage(db.Model):
-    """A message a player sends to the admin (one-way, admin-only inbox)."""
+    """One message in a two-way conversation thread between a player and the
+    admins. ``user_id`` always identifies the thread (the player it's
+    about); ``sender_id`` is whoever actually wrote this particular message
+    -- the player themselves, or whichever admin replied. ``is_read`` means
+    "seen by the other side of the conversation": for a player-authored
+    message that's the admins; for an admin-authored reply that's the
+    player."""
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=now)
     is_read = db.Column(db.Boolean, default=False)
 
-    user = db.relationship("User")
+    user = db.relationship("User", foreign_keys=[user_id])
+    sender = db.relationship("User", foreign_keys=[sender_id])
+
+    @property
+    def from_admin(self):
+        return self.sender_id != self.user_id
 
 
 class Invite(db.Model):

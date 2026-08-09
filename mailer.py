@@ -104,6 +104,16 @@ def send_admin_notification_email(sender_username, message_body, admin_addresses
     _send_bulk(admin_addresses, subject, body)
 
 
+def send_admin_reply_email(admin_username, message_body, player_email):
+    subject = "The admins replied to your message - Gridiron Pools"
+    body = (
+        f"{admin_username} replied to your message on the Message Board:\n\n"
+        f"{message_body}\n\n"
+        "-- Gridiron Pools"
+    )
+    _send(player_email, subject, body)
+
+
 def send_welcome_email(user):
     subject = "Welcome to Gridiron Pools!"
     body = (

@@ -8,7 +8,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import admin_required, deadline_passed, get_current_week, get_setting, send_async, set_setting
-from mailer import send_invite_link_emails
+from mailer import send_admin_reply_email, send_invite_link_emails
 from models import POOL_LABELS, POOLS, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, Pick, Team, User, Week, db
 from notifications import email_week_picks
 from publisher import publish_week
@@ -742,17 +742,48 @@ def toggle_paid(entry_id):
 
 @bp.route("/messages")
 def messages():
-    unread_count = ContactMessage.query.filter_by(is_read=False).count()
-    messages_ = ContactMessage.query.order_by(ContactMessage.created_at.desc()).all()
-    return render_template("admin/messages.html", messages=messages_, unread_count=unread_count)
+    all_messages = ContactMessage.query.order_by(ContactMessage.created_at.asc()).all()
+    threads = {}
+    for m in all_messages:
+        threads.setdefault(m.user_id, []).append(m)
+    thread_rows = []
+    for user_id, msgs in threads.items():
+        unread = sum(1 for m in msgs if not m.from_admin and not m.is_read)
+        thread_rows.append({"user": msgs[-1].user, "last": msgs[-1], "unread": unread, "count": len(msgs)})
+    thread_rows.sort(key=lambda r: (r["unread"] == 0, -r["last"].created_at.timestamp()))
+    unread_count = sum(r["unread"] for r in thread_rows)
+    return render_template("admin/messages.html", threads=thread_rows, unread_count=unread_count)
 
 
-@bp.route("/messages/<int:message_id>/mark-read", methods=["POST"])
-def mark_message_read(message_id):
-    message = ContactMessage.query.get_or_404(message_id)
-    message.is_read = not message.is_read
+@bp.route("/messages/<int:user_id>")
+def message_thread(user_id):
+    player = User.query.get_or_404(user_id)
+    thread = (
+        ContactMessage.query.filter_by(user_id=user_id)
+        .order_by(ContactMessage.created_at.asc())
+        .all()
+    )
+    unread = [m for m in thread if not m.from_admin and not m.is_read]
+    if unread:
+        for m in unread:
+            m.is_read = True
+        db.session.commit()
+    return render_template("admin/message_thread.html", player=player, thread=thread)
+
+
+@bp.route("/messages/<int:user_id>/reply", methods=["POST"])
+def reply_message(user_id):
+    player = User.query.get_or_404(user_id)
+    body = request.form.get("body", "").strip()
+    if not body:
+        flash("Reply can't be empty.", "error")
+        return redirect(url_for("admin.message_thread", user_id=user_id))
+    message = ContactMessage(user_id=player.id, sender_id=current_user.id, body=body)
+    db.session.add(message)
     db.session.commit()
-    return redirect(url_for("admin.messages"))
+    send_async(send_admin_reply_email, current_user.username, body, player.email)
+    flash(f"Reply sent to {player.username}.", "success")
+    return redirect(url_for("admin.message_thread", user_id=user_id))
 
 
 @bp.route("/loser-points", methods=["GET", "POST"])

@@ -4,25 +4,26 @@
 <div class="page-header"><h2><span class="pool-icon">✉️</span>Player Messages</h2></div>
 <p class="text-muted">{{ unread_count }} unread.</p>
 
-{% for m in messages %}
-<div class="card mb-2">
-  <div class="card-body py-2">
-    <div class="d-flex justify-content-between align-items-start">
-      <div>
-        <div class="small text-muted">{{ m.user.username }} &middot; {{ m.created_at.strftime('%a %b %d, %I:%M %p') }}</div>
-        <div>{{ m.body }}</div>
-      </div>
-      <div class="text-end">
-        {% if not m.is_read %}<span class="badge bg-warning text-dark mb-1 d-block">Unread</span>{% endif %}
-        <form method="post" action="{{ url_for('admin.mark_message_read', message_id=m.id) }}">
-          <button type="submit" class="btn btn-sm btn-outline-secondary">
-            {% if m.is_read %}Mark Unread{% else %}Mark Read{% endif %}
-          </button>
-        </form>
+{% for row in threads %}
+<a href="{{ url_for('admin.message_thread', user_id=row.user.id) }}" class="text-decoration-none text-body">
+  <div class="card mb-2 {% if row.unread %}border-warning{% endif %}">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="small text-muted">
+            {{ row.user.username }} &middot; {{ row.last.created_at.strftime('%a %b %d, %I:%M %p') }}
+            &middot; {{ row.count }} message{{ 's' if row.count != 1 else '' }}
+          </div>
+          <div>
+            {% if row.last.from_admin %}<span class="text-muted">You: </span>{% endif %}
+            {{ row.last.body[:140] }}{% if row.last.body|length > 140 %}&hellip;{% endif %}
+          </div>
+        </div>
+        {% if row.unread %}<span class="badge bg-warning text-dark">{{ row.unread }} new</span>{% endif %}
       </div>
     </div>
   </div>
-</div>
+</a>
 {% else %}
 <p class="text-muted">No messages yet.</p>
 {% endfor %}

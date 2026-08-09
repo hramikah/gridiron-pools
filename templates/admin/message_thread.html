@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Messages with {{ player.username }} - Admin{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">✉️</span>Messages with {{ player.username }}</h2></div>
+<p class="mb-4"><a href="{{ url_for('admin.messages') }}">&larr; Back to Player Messages</a></p>
+
+{% for m in thread %}
+<div class="card mb-2 {% if m.from_admin %}bg-light{% endif %}">
+  <div class="card-body py-2">
+    <div class="small text-muted">
+      {% if m.from_admin %}{{ m.sender.username if m.sender else 'Admin' }} (admin){% else %}{{ player.username }}{% endif %}
+      &middot; {{ m.created_at.strftime('%a %b %d, %I:%M %p') }}
+    </div>
+    <div>{{ m.body }}</div>
+  </div>
+</div>
+{% else %}
+<p class="text-muted">No messages yet.</p>
+{% endfor %}
+
+<div class="card mt-4">
+  <div class="card-body">
+    <h5>Reply to {{ player.username }}</h5>
+    <form method="post" action="{{ url_for('admin.reply_message', user_id=player.id) }}">
+      <div class="mb-2">
+        <textarea name="body" class="form-control" rows="3" placeholder="Your reply&hellip;" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-gridiron">Send Reply</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

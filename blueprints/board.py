@@ -4,7 +4,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import admin_required
-from mailer import send_admin_notification_email, send_announcement_email
+from mailer import send_admin_notification_email, send_admin_reply_email, send_announcement_email
 from models import Announcement, ContactMessage, User, db
 
 bp = Blueprint("board", __name__)
@@ -27,7 +27,18 @@ def _send_async(fn, *args):
 @login_required
 def index():
     announcements = Announcement.query.order_by(Announcement.created_at.desc()).all()
-    return render_template("board/index.html", announcements=announcements)
+    my_thread = (
+        ContactMessage.query.filter_by(user_id=current_user.id)
+        .order_by(ContactMessage.created_at.asc())
+        .all()
+    )
+    # opening the board reads any admin replies waiting for this player
+    unread_replies = [m for m in my_thread if m.from_admin and not m.is_read]
+    if unread_replies:
+        for m in unread_replies:
+            m.is_read = True
+        db.session.commit()
+    return render_template("board/index.html", announcements=announcements, my_thread=my_thread)
 
 
 @bp.route("/announce", methods=["POST"])
@@ -56,7 +67,7 @@ def contact():
     if not body:
         flash("Message can't be empty.", "error")
         return redirect(url_for("board.index"))
-    message = ContactMessage(user_id=current_user.id, body=body)
+    message = ContactMessage(user_id=current_user.id, sender_id=current_user.id, body=body)
     db.session.add(message)
     db.session.commit()
 

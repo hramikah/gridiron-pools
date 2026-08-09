@@ -19,7 +19,24 @@
 
 <div class="card mb-4">
   <div class="card-body">
-    <h5>Send a Message to the Admin</h5>
+    <h5>Messages with the Admin</h5>
+    {% if my_thread %}
+    <div class="mb-3">
+      {% for m in my_thread %}
+      <div class="card mb-2 {% if m.from_admin %}bg-light{% endif %}">
+        <div class="card-body py-2">
+          <div class="small text-muted">
+            {% if m.from_admin %}{{ m.sender.username if m.sender else 'Admin' }} (admin){% else %}You{% endif %}
+            &middot; {{ m.created_at.strftime('%a %b %d, %I:%M %p') }}
+          </div>
+          <div>{{ m.body }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">No messages yet &mdash; send one below.</p>
+    {% endif %}
     <form method="post" action="{{ url_for('board.contact') }}">
       <div class="mb-2">
         <textarea name="body" class="form-control" rows="3" placeholder="Question, issue, payment note, etc.&hellip;" required></textarea>

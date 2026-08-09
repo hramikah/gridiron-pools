@@ -4,10 +4,11 @@
 <div class="page-header header-dropdead"><h2><span class="pool-icon">💀</span>Drop Dead Pool Standings</h2></div>
 <div class="table-responsive">
 <table class="table table-striped standings bg-white">
-  <thead><tr><th>Player</th><th>Status</th><th>Picks</th></tr></thead>
+  <thead><tr><th>#</th><th>Player</th><th>Status</th><th>Picks</th></tr></thead>
   <tbody>
-  {% for e in entries %}
+  {% for rank, e in entries %}
     <tr>
+      <td>{{ rank }}</td>
       <td>{{ e.user.username }}</td>
       <td>
         {% if e.is_active %}<span class="badge badge-alive">Alive</span>
@@ -23,7 +24,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
+    <tr><td colspan="4" class="text-muted">No entries yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

@@ -6,9 +6,9 @@
 <table class="table table-striped standings bg-white">
   <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>Status</th></tr></thead>
   <tbody>
-  {% for entry, wins, losses, ties in rows %}
+  {% for rank, entry, wins, losses, ties in rows %}
     <tr>
-      <td>{{ loop.index }}</td>
+      <td>{{ rank }}</td>
       <td>{{ entry.user.username }}</td>
       <td>{{ wins }}</td>
       <td>{{ losses }}</td>

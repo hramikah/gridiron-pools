@@ -265,10 +265,26 @@ def _gridiron_empty_losses(entry, through_week=None):
     return sum(_gridiron_week_empty_losses(entry, w) for w in q.all())
 
 
+def _assign_ranks(items, key_func):
+    """Standard competition ranking (1224): entries with an equal key share
+    the same place, and the next distinct key's place is its 1-based
+    position in the list (so 1, 1, 1, 4 -- not 1, 1, 1, 2)."""
+    ranked = []
+    prev_key = object()
+    prev_rank = 0
+    for i, item in enumerate(items, start=1):
+        key = key_func(item)
+        if key != prev_key:
+            prev_rank = i
+            prev_key = key
+        ranked.append((prev_rank,) + (item if isinstance(item, tuple) else (item,)))
+    return ranked
+
+
 def standings_dropdead(season_year):
     entries = Entry.query.filter_by(pool="dropdead", season_year=season_year).all()
     entries.sort(key=lambda e: (not e.is_active, -(e.eliminated_week or 999)))
-    return entries
+    return _assign_ranks(entries, key_func=lambda e: (not e.is_active, e.eliminated_week))
 
 
 def standings_loser(season_year):
@@ -278,7 +294,7 @@ def standings_loser(season_year):
         total = sum(p.points or 0 for p in e.picks)
         totals.append((e, total))
     totals.sort(key=lambda t: -t[1])
-    return totals
+    return _assign_ranks(totals, key_func=lambda t: t[1])
 
 
 def standings_gridiron(season_year):
@@ -291,7 +307,7 @@ def standings_gridiron(season_year):
         pushes = sum(1 for p in e.picks if p.result == "push")
         rows.append((e, wins, losses, pushes))
     rows.sort(key=lambda r: (-r[1], r[2]))
-    return rows
+    return _assign_ranks(rows, key_func=lambda r: (r[1], r[2]))
 
 
 def dropdead_status_through_week(season_year, week_number):

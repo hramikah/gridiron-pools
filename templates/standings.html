@@ -34,9 +34,9 @@
     <table class="table table-striped standings bg-white">
       <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>Status</th></tr></thead>
       <tbody>
-      {% for entry, wins, losses, ties in gridiron_rows %}
+      {% for rank, entry, wins, losses, ties in gridiron_rows %}
         <tr>
-          <td>{{ loop.index }}</td>
+          <td>{{ rank }}</td>
           <td>{{ entry.user.username }}</td>
           <td>{{ wins }}</td>
           <td>{{ losses }}</td>
@@ -69,10 +69,11 @@
 
   <div class="tab-pane fade" id="dropdead-pane" role="tabpanel">
     <table class="table table-striped standings bg-white">
-      <thead><tr><th>Player</th><th>Status</th></tr></thead>
+      <thead><tr><th>#</th><th>Player</th><th>Status</th></tr></thead>
       <tbody>
-      {% for e in dropdead_entries %}
+      {% for rank, e in dropdead_entries %}
         <tr>
+          <td>{{ rank }}</td>
           <td>{{ e.user.username }}</td>
           <td>
             {% if e.is_active %}<span class="badge badge-alive">Alive</span>
@@ -81,7 +82,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="2" class="text-muted">No entries yet.</td></tr>
+        <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
       {% endfor %}
       </tbody>
     </table>
@@ -91,9 +92,9 @@
     <table class="table table-striped standings bg-white">
       <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead>
       <tbody>
-      {% for entry, total in loser_rows %}
+      {% for rank, entry, total in loser_rows %}
         <tr>
-          <td>{{ loop.index }}</td>
+          <td>{{ rank }}</td>
           <td>{{ entry.user.username }}</td>
           <td><strong>{{ total }}</strong></td>
         </tr>

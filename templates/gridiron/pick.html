@@ -144,7 +144,7 @@
       {% if nfl_games %}
       <h6 class="text-uppercase text-muted fw-bold mt-3 mb-2">🏈 NFL</h6>
       <div class="table-responsive">
-      <table class="table table-sm align-middle">
+      <table class="table table-sm align-middle table-pick-sticky">
         <thead><tr><th>Game</th><th>Spread pick</th>{% if nfl_games|selectattr('over_under')|list %}<th>Total pick</th>{% endif %}</tr></thead>
         <tbody>
         {% for g in nfl_games %}{{ game_row(g, my_picks, locked, nfl_games|selectattr('over_under')|list|length > 0) }}{% endfor %}
@@ -156,7 +156,7 @@
       {% if college_games %}
       <h6 class="text-uppercase text-muted fw-bold mt-4 mb-2 pt-3 border-top">🎓 College</h6>
       <div class="table-responsive">
-      <table class="table table-sm align-middle">
+      <table class="table table-sm align-middle table-pick-sticky">
         <thead><tr><th>Game</th><th>Spread pick</th></tr></thead>
         <tbody>
         {% for g in college_games %}{{ game_row(g, my_picks, locked, false) }}{% endfor %}

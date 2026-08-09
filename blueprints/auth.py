@@ -1,8 +1,10 @@
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
+from helpers import clear_login_attempts, login_rate_limited, record_failed_login
 from mailer import send_welcome_email
-from models import POOL_LABELS, POOLS, Entry, User, db
+from models import POOL_LABELS, POOLS, Entry, Invite, User, db
+from models import now as _now
 
 bp = Blueprint("auth", __name__)
 
@@ -21,39 +23,58 @@ def _team_limit_for_email(email):
 
 @bp.route("/register", methods=["GET", "POST"])
 def register():
+    # The very first account ever (fresh install, nobody to send an invite
+    # yet) bootstraps in as admin with no invite needed. Every registration
+    # after that requires a valid, unused invite token tied to the email.
+    bootstrapping = User.query.count() == 0
+    token = request.values.get("token", "").strip()
+    invite_row = Invite.query.filter_by(token=token).first() if token else None
+
+    if not bootstrapping:
+        if not invite_row:
+            return render_template("auth/register.html", invite_error=True, invite=None)
+        if invite_row.used_at is not None:
+            return render_template("auth/register.html", invite_error=True, invite=None)
+
     if request.method == "POST":
         username = request.form["username"].strip()
-        email = request.form["email"].strip().lower()
+        email = (invite_row.email if invite_row else request.form["email"].strip().lower())
         password = request.form["password"]
         if not username or not email or not password:
             flash("All fields are required.", "error")
-            return render_template("auth/register.html")
+            return render_template("auth/register.html", invite=invite_row)
         if User.query.filter_by(username=username).first():
             flash("That username is taken.", "error")
-            return render_template("auth/register.html")
+            return render_template("auth/register.html", invite=invite_row)
         user = User(username=username, email=email)
         user.set_password(password)
-        # first-ever registered user becomes admin
-        if User.query.count() == 0:
+        if bootstrapping:
             user.is_admin = True
         db.session.add(user)
+        if invite_row:
+            invite_row.used_at = _now()
         db.session.commit()
         send_welcome_email(user)
         login_user(user)
         flash("Welcome! Your account has been created.", "success")
         return redirect(url_for("auth.choose_pools"))
-    return render_template("auth/register.html")
+    return render_template("auth/register.html", invite=invite_row)
 
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        if login_rate_limited():
+            flash("Too many failed login attempts. Please wait a few minutes and try again.", "error")
+            return render_template("auth/login.html")
+
         identifier = request.form["username"].strip().lower()
         password = request.form["password"]
         user = User.query.filter(
             (User.username == identifier) | (User.email == identifier)
         ).first()
         if user and user.check_password(password):
+            clear_login_attempts()
             login_user(user)
             flash("Logged in.", "success")
             next_url = request.args.get("next")
@@ -62,6 +83,7 @@ def login():
             if _has_no_entries(user):
                 return redirect(url_for("auth.choose_pools"))
             return redirect(url_for("main.index"))
+        record_failed_login()
         flash("Invalid username/email or password.", "error")
     return render_template("auth/login.html")
 

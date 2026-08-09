@@ -2,7 +2,7 @@
 actions and any future batch/cron processing can share the same code."""
 
 from helpers import deadline_passed, week_is_complete
-from models import Entry, Game, GridironMiss, LoserPoolPoints, Pick, Week, db
+from models import Entry, Game, GridironMiss, LoserPoolPoints, Pick, User, Week, db
 
 GRIDIRON_MISS_PENALTY_LOSSES = 5
 GRIDIRON_MAKEUP_PICKS = 8
@@ -96,6 +96,32 @@ def score_game(game):
     db.session.commit()
 
 
+def enforce_dropdead_no_tie(week):
+    """Drop Dead can never end in a tie for first place. If a week's results
+    (or no-show eliminations) wipe out every remaining active entry at once,
+    revive whichever entries share that week's elimination -- the tied
+    leaders -- so they keep playing until a solo survivor emerges. Only acts
+    once the week's games are all final, so it never fires on a partial
+    slate, and never touches a genuine solo winner (a single entry left
+    active, or a single entry eliminated last)."""
+    if week is None or week.pool != "dropdead":
+        return
+    games = Game.query.filter_by(week_id=week.id, pool="dropdead").all()
+    if not games or not all(g.is_final for g in games):
+        return
+    if Entry.query.filter_by(pool="dropdead", season_year=week.season_year, is_active=True).count() > 0:
+        return
+    tied = Entry.query.filter_by(
+        pool="dropdead", season_year=week.season_year, eliminated_week=week.number
+    ).all()
+    if len(tied) <= 1:
+        return
+    for e in tied:
+        e.is_active = True
+        e.eliminated_week = None
+    db.session.commit()
+
+
 def process_missed_picks(week):
     """Handle entries that never submitted a pick for this pool's week.
     Weeks are per-pool, so this applies only the logic for ``week.pool``:
@@ -165,6 +191,7 @@ def ensure_missed_processed(week):
         if not (mnf and mnf.away_team_id):
             return  # retry on a later load, once the MNF game exists
     process_missed_picks(week)
+    enforce_dropdead_no_tie(week)
     week.missed_processed = True
     db.session.commit()
 
@@ -182,6 +209,29 @@ def gridiron_pick_limit(entry, week):
         .first()
     )
     return GRIDIRON_MAKEUP_PICKS if prior_miss else GRIDIRON_NORMAL_PICKS
+
+
+def gridiron_picks_grid(week):
+    """Per-player picks grid for a Gridiron week: username + up to N pick
+    slots. Shared between the admin editor and the read-only player report."""
+    entries = (
+        Entry.query.filter_by(pool="gridiron", season_year=week.season_year)
+        .join(User)
+        .order_by(User.username, Entry.id)
+        .all()
+    )
+    picks_grid = []
+    max_slots = 0
+    for e in entries:
+        eps = sorted(
+            (p for p in e.picks if p.week_id == week.id and p.pool == "gridiron"),
+            key=lambda p: p.id,
+        )
+        limit = gridiron_pick_limit(e, week)
+        max_slots = max(max_slots, limit, len(eps))
+        picks_grid.append({"entry": e, "picks": eps, "limit": limit})
+    max_slots = max_slots or 5
+    return picks_grid, max_slots
 
 
 def _gridiron_missed_week_numbers(entry, through_week=None):
@@ -249,7 +299,17 @@ def dropdead_status_through_week(season_year, week_number):
     entries = Entry.query.filter_by(pool="dropdead", season_year=season_year).all()
     rows = []
     for e in entries:
-        eliminated_by_then = e.eliminated_week is not None and e.eliminated_week <= week_number
+        # A buy-back always lands on the same week number as the elimination
+        # it reversed (the route only allows same-week buy-backs), so if
+        # eliminated_week still equals buyback_week, nothing has eliminated
+        # this entry since -- it's been active from that week forward. If
+        # eliminated_week has since moved past buyback_week, that's a later,
+        # separate elimination and should show as "out" from that week on.
+        bought_back_by_then = e.buyback_week is not None and e.buyback_week <= week_number
+        revived = e.buyback_week is not None and e.eliminated_week == e.buyback_week
+        eliminated_by_then = (
+            not revived and e.eliminated_week is not None and e.eliminated_week <= week_number
+        )
         week_pick = next((p for p in e.picks if p.week.number == week_number), None)
         rows.append(
             {
@@ -257,6 +317,7 @@ def dropdead_status_through_week(season_year, week_number):
                 "is_active": not eliminated_by_then,
                 "eliminated_week": e.eliminated_week if eliminated_by_then else None,
                 "week_pick": week_pick,
+                "buyback_week": e.buyback_week if bought_back_by_then else None,
             }
         )
     rows.sort(key=lambda r: (not r["is_active"], -(r["eliminated_week"] or 999)))

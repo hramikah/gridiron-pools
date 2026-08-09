@@ -1,15 +1,51 @@
 import threading
+import time
+from collections import defaultdict
 from functools import wraps
 
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from flask import abort, current_app
+from flask import abort, current_app, request
 from flask_login import current_user
 
 from models import Game, Setting, Week, db
 
 EASTERN = ZoneInfo("America/New_York")
+
+# Login rate limiting: a small in-memory counter (fine for a single-process
+# app) keyed by the real client IP -- CF-Connecting-IP is set by Cloudflare
+# itself on every request through the tunnel and can't be spoofed by the
+# client, unlike a plain X-Forwarded-For chain.
+LOGIN_MAX_ATTEMPTS = 8
+LOGIN_WINDOW_SECONDS = 300
+_login_attempts = defaultdict(list)
+_login_attempts_lock = threading.Lock()
+
+
+def _client_ip():
+    return request.headers.get("CF-Connecting-IP", request.remote_addr)
+
+
+def login_rate_limited():
+    ip = _client_ip()
+    now = time.time()
+    with _login_attempts_lock:
+        attempts = _login_attempts[ip]
+        attempts[:] = [t for t in attempts if now - t < LOGIN_WINDOW_SECONDS]
+        return len(attempts) >= LOGIN_MAX_ATTEMPTS
+
+
+def record_failed_login():
+    ip = _client_ip()
+    with _login_attempts_lock:
+        _login_attempts[ip].append(time.time())
+
+
+def clear_login_attempts():
+    ip = _client_ip()
+    with _login_attempts_lock:
+        _login_attempts.pop(ip, None)
 
 
 def now_eastern():

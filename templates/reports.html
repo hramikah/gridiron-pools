@@ -2,15 +2,19 @@
 {% block title %}Weekly Picks Reports{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">📋</span>Weekly Picks Reports</h2></div>
-<p class="text-muted">Each pool has its own weeks and deadlines. Once a pool's pick deadline passes, that pool's picks for the week become available here as a printable PDF.</p>
+<p class="text-muted">Each pool has its own weeks and deadlines. Once a pool's pick deadline passes, that pool's picks for the week become available here.</p>
 
-<div class="table-responsive">
+{% for pool in ['dropdead', 'loser', 'gridiron'] %}
+<h5 class="mt-4">
+  {% if pool == 'dropdead' %}💀{% elif pool == 'loser' %}📉{% else %}🏈{% endif %}
+  {{ pool_labels[pool] }}
+</h5>
+<div class="table-responsive mb-4">
 <table class="table bg-white align-middle">
-  <thead><tr><th>Pool</th><th>Week</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
+  <thead><tr><th>Week</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
   <tbody>
-  {% for week, unlocked in weeks %}
+  {% for week, unlocked in weeks_by_pool[pool] %}
     <tr>
-      <td>{{ pool_labels[week.pool] }}</td>
       <td>Week {{ week.number }}</td>
       <td>{{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern</td>
       <td>
@@ -19,16 +23,17 @@
       </td>
       <td>
         {% if unlocked %}
-        <a href="{{ url_for('main.week_picks_pdf', week_id=week.id) }}" class="btn btn-sm btn-outline-primary" target="_blank">View / Print PDF</a>
+        <a href="{{ url_for('main.week_report', week_id=week.id) }}" class="btn btn-sm btn-outline-primary">View Picks</a>
         {% else %}
         <button class="btn btn-sm btn-outline-secondary" disabled>Available after deadline</button>
         {% endif %}
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="5" class="text-muted">No weeks set up yet.</td></tr>
+    <tr><td colspan="4" class="text-muted">No weeks set up yet for {{ pool_labels[pool] }}.</td></tr>
   {% endfor %}
   </tbody>
 </table>
 </div>
+{% endfor %}
 {% endblock %}

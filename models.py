@@ -132,6 +132,7 @@ class Entry(db.Model):
     is_active = db.Column(db.Boolean, default=True)  # drop dead: still alive; gridiron: not benched for missing 5+ weeks
     eliminated_week = db.Column(db.Integer, nullable=True)
     buy_backs_used = db.Column(db.Integer, default=0)
+    buyback_week = db.Column(db.Integer, nullable=True)  # drop dead: week number the entry last bought back in, if ever
     paid = db.Column(db.Boolean, default=False)  # entry-fee paid, admin-only visibility
 
     created_at = db.Column(db.DateTime, default=now)
@@ -199,3 +200,15 @@ class ContactMessage(db.Model):
     is_read = db.Column(db.Boolean, default=False)
 
     user = db.relationship("User")
+
+
+class Invite(db.Model):
+    """An admin-sent invite: registration is only allowed via a valid,
+    unused token tied to the invited email, so the site can't be joined by
+    anyone who just finds the URL."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=now)
+    used_at = db.Column(db.DateTime, nullable=True)

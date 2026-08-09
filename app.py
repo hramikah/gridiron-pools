@@ -1,10 +1,13 @@
 import os
 
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user
+from flask_wtf import CSRFProtect
 
 from helpers import week_is_complete
 from models import User, db
+
+csrf = CSRFProtect()
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -28,7 +31,17 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["CURRENT_SEASON"] = int(os.environ.get("SEASON_YEAR", 2026))
 
+    # Cookie hardening: HttpOnly blocks JS from reading the session cookie
+    # (XSS mitigation), Secure means it's never sent over plain HTTP, and
+    # Lax stops it being sent on cross-site POSTs (CSRF mitigation, on top
+    # of the CSRFProtect tokens below). This app is only ever reached over
+    # HTTPS (Cloudflare terminates TLS in front of it), so Secure is safe.
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
     db.init_app(app)
+    csrf.init_app(app)
 
     login_manager = LoginManager()
     login_manager.login_view = "auth.login"
@@ -75,6 +88,16 @@ def create_app():
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete
+
+    # Site-wide login gate: nothing is visible to a logged-out visitor except
+    # the login/register pages themselves and static assets.
+    PUBLIC_ENDPOINTS = {"auth.login", "auth.register", "static"}
+
+    @app.before_request
+    def require_login():
+        if current_user.is_authenticated or request.endpoint in PUBLIC_ENDPOINTS:
+            return None
+        return redirect(url_for("auth.login", next=request.path))
 
     @app.errorhandler(403)
     def forbidden(e):

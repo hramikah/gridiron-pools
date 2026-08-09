@@ -1,18 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Master Standings{% endblock %}
+{% block container_class %}container-fluid px-4{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">🏆</span>Master Standings</h2></div>
 <p class="text-muted">Combined leaderboard across all three pools.</p>
 
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="dropdead-tab" data-bs-toggle="tab" data-bs-target="#dropdead-pane" type="button" role="tab">💀 Drop Dead Pool</button>
+    <button class="nav-link active" id="gridiron-tab" data-bs-toggle="tab" data-bs-target="#gridiron-pane" type="button" role="tab">🏈 Gridiron Investments</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="dropdead-tab" data-bs-toggle="tab" data-bs-target="#dropdead-pane" type="button" role="tab">💀 Drop Dead Pool</button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="loser-tab" data-bs-toggle="tab" data-bs-target="#loser-pane" type="button" role="tab">📉 Loser Pool</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="gridiron-tab" data-bs-toggle="tab" data-bs-target="#gridiron-pane" type="button" role="tab">🏈 Gridiron Investments</button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button" role="tab">📅 Week History</button>
@@ -26,43 +27,7 @@
 </ul>
 
 <div class="tab-content">
-  <div class="tab-pane fade show active" id="dropdead-pane" role="tabpanel">
-    <table class="table table-striped standings bg-white">
-      <thead><tr><th>Player</th><th>Status</th></tr></thead>
-      <tbody>
-      {% for e in dropdead_entries %}
-        <tr>
-          <td>{{ e.user.username }}</td>
-          <td>
-            {% if e.is_active %}<span class="badge badge-alive">Alive</span>
-            {% else %}<span class="badge badge-eliminated">Out - Week {{ e.eliminated_week }}</span>{% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr><td colspan="2" class="text-muted">No entries yet.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="tab-pane fade" id="loser-pane" role="tabpanel">
-    <table class="table table-striped standings bg-white">
-      <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead>
-      <tbody>
-      {% for entry, total in loser_rows %}
-        <tr>
-          <td>{{ loop.index }}</td>
-          <td>{{ entry.user.username }}</td>
-          <td><strong>{{ total }}</strong></td>
-        </tr>
-      {% else %}
-        <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="tab-pane fade" id="gridiron-pane" role="tabpanel">
+  <div class="tab-pane fade show active" id="gridiron-pane" role="tabpanel">
     {% if gridiron_recent_week %}
     <p class="text-muted small mb-2">Each player's Week {{ gridiron_recent_week }} picks are shown under their row, colored green for a win and red for a loss.</p>
     {% endif %}
@@ -102,6 +67,43 @@
     <p class="text-muted small">A tie is a push against the spread. Missed weeks are scored 0-5 and unlock an 8-pick makeup week; missing more than 5 weeks benches the entry.</p>
   </div>
 
+  <div class="tab-pane fade" id="dropdead-pane" role="tabpanel">
+    <table class="table table-striped standings bg-white">
+      <thead><tr><th>Player</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for e in dropdead_entries %}
+        <tr>
+          <td>{{ e.user.username }}</td>
+          <td>
+            {% if e.is_active %}<span class="badge badge-alive">Alive</span>
+            {% else %}<span class="badge badge-eliminated">Out - Week {{ e.eliminated_week }}</span>{% endif %}
+            {% if e.buyback_week %}<span class="badge bg-warning text-dark">Bought back Wk {{ e.buyback_week }}</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="2" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tab-pane fade" id="loser-pane" role="tabpanel">
+    <table class="table table-striped standings bg-white">
+      <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead>
+      <tbody>
+      {% for entry, total in loser_rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ entry.user.username }}</td>
+          <td><strong>{{ total }}</strong></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-muted">No entries yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
   <div class="tab-pane fade" id="history-pane" role="tabpanel">
     <p class="text-muted">See where things stood as of the end of any past week (weeks unlock here once their pick deadline has passed).</p>
     <div class="mb-4">
@@ -126,6 +128,7 @@
           <td>
             {% if row.is_active %}<span class="badge badge-alive">Alive</span>
             {% else %}<span class="badge badge-eliminated">Out - Week {{ row.eliminated_week }}</span>{% endif %}
+            {% if row.buyback_week %}<span class="badge bg-warning text-dark">Bought back Wk {{ row.buyback_week }}</span>{% endif %}
           </td>
           <td>
             {% if row.week_pick and row.week_pick.team %}

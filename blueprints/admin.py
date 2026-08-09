@@ -1,15 +1,18 @@
+import os
 import re
+import secrets
+import shutil
 from datetime import datetime
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from helpers import admin_required, deadline_passed, get_current_week, get_setting, send_async, set_setting
-from mailer import send_invite_emails
-from models import POOL_LABELS, POOLS, ContactMessage, Entry, Game, GridironMiss, LoserPoolPoints, Pick, Team, User, Week, db
+from mailer import send_invite_link_emails
+from models import POOL_LABELS, POOLS, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, Pick, Team, User, Week, db
 from notifications import email_week_picks
 from publisher import publish_week
-from scoring import ensure_missed_processed, gridiron_pick_limit, process_missed_picks, score_game
+from scoring import enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -88,22 +91,7 @@ def pool_week(pool, week_id):
     picks_grid = None
     max_slots = 0
     if pool == "gridiron":
-        entries = (
-            Entry.query.filter_by(pool="gridiron", season_year=week.season_year)
-            .join(User)
-            .order_by(User.username, Entry.id)
-            .all()
-        )
-        picks_grid = []
-        for e in entries:
-            eps = sorted(
-                (p for p in e.picks if p.week_id == week.id and p.pool == "gridiron"),
-                key=lambda p: p.id,
-            )
-            limit = gridiron_pick_limit(e, week)
-            max_slots = max(max_slots, limit, len(eps))
-            picks_grid.append({"entry": e, "picks": eps, "limit": limit})
-        max_slots = max_slots or 5
+        picks_grid, max_slots = gridiron_picks_grid(week)
 
     return render_template(
         "admin/pool_week.html",
@@ -325,6 +313,7 @@ def edit_game(game_id):
     db.session.commit()
     if game.is_final:
         score_game(game)  # re-score picks against the edited line/teams/scores
+        enforce_dropdead_no_tie(game.week)
     flash("Game updated.", "success")
     return redirect(url_for("admin.pool_week", pool=pool, week_id=game.week_id))
 
@@ -337,6 +326,7 @@ def enter_result(game_id):
     game.is_final = True
     db.session.commit()
     score_game(game)
+    enforce_dropdead_no_tie(game.week)
     flash(f"{game.label} finalized and picks scored.", "success")
     return redirect(url_for("admin.pool_week", pool=game.pool, week_id=game.week_id))
 
@@ -486,6 +476,7 @@ def add_pick(entry_id, week_id):
 def process_missed(week_id):
     week = Week.query.get_or_404(week_id)
     process_missed_picks(week)
+    enforce_dropdead_no_tie(week)
     week.missed_processed = True
     db.session.commit()
     messages = {
@@ -669,6 +660,33 @@ def settings():
     )
 
 
+@bp.route("/reset-test-data", methods=["POST"])
+def reset_test_data():
+    if request.form.get("confirm_text", "").strip() != "DELETE":
+        flash('You must type "DELETE" exactly to confirm the reset.', "error")
+        return redirect(url_for("admin.settings"))
+
+    db_path = current_app.config["SQLALCHEMY_DATABASE_URI"].removeprefix("sqlite:///")
+    if os.path.exists(db_path):
+        backup_dir = os.path.join(os.path.dirname(db_path), "old_backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        shutil.copy2(db_path, os.path.join(backup_dir, f"pools_pre_reset_{stamp}.db"))
+
+    # Children before parents, to avoid orphaning rows on SQLite's ID reuse.
+    Pick.query.delete()
+    GridironMiss.query.delete()
+    Game.query.delete()
+    Week.query.delete()
+    Entry.query.delete()
+    Announcement.query.delete()
+    ContactMessage.query.delete()
+    db.session.commit()
+
+    flash("All test data (weeks, games, picks, entries, announcements, messages) has been wiped. Player logins were kept.", "success")
+    return redirect(url_for("admin.settings"))
+
+
 @bp.route("/invite", methods=["GET", "POST"])
 def invite():
     if request.method == "POST":
@@ -682,7 +700,14 @@ def invite():
             return redirect(url_for("admin.invite"))
 
         site_url = get_setting("site_url", "http://100.71.232.56:8090")
-        send_async(send_invite_emails, valid, site_url)
+        email_links = []
+        for email in valid:
+            invite_row = Invite(email=email, token=secrets.token_urlsafe(32))
+            db.session.add(invite_row)
+            db.session.flush()
+            email_links.append((email, f"{site_url}{url_for('auth.register', token=invite_row.token)}"))
+        db.session.commit()
+        send_async(send_invite_link_emails, email_links)
 
         msg = f"Invite sent to {len(valid)} address{'es' if len(valid) != 1 else ''}."
         if invalid:

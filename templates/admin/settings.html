@@ -26,9 +26,42 @@
   </div>
 </div>
 
-<form method="post" action="{{ url_for('admin.publish_now') }}">
+<form method="post" action="{{ url_for('admin.publish_now') }}" class="mb-4">
   <button type="submit" class="btn btn-success" onclick="return confirm('Fetch current lines from The Odds API and publish/update this week\'s games now?')">
     Publish This Week's Lines Now
   </button>
 </form>
+
+<div class="card mb-4" style="max-width: 600px; border-color: var(--bs-danger);">
+  <div class="card-body">
+    <h5 class="card-title text-danger">Danger Zone &mdash; Testing Only</h5>
+    <p class="card-text text-muted">Wipes all weeks, games, picks, entries (pool memberships), announcements, and contact messages. Player accounts/logins, settings, teams, and Loser Pool point values are kept. A backup of the database is saved automatically before deleting anything.</p>
+    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetTestDataModal">
+      Delete All Test Data
+    </button>
+  </div>
+</div>
+
+<div class="modal fade" id="resetTestDataModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('admin.reset_test_data') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Delete all test data?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>This permanently deletes every week, game, pick, entry, announcement, and contact message for every pool. This cannot be undone from the app (though a DB backup is saved on disk first).</p>
+          <p><strong>Player logins are not affected.</strong></p>
+          <label class="form-label">Type <code>DELETE</code> to confirm:</label>
+          <input type="text" name="confirm_text" class="form-control" autocomplete="off" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">Delete All Test Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}

@@ -122,14 +122,21 @@ def send_picks_recap_email(user, week, recap_body):
     _send(user.email, subject, body)
 
 
-def send_invite_emails(recipient_addresses, site_url):
+def send_invite_link_emails(email_links):
+    """email_links: list of (email, registration_url) pairs, one unique
+    single-use invite link per recipient -- registration is only possible
+    through this link, so the site can't be joined by anyone else."""
     subject = "You are invited to Gridiron Pools"
-    body = (
-        "Hi,\n\n"
-        "You are invited to join Gridiron Pools -- our NFL pick'em pools: "
-        "Drop Dead Pool, Loser Pool, and Gridiron Investments.\n\n"
-        f"App link: {site_url}\n\n"
-        "Head there to register an account and get started. See you in the pool!\n\n"
-        "-- Gridiron Pools"
-    )
-    _send_bulk(recipient_addresses, subject, body)
+    for email, link in email_links:
+        body = (
+            "Hi,\n\n"
+            "You are invited to join Gridiron Pools -- our NFL pick'em pools: "
+            "Drop Dead Pool, Loser Pool, and Gridiron Investments.\n\n"
+            f"Register here: {link}\n\n"
+            "This link is just for you -- head there to create your account and get started. "
+            "See you in the pool!\n\n"
+            "-- Gridiron Pools"
+        )
+        _send(email, subject, body)
+
+

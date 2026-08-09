@@ -2,12 +2,13 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import week_unlocked
-from models import POOLS, Entry, Game, User, Week
+from models import POOL_LABELS, POOLS, Entry, Game, User, Week
 from pdf_report import build_week_pdf
 from scoring import (
     dropdead_matrix,
     dropdead_status_through_week,
     gridiron_matrix,
+    gridiron_picks_grid,
     gridiron_record_through_week,
     loser_matrix,
     loser_totals_through_week,
@@ -134,16 +135,54 @@ def scores():
 @login_required
 def reports():
     season_year = current_app.config["CURRENT_SEASON"]
-    weeks = (
-        Week.query.filter_by(season_year=season_year)
-        .order_by(Week.number, Week.pool)
-        .all()
-    )
-    from models import POOL_LABELS
+    weeks_by_pool = {}
+    for pool in POOLS:
+        weeks = (
+            Week.query.filter_by(season_year=season_year, pool=pool)
+            .order_by(Week.number)
+            .all()
+        )
+        weeks_by_pool[pool] = [(w, week_unlocked(w)) for w in weeks]
     return render_template(
         "reports.html",
-        weeks=[(w, week_unlocked(w)) for w in weeks],
+        weeks_by_pool=weeks_by_pool,
         pool_labels=POOL_LABELS,
+    )
+
+
+@bp.route("/weeks/<int:week_id>/report")
+@login_required
+def week_report(week_id):
+    week = Week.query.get_or_404(week_id)
+    if not week_unlocked(week):
+        flash("This week's picks report unlocks once the pick deadline has passed.", "error")
+        return redirect(url_for("main.reports"))
+
+    result_class = {"win": "text-success fw-bold", "loss": "text-danger fw-bold", "push": "text-muted"}
+
+    if week.pool == "gridiron":
+        picks_grid, max_slots = gridiron_picks_grid(week)
+        return render_template(
+            "week_report.html",
+            week=week,
+            pool_label=POOL_LABELS[week.pool],
+            picks_grid=picks_grid,
+            max_slots=max_slots,
+            result_class=result_class,
+        )
+
+    entries = Entry.query.filter_by(pool=week.pool, season_year=week.season_year).join(User).order_by(User.username).all()
+    rows = []
+    for e in entries:
+        pick = next((p for p in e.picks if p.week_id == week.id), None)
+        rows.append({"entry": e, "pick": pick})
+
+    return render_template(
+        "week_report.html",
+        week=week,
+        pool_label=POOL_LABELS[week.pool],
+        rows=rows,
+        result_class=result_class,
     )
 
 

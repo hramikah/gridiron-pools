@@ -108,6 +108,7 @@ def buyback(entry_id):
         return redirect(url_for("dropdead.pick"))
     entry.is_active = True
     entry.buy_backs_used += 1
+    entry.buyback_week = entry.eliminated_week
     db.session.commit()
     flash("Entry revived. ($30 buy-back fee due to the commissioners.)", "success")
     return redirect(url_for("dropdead.pick"))

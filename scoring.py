@@ -373,7 +373,7 @@ def gridiron_record_through_week(season_year, week_number):
             if p.market == "spread":
                 label = p.game.home_team if p.side == "home" else p.game.away_team
             else:
-                label = f"{p.side.capitalize()} {p.game.over_under}"
+                label = f"{p.side.capitalize()} {p.game.over_under} ({p.game.home_team})"
             week_picks.append({"label": label, "result": p.result})
 
         rows.append((e, wins, losses, ties, week_picks))
@@ -395,7 +395,7 @@ def player_pick_history(season_year, user_id):
                 elif p.market == "spread":
                     team_label = p.game.home_team if p.side == "home" else p.game.away_team
                 else:
-                    team_label = f"{p.side.capitalize()} {p.game.over_under}"
+                    team_label = f"{p.side.capitalize()} {p.game.over_under} ({p.game.home_team})"
 
                 result = p.result if week_is_complete(p.week) else "pending"
                 rows.append(

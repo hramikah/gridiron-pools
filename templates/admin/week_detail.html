@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Week {{ week.number }} — Week Actions{% endblock %}
 {% block content %}
-<p class="mb-1"><a href="{{ url_for('admin.dashboard') }}">&larr; Pick Manager</a></p>
+<p class="mb-1"><a href="{{ url_for('admin.dashboard') }}">&larr; Pool Manager</a></p>
 <h2>Week {{ week.number }} ({{ week.season_year }}) — Week Actions</h2>
 <p class="text-muted">Deadline: {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }}</p>
 

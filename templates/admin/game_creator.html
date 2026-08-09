@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Week Manager{% endblock %}
+{% block content %}
+{% set pool_icons = {'dropdead': '💀', 'loser': '📉', 'gridiron': '🏈'} %}
+<div class="page-header"><h2><span class="pool-icon">🗓️</span>Week Manager</h2></div>
+<p class="text-muted">Enter an NFL game once and it populates all three pools for that week: the full line (spread &amp; over/under) goes to <strong>Gridiron</strong>, and the straight-up matchup + kickoff go to <strong>Drop Dead</strong> and <strong>Loser</strong>. College games and one-off edits are still done in each pool's week editor.</p>
+
+<div class="card mb-4 border-primary">
+  <div class="card-body">
+    <h5>Current Week <span class="text-muted small">(the week players make picks for)</span></h5>
+    <p class="mb-2">
+      {% if active_week %}
+        Pinned to <strong>Week {{ active_week }}</strong> for all pools.
+      {% else %}
+        <strong>Automatic</strong> &mdash; each pool advances on its own deadline (this is what pushed Gridiron to a later week when its deadline passed).
+      {% endif %}
+    </p>
+    <form method="post" action="{{ url_for('admin.set_current_week') }}" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label">Set current week</label>
+        <select name="active_week" class="form-select">
+          <option value="auto" {% if not active_week %}selected{% endif %}>Automatic (by deadline)</option>
+          {% for n in numbers %}
+          <option value="{{ n }}" {% if active_week and active_week|int == n %}selected{% endif %}>Week {{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto"><button type="submit" class="btn btn-primary">Set current week</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Create a Week (all pools)</h5>
+    <p class="text-muted small mb-2">Creates the week in Drop Dead, Loser, and Gridiron at once with the same deadline. You can fine-tune each pool's deadline later in Pool Manager.</p>
+    <form method="post" action="{{ url_for('admin.game_creator_new_week') }}" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label">Week #</label>
+        <input type="number" name="number" class="form-control" min="1" max="22" required>
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Pick deadline (Eastern time)</label>
+        <input type="datetime-local" name="pick_deadline" class="form-control" required>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Create Week</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if not numbers %}
+<p class="text-muted">No weeks exist yet. Create one above to start adding games.</p>
+{% else %}
+
+<form method="get" action="{{ url_for('admin.game_creator') }}" class="row g-2 align-items-end mb-4">
+  <div class="col-auto">
+    <label class="form-label">Add games to week</label>
+    <select name="week" class="form-select" onchange="this.form.submit()">
+      {% for n in numbers %}
+      <option value="{{ n }}" {% if n == selected %}selected{% endif %}>Week {{ n }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto"><button type="submit" class="btn btn-outline-secondary">Go</button></div>
+</form>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Add an NFL Game to Week {{ selected }} &mdash; all pools</h5>
+    <form method="post" action="{{ url_for('admin.game_creator_add') }}" class="row g-2">
+      <input type="hidden" name="week" value="{{ selected }}">
+      <div class="col-md-4">
+        <label class="form-label">Away team</label>
+        <select name="away_team_id" class="form-select" required>
+          <option value="">-- select NFL team --</option>
+          {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1 text-center align-self-end pb-2 text-muted">@</div>
+      <div class="col-md-4">
+        <label class="form-label">Home team</label>
+        <select name="home_team_id" class="form-select" required>
+          <option value="">-- select NFL team --</option>
+          {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Kickoff (Eastern time)</label>
+        <input type="datetime-local" name="kickoff" class="form-control" required>
+      </div>
+
+      <div class="col-12"><hr class="my-2"><span class="text-muted small">Gridiron line (ignored by Drop Dead &amp; Loser):</span></div>
+      <div class="col-md-3">
+        <label class="form-label">Favorite</label>
+        <select name="favorite" class="form-select">
+          <option value="">Pick'em</option>
+          <option value="home">Home</option>
+          <option value="away">Away</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Spread</label>
+        <input type="number" step="0.5" name="spread" class="form-control" placeholder="e.g. 3.5">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Over/Under</label>
+        <input type="number" step="0.5" name="over_under" class="form-control" placeholder="e.g. 44.5">
+      </div>
+      <div class="col-md-3 form-check mt-4 ms-2">
+        <input type="checkbox" class="form-check-input" name="is_mnf" id="is_mnf">
+        <label class="form-check-label" for="is_mnf">Monday Night game <span class="text-muted small">(Loser auto-pick)</span></label>
+      </div>
+      <div class="col-md-2 mt-3">
+        <button type="submit" class="btn btn-primary">Add Game to All Pools</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h5>Week {{ selected }} games by pool</h5>
+<div class="row g-3">
+  {% for pool in pools %}
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6><span class="pool-icon">{{ pool_icons[pool] }}</span>{{ pool_labels[pool] }}</h6>
+        {% if games_by_pool[pool] %}
+        <ul class="list-unstyled small mb-0">
+          {% for g in games_by_pool[pool] %}
+          <li class="mb-1">
+            {{ g.away_team }} @ {{ g.home_team }}
+            {% if pool == 'gridiron' and (g.spread is not none or g.over_under is not none) %}
+              <span class="text-muted">(
+                {%- if g.favorite == 'home' and g.spread is not none -%}{{ g.home_team }} -{{ g.spread }}
+                {%- elif g.favorite == 'away' and g.spread is not none -%}{{ g.away_team }} -{{ g.spread }}
+                {%- else -%}PK
+                {%- endif -%}
+                {%- if g.over_under is not none %}, O/U {{ g.over_under }}{% endif -%}
+              )</span>
+            {% endif %}
+            {% if g.is_mnf %}<span class="badge bg-dark">MNF</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small mb-0">No games yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

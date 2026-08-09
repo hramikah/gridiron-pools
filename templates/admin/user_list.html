@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}User List - Admin{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">📋</span>User List</h2></div>
+<p class="text-muted">Every registered account, for quick reference. For pool membership and account management, see Investor Management.</p>
+
+<div class="table-responsive">
+<table class="table table-striped standings bg-white align-middle">
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Email</th>
+      <th>Role</th>
+      <th>Joined</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td>{{ u.username }}</td>
+      <td>{{ u.email }}</td>
+      <td>{% if u.is_admin %}<span class="badge bg-dark">Admin</span>{% else %}Player{% endif %}</td>
+      <td>{{ u.created_at.strftime('%b %d, %Y') if u.created_at else '—' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="text-muted">No users yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="text-muted small">{{ users|length }} total user{{ 's' if users|length != 1 else '' }}.</p>
+{% endblock %}

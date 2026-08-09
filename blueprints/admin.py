@@ -106,6 +106,12 @@ def pool_week(pool, week_id):
     )
 
 
+@bp.route("/users")
+def user_list():
+    users = User.query.order_by(User.username).all()
+    return render_template("admin/user_list.html", users=users)
+
+
 @bp.route("/players")
 def players():
     season_year = current_app.config["CURRENT_SEASON"]

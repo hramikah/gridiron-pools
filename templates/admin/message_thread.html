@@ -2,16 +2,32 @@
 {% block title %}Messages with {{ player.username }} - Admin{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">✉️</span>Messages with {{ player.username }}</h2></div>
-<p class="mb-4"><a href="{{ url_for('admin.messages') }}">&larr; Back to Player Messages</a></p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <a href="{{ url_for('admin.messages') }}">&larr; Back to Player Messages</a>
+  {% if thread %}
+  <form method="post" action="{{ url_for('admin.delete_thread', user_id=player.id) }}"
+        onsubmit="return confirm('Delete the entire conversation with {{ player.username }}? This can\'t be undone.');">
+    <button type="submit" class="btn btn-sm btn-outline-danger">Delete Entire Conversation</button>
+  </form>
+  {% endif %}
+</div>
 
 {% for m in thread %}
 <div class="card mb-2 {% if m.from_admin %}bg-light{% endif %}">
   <div class="card-body py-2">
-    <div class="small text-muted">
-      {% if m.from_admin %}{{ m.sender.username if m.sender else 'Admin' }} (admin){% else %}{{ player.username }}{% endif %}
-      &middot; {{ m.created_at.strftime('%a %b %d, %I:%M %p') }}
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="small text-muted">
+          {% if m.from_admin %}{{ m.sender.username if m.sender else 'Admin' }} (admin){% else %}{{ player.username }}{% endif %}
+          &middot; {{ m.created_at.strftime('%a %b %d, %I:%M %p') }}
+        </div>
+        <div>{{ m.body }}</div>
+      </div>
+      <form method="post" action="{{ url_for('admin.delete_message', user_id=player.id, message_id=m.id) }}"
+            onsubmit="return confirm('Delete this message?');">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Delete</button>
+      </form>
     </div>
-    <div>{{ m.body }}</div>
   </div>
 </div>
 {% else %}

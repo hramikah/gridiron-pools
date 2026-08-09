@@ -786,6 +786,24 @@ def reply_message(user_id):
     return redirect(url_for("admin.message_thread", user_id=user_id))
 
 
+@bp.route("/messages/<int:user_id>/<int:message_id>/delete", methods=["POST"])
+def delete_message(user_id, message_id):
+    message = ContactMessage.query.filter_by(id=message_id, user_id=user_id).first_or_404()
+    db.session.delete(message)
+    db.session.commit()
+    flash("Message deleted.", "success")
+    return redirect(url_for("admin.message_thread", user_id=user_id))
+
+
+@bp.route("/messages/<int:user_id>/delete-thread", methods=["POST"])
+def delete_thread(user_id):
+    player = User.query.get_or_404(user_id)
+    count = ContactMessage.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    db.session.commit()
+    flash(f"Deleted the entire conversation with {player.username} ({count} message{'s' if count != 1 else ''}).", "success")
+    return redirect(url_for("admin.messages"))
+
+
 @bp.route("/loser-points", methods=["GET", "POST"])
 def loser_points():
     season_year = current_app.config["CURRENT_SEASON"]

@@ -1,13 +1,20 @@
 import os
+from datetime import datetime, timedelta
 
-from flask import Flask, redirect, render_template, request, url_for
-from flask_login import LoginManager, current_user
+from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask_login import LoginManager, current_user, logout_user
 from flask_wtf import CSRFProtect
 
 from helpers import week_is_complete
 from models import User, db
 
 csrf = CSRFProtect()
+
+# Auto-logout after this long with no requests, enforced server-side and
+# independent of the session cookie's own lifetime (which stays a
+# browser-session cookie -- no Expires/Max-Age -- so it's still cleared on
+# browser close for browsers that don't restore their previous session).
+INACTIVITY_TIMEOUT = timedelta(minutes=30)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -92,6 +99,22 @@ def create_app():
     # Site-wide login gate: nothing is visible to a logged-out visitor except
     # the login/register pages themselves and static assets.
     PUBLIC_ENDPOINTS = {"auth.login", "auth.register", "static"}
+
+    @app.before_request
+    def enforce_inactivity_timeout():
+        if not current_user.is_authenticated:
+            return None
+        now = datetime.utcnow()
+        last_seen_raw = session.get("_last_seen")
+        if last_seen_raw:
+            last_seen = datetime.fromisoformat(last_seen_raw)
+            if now - last_seen > INACTIVITY_TIMEOUT:
+                logout_user()
+                session.clear()
+                flash("You were logged out after 30 minutes of inactivity.", "error")
+                return redirect(url_for("auth.login"))
+        session["_last_seen"] = now.isoformat()
+        return None
 
     @app.before_request
     def require_login():

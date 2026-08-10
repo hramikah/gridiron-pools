@@ -21,6 +21,18 @@
         <input type="text" name="site_url" class="form-control" value="{{ site_url }}" placeholder="http://100.71.232.56:8090">
         <div class="form-text">The URL players use to reach the app &mdash; update this if your Tailscale IP or domain changes.</div>
       </div>
+      <hr>
+      <h6 class="text-muted text-uppercase small">Email (SendGrid)</h6>
+      <div class="mb-3">
+        <label class="form-label">SendGrid API key</label>
+        <input type="text" name="sendgrid_api_key" class="form-control" value="{{ sendgrid_api_key }}" placeholder="SG.xxxxxxxx" autocomplete="off">
+        <div class="form-text">From SendGrid &rarr; Settings &rarr; API Keys. Sends over HTTPS, since cloud hosts block outbound SMTP.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Verified sender email</label>
+        <input type="email" name="sendgrid_from_email" class="form-control" value="{{ sendgrid_from_email }}" placeholder="you@example.com">
+        <div class="form-text">Must be a Single Sender you've verified in SendGrid (or an address on a verified domain).</div>
+      </div>
       <button type="submit" class="btn btn-primary">Save Settings</button>
     </form>
   </div>

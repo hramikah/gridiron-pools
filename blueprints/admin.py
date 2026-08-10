@@ -840,12 +840,18 @@ def settings():
         api_key = request.form.get("odds_api_key", "").strip()
         season_start = request.form.get("season_start_thursday", "").strip()
         site_url = request.form.get("site_url", "").strip()
+        sendgrid_api_key = request.form.get("sendgrid_api_key", "").strip()
+        sendgrid_from_email = request.form.get("sendgrid_from_email", "").strip()
         if api_key:
             set_setting("odds_api_key", api_key)
         if season_start:
             set_setting("season_start_thursday", season_start)
         if site_url:
             set_setting("site_url", site_url.rstrip("/"))
+        if sendgrid_api_key:
+            set_setting("sendgrid_api_key", sendgrid_api_key)
+        if sendgrid_from_email:
+            set_setting("sendgrid_from_email", sendgrid_from_email)
         flash("Settings saved.", "success")
         return redirect(url_for("admin.settings"))
 
@@ -854,6 +860,8 @@ def settings():
         odds_api_key=get_setting("odds_api_key", ""),
         season_start_thursday=get_setting("season_start_thursday", ""),
         site_url=get_setting("site_url", "http://100.71.232.56:8090"),
+        sendgrid_api_key=get_setting("sendgrid_api_key", ""),
+        sendgrid_from_email=get_setting("sendgrid_from_email", ""),
     )
 
 

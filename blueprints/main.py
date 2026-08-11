@@ -31,6 +31,14 @@ def index():
     return render_template("home.html", my_entries=my_entries)
 
 
+@bp.route("/help/<pool>")
+def help_page(pool):
+    if pool not in POOLS:
+        flash("Unknown pool.", "error")
+        return redirect(url_for("main.index"))
+    return render_template("help.html", pool=pool, pool_label=POOL_LABELS[pool])
+
+
 @bp.route("/standings")
 def standings():
     season_year = current_app.config["CURRENT_SEASON"]

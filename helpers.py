@@ -149,14 +149,18 @@ def _team_line(game, side):
 
 def team_matchups_for_week(week_id, pool):
     """Map team_id -> a full matchup description ('Away Team +8 @ Home
-    Team -8') for every team with a game in this pool's week, so a plain
-    team-name dropdown (Drop Dead, Loser) can show the spread context for
-    whichever team is picked, not just the bare team name."""
+    Team -8 — Sun Aug 15, 01:00 PM Eastern') for every team with a game in
+    this pool's week, so a plain team-name dropdown (Drop Dead, Loser) can
+    show the spread and kickoff context for whichever team is picked, not
+    just the bare team name -- and the same string is reused once a pick is
+    locked in, so that detail doesn't disappear after saving."""
     matchups = {}
     for g in Game.query.filter_by(week_id=week_id, pool=pool).all():
         away_line = _team_line(g, "away")
         home_line = _team_line(g, "home")
         text = f"{g.away_team} {away_line} @ {g.home_team} {home_line}"
+        if g.kickoff:
+            text += f" — {g.kickoff.strftime('%a %b %d, %I:%M %p')} Eastern"
         if g.away_team_id:
             matchups[g.away_team_id] = text
         if g.home_team_id:

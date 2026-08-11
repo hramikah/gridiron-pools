@@ -36,7 +36,7 @@
       {% if current_pick %}
         <p class="mb-0">
           Week {{ week.number }} pick: <strong>{{ current_pick.team.city }} {{ current_pick.team.name }}</strong> ({{ points_by_team.get(current_pick.team_id, '?') }} pts)
-          <span class="badge bg-secondary">Locked in &mdash; picks can't be changed once saved</span>
+          <span class="badge bg-secondary">Locked in</span>
           {% if removable_picks.get(entry.id) %}
           <form method="post" action="{{ url_for('loser.remove_pick', pick_id=current_pick.id) }}" class="d-inline ms-1"
                 onsubmit="return confirm('Remove this pick? You can make a new selection afterward.');">

@@ -52,7 +52,7 @@ def pick():
             flash("The pick deadline for this week has passed.", "error")
             return redirect(url_for("dropdead.pick"))
         if Pick.query.filter_by(entry_id=entry.id, week_id=week.id).first():
-            flash("Your pick for this week is already locked in and can't be changed.", "error")
+            flash("You already have a pick locked in for this week. Remove it first if you want to pick a different team.", "error")
             return redirect(url_for("dropdead.pick"))
         if team_id in entry.used_team_ids():
             flash("You've already used that team this season.", "error")

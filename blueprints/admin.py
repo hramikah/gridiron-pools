@@ -411,14 +411,7 @@ def game_creator_add():
         flash("Choose a week.", "error")
         return redirect(url_for("admin.game_creator"))
 
-    away = Team.query.get(int(request.form["away_team_id"])) if request.form.get("away_team_id") else None
-    home = Team.query.get(int(request.form["home_team_id"])) if request.form.get("home_team_id") else None
-    if not away or not home:
-        flash("Pick both NFL teams.", "error")
-        return redirect(url_for("admin.game_creator", week=number))
-    if away.id == home.id:
-        flash("Away and home team must differ.", "error")
-        return redirect(url_for("admin.game_creator", week=number))
+    sport = request.form.get("sport", "nfl")
 
     favorite = request.form.get("favorite") or None
     spread = request.form.get("spread") or None
@@ -434,6 +427,40 @@ def game_creator_add():
 
     spread_val = float(spread) if spread else None
     ou_val = float(over_under) if over_under else None
+
+    if sport == "college":
+        # College is Gridiron-only -- Drop Dead & Loser never carry it, so
+        # there's no Team row to look up and nothing to mirror elsewhere.
+        away_name = request.form.get("away_team_name", "").strip()
+        home_name = request.form.get("home_team_name", "").strip()
+        if not away_name or not home_name:
+            flash("Enter both college team names.", "error")
+            return redirect(url_for("admin.game_creator", week=number))
+        if away_name.lower() == home_name.lower():
+            flash("Away and home team must differ.", "error")
+            return redirect(url_for("admin.game_creator", week=number))
+
+        gw = _ensure_pool_week(season_year, number, "gridiron")
+        if gw:
+            db.session.add(Game(
+                week_id=gw.id, pool="gridiron", sport="college",
+                home_team=home_name, away_team=away_name,
+                favorite=favorite, spread=spread_val, over_under=ou_val,
+                kickoff=kickoff,
+            ))
+            db.session.commit()
+            flash(f"{away_name} @ {home_name} added to: Gridiron.", "success")
+        return redirect(url_for("admin.game_creator", week=number))
+
+    away = Team.query.get(int(request.form["away_team_id"])) if request.form.get("away_team_id") else None
+    home = Team.query.get(int(request.form["home_team_id"])) if request.form.get("home_team_id") else None
+    if not away or not home:
+        flash("Pick both NFL teams.", "error")
+        return redirect(url_for("admin.game_creator", week=number))
+    if away.id == home.id:
+        flash("Away and home team must differ.", "error")
+        return redirect(url_for("admin.game_creator", week=number))
+
     created = []
 
     # Gridiron carries the full line; Drop Dead / Loser get the straight-up

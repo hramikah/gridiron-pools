@@ -57,7 +57,7 @@
             <option value="">Select a team&hellip;</option>
             {% for t in teams %}
             <option value="{{ t.id }}" {% if t.id in entry.used_team_ids() or t.id in unpickable_team_ids %}disabled{% endif %}>
-              {{ t.city }} {{ t.name }}{% if t.id in unpickable_team_ids and t.id not in entry.used_team_ids() %} (kickoff passed){% endif %}
+              {{ t.city }} {{ t.name }}{% if t.id in team_matchups %}: {{ team_matchups[t.id] }}{% endif %}{% if t.id in unpickable_team_ids and t.id not in entry.used_team_ids() %} (kickoff passed){% endif %}
             </option>
             {% endfor %}
           </select>

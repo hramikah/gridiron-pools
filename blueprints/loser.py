@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import deadline_passed, game_pickable, get_current_week, send_async, team_game_this_week
+from helpers import deadline_passed, game_pickable, get_current_week, send_async, team_game_this_week, team_matchups_for_week
 from models import Entry, Game, LoserPoolPoints, Pick, Team, db
 from notifications import email_entry_pick_confirmation
 from scoring import ensure_missed_processed, standings_loser
@@ -75,6 +75,7 @@ def pick():
     picks_this_week = {}
     removable_picks = {}
     unpickable_team_ids = set()
+    team_matchups = {}
     if week:
         for e in entries:
             p = Pick.query.filter_by(entry_id=e.id, week_id=week.id).first()
@@ -85,6 +86,7 @@ def pick():
         for g in Game.query.filter_by(week_id=week.id, pool="loser").all():
             if not game_pickable(g):
                 unpickable_team_ids.update(t for t in (g.home_team_id, g.away_team_id) if t is not None)
+        team_matchups = team_matchups_for_week(week.id, "loser")
 
     running_totals = {e.id: sum(p.points or 0 for p in e.picks) for e in entries}
 
@@ -97,6 +99,7 @@ def pick():
         points_by_team=points_by_team,
         picks_this_week=picks_this_week,
         removable_picks=removable_picks,
+        team_matchups=team_matchups,
         running_totals=running_totals,
         unpickable_team_ids=unpickable_team_ids,
     )

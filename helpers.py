@@ -133,6 +133,37 @@ def team_game_this_week(team_id, week_id, pool=None):
     return q.first()
 
 
+def _format_spread(value):
+    """7.0 -> '7', 7.5 -> '7.5' -- drop the trailing .0 non-half-point
+    spreads pick up from being stored as floats."""
+    return str(int(value)) if value == int(value) else str(value)
+
+
+def _team_line(game, side):
+    """This team's own spread notation, e.g. '-8', '+7.5', or 'PK'."""
+    if game.favorite is None:
+        return "PK"
+    formatted = _format_spread(game.spread)
+    return f"-{formatted}" if game.favorite == side else f"+{formatted}"
+
+
+def team_matchups_for_week(week_id, pool):
+    """Map team_id -> a full matchup description ('Away Team +8 @ Home
+    Team -8') for every team with a game in this pool's week, so a plain
+    team-name dropdown (Drop Dead, Loser) can show the spread context for
+    whichever team is picked, not just the bare team name."""
+    matchups = {}
+    for g in Game.query.filter_by(week_id=week_id, pool=pool).all():
+        away_line = _team_line(g, "away")
+        home_line = _team_line(g, "home")
+        text = f"{g.away_team} {away_line} @ {g.home_team} {home_line}"
+        if g.away_team_id:
+            matchups[g.away_team_id] = text
+        if g.home_team_id:
+            matchups[g.home_team_id] = text
+    return matchups
+
+
 def week_unlocked(week):
     """A week's picks/results become visible to everyone -- including other
     players' picks -- strictly once its real pick deadline has passed. Not

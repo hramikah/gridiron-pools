@@ -39,15 +39,15 @@
     {% if entry.is_active and week %}
       {% set current_pick = picks_this_week.get(entry.id) %}
       {% if current_pick %}
-        <p class="mb-0">
-          Week {{ week.number }} pick: <strong>{{ current_pick.team.city }} {{ current_pick.team.name }}</strong>
+        <div class="mb-0 d-flex align-items-center">
+          <span class="me-1">Week {{ week.number }} pick: <strong>{{ current_pick.team.city }} {{ current_pick.team.name }}</strong></span>
           {% if removable_picks.get(entry.id) %}
-          <form method="post" action="{{ url_for('dropdead.remove_pick', pick_id=current_pick.id) }}" class="d-inline ms-1"
+          <form method="post" action="{{ url_for('dropdead.remove_pick', pick_id=current_pick.id) }}" class="mb-0"
                 onsubmit="return confirm('Remove this pick? You can make a new selection afterward.');">
             <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Remove pick" aria-label="Remove pick">&times;</button>
           </form>
           {% endif %}
-        </p>
+        </div>
       {% else %}
       <form method="post" class="row g-2 align-items-end mt-2" data-warn-unsaved>
         <input type="hidden" name="entry_id" value="{{ entry.id }}">

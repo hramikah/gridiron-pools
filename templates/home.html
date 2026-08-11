@@ -25,7 +25,7 @@
         {% if my_entries.get('dropdead') %}
         <a href="{{ url_for('dropdead.pick') }}" class="btn btn-dropdead btn-sm">Make Pick</a>
         {% endif %}
-        <a href="{{ url_for('main.help_page', pool='dropdead') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a>
+        <div class="mt-2"><a href="{{ url_for('main.help_page', pool='dropdead') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a></div>
       </div>
     </div>
   </div>
@@ -41,7 +41,7 @@
         {% if my_entries.get('loser') %}
         <a href="{{ url_for('loser.pick') }}" class="btn btn-loser btn-sm">Make Pick</a>
         {% endif %}
-        <a href="{{ url_for('main.help_page', pool='loser') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a>
+        <div class="mt-2"><a href="{{ url_for('main.help_page', pool='loser') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a></div>
       </div>
     </div>
   </div>
@@ -57,7 +57,7 @@
         {% if my_entries.get('gridiron') %}
         <a href="{{ url_for('gridiron.pick') }}" class="btn btn-gridiron btn-sm">Make Picks</a>
         {% endif %}
-        <a href="{{ url_for('main.help_page', pool='gridiron') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a>
+        <div class="mt-2"><a href="{{ url_for('main.help_page', pool='gridiron') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a></div>
       </div>
     </div>
   </div>

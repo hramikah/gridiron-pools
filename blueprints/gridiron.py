@@ -98,6 +98,7 @@ def pick():
 
     picks_this_week = {}
     picks_results_this_week = {}
+    picks_ids_this_week = {}
     pick_limits = {}
     remaining_by_entry = {}
     if week:
@@ -105,9 +106,15 @@ def pick():
             existing_picks = Pick.query.filter_by(entry_id=e.id, week_id=week.id, pool="gridiron").all()
             picks_this_week[e.id] = {(p.game_id, p.market): p.side for p in existing_picks}
             picks_results_this_week[e.id] = {(p.game_id, p.market): p.result for p in existing_picks}
+            picks_ids_this_week[e.id] = {(p.game_id, p.market): p.id for p in existing_picks}
             limit = gridiron_pick_limit(e, week)
             pick_limits[e.id] = limit
             remaining_by_entry[e.id] = max(0, limit - len(existing_picks))
+
+    # A game whose kickoff is more than an hour out is still in `games`
+    # (the pickable set); use that same set to decide which locked-in picks
+    # are still removable, alongside the week's overall deadline.
+    pickable_game_ids = {g.id for g in games}
 
     return render_template(
         "gridiron/pick.html",
@@ -118,9 +125,31 @@ def pick():
         all_games=all_games,
         picks_this_week=picks_this_week,
         picks_results_this_week=picks_results_this_week,
+        picks_ids_this_week=picks_ids_this_week,
         pick_limits=pick_limits,
         remaining_by_entry=remaining_by_entry,
+        pickable_game_ids=pickable_game_ids,
     )
+
+
+@bp.route("/picks/<int:pick_id>/remove", methods=["POST"])
+@login_required
+def remove_pick(pick_id):
+    pick = Pick.query.get_or_404(pick_id)
+    if pick.entry.user_id != current_user.id:
+        flash("Not your pick.", "error")
+        return redirect(url_for("gridiron.pick"))
+    week = pick.week
+    if deadline_passed(week):
+        flash("The pick deadline for this week has passed.", "error")
+        return redirect(url_for("gridiron.pick"))
+    if not game_pickable(pick.game):
+        flash("Too late to remove that pick — it locks 1 hour before kickoff.", "error")
+        return redirect(url_for("gridiron.pick"))
+    db.session.delete(pick)
+    db.session.commit()
+    flash("Pick removed — you can make a new selection.", "success")
+    return redirect(url_for("gridiron.pick"))
 
 
 @bp.route("/standings")

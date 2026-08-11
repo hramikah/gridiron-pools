@@ -69,11 +69,15 @@ def pick():
 
     teams = Team.query.order_by(Team.name).all()
     picks_this_week = {}
+    removable_picks = {}
     unpickable_team_ids = set()
     if week:
         for e in entries:
             p = Pick.query.filter_by(entry_id=e.id, week_id=week.id).first()
             picks_this_week[e.id] = p
+            if p and not locked:
+                team_game = team_game_this_week(p.team_id, week.id, pool="dropdead")
+                removable_picks[e.id] = game_pickable(team_game)
         for g in Game.query.filter_by(week_id=week.id, pool="dropdead").all():
             if not game_pickable(g):
                 unpickable_team_ids.update(t for t in (g.home_team_id, g.away_team_id) if t is not None)
@@ -85,8 +89,30 @@ def pick():
         locked=locked,
         teams=teams,
         picks_this_week=picks_this_week,
+        removable_picks=removable_picks,
         unpickable_team_ids=unpickable_team_ids,
     )
+
+
+@bp.route("/picks/<int:pick_id>/remove", methods=["POST"])
+@login_required
+def remove_pick(pick_id):
+    pick = Pick.query.get_or_404(pick_id)
+    if pick.entry.user_id != current_user.id:
+        flash("Not your pick.", "error")
+        return redirect(url_for("dropdead.pick"))
+    week = pick.week
+    if deadline_passed(week):
+        flash("The pick deadline for this week has passed.", "error")
+        return redirect(url_for("dropdead.pick"))
+    team_game = team_game_this_week(pick.team_id, week.id, pool="dropdead")
+    if not game_pickable(team_game):
+        flash("Too late to remove that pick — it locks 1 hour before kickoff.", "error")
+        return redirect(url_for("dropdead.pick"))
+    db.session.delete(pick)
+    db.session.commit()
+    flash("Pick removed — you can make a new selection.", "success")
+    return redirect(url_for("dropdead.pick"))
 
 
 @bp.route("/buyback/<int:entry_id>", methods=["POST"])

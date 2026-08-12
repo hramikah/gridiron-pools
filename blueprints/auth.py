@@ -46,7 +46,7 @@ def register():
         if not username or not email or not password:
             flash("All fields are required.", "error")
             return render_template("auth/register.html", invite=invite_row)
-        if User.query.filter_by(username=username).first():
+        if User.query.filter(db.func.lower(User.username) == username.lower()).first():
             flash("That username is taken.", "error")
             return render_template("auth/register.html", invite=invite_row)
         user = User(username=username, email=email)
@@ -74,8 +74,12 @@ def login():
 
         identifier = request.form["username"].strip().lower()
         password = request.form["password"]
+        # Case-insensitive on both sides: usernames can contain uppercase
+        # letters (e.g. "GentlemanJack"), but the typed identifier above is
+        # always lowercased, so comparing against the raw column would never
+        # match -- this silently locked out every mixed-case username.
         user = User.query.filter(
-            (User.username == identifier) | (User.email == identifier)
+            (db.func.lower(User.username) == identifier) | (db.func.lower(User.email) == identifier)
         ).first()
         if user and user.check_password(password):
             clear_login_attempts()
@@ -112,7 +116,7 @@ def add_account():
         if username.lower() == current_user.username.lower():
             flash("The new account needs a different username than this one.", "error")
             return render_template("auth/add_account.html", email=email)
-        if User.query.filter_by(username=username).first():
+        if User.query.filter(db.func.lower(User.username) == username.lower()).first():
             flash("That username is taken.", "error")
             return render_template("auth/add_account.html", email=email)
         user = User(username=username, email=email)

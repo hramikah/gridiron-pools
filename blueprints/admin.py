@@ -179,6 +179,21 @@ def toggle_admin(user_id):
     return redirect(url_for("admin.players"))
 
 
+@bp.route("/players/<int:user_id>/reset-password", methods=["POST"])
+def reset_password(user_id):
+    user = User.query.get_or_404(user_id)
+    temp_password = secrets.token_urlsafe(6)
+    user.set_password(temp_password)
+    db.session.commit()
+    flash(
+        f"New temporary password for {user.username}: {temp_password} "
+        "-- give this to them now, it won't be shown again. They should change it "
+        "immediately after logging in (top-right menu -> Change Password).",
+        "success",
+    )
+    return redirect(url_for("admin.players"))
+
+
 @bp.route("/players/<int:user_id>/delete", methods=["POST"])
 def delete_player(user_id):
     user = User.query.get_or_404(user_id)

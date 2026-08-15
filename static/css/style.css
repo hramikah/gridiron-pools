@@ -249,3 +249,197 @@ li.badge {
     box-shadow: 2px 0 3px -2px rgba(0,0,0,.15);
   }
 }
+
+/* ==========================================================================
+   Scoreboard styling for the pick pages
+   Each pool drives its own accent through --pick-accent so one set of rules
+   covers all three; the wrapper class on the form sets the colour.
+   ========================================================================== */
+
+:root {
+  --display-font: "Barlow Condensed", "Helvetica Neue", Arial, sans-serif;
+  --poster-font: "Anton", "Barlow Condensed", Impact, sans-serif;
+}
+
+/* Headline type: pool titles, the countdown, section headers */
+.page-header h2,
+.hero-band h1,
+.countdown-value,
+.pick-heading {
+  font-family: var(--poster-font);
+  letter-spacing: .01em;
+}
+.navbar-brand,
+.countdown-label,
+.pick-table thead th {
+  font-family: var(--display-font);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.pick-heading {
+  font-size: 1.5rem;
+  margin-bottom: .25rem;
+}
+
+/* Per-pool accents */
+.pool-theme-gridiron { --pick-accent: #ff7900; --pick-accent-dark: #cc6100; }
+.pool-theme-loser    { --pick-accent: #00b3a4; --pick-accent-dark: #00887c; }
+.pool-theme-dropdead { --pick-accent: #e5122e; --pick-accent-dark: #a80d21; }
+
+/* The pick tables themselves */
+.pick-table thead th {
+  background: linear-gradient(90deg, var(--field-green-dark), var(--field-green));
+  color: #fff;
+  font-size: .8rem;
+  border: 0;
+}
+.pick-table tbody tr {
+  transition: background-color .12s ease-in-out;
+}
+.pick-table tbody tr:hover {
+  background-color: rgba(255, 121, 0, .06);
+}
+.pick-table .matchup {
+  font-family: var(--display-font);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--field-green-dark);
+}
+.pick-table .kickoff {
+  font-size: .78rem;
+  color: #6c757d;
+}
+
+/* Team buttons: big, punchy, and unmistakable once chosen */
+.pick-option {
+  font-family: var(--display-font);
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.15;
+  letter-spacing: .01em;
+  width: 100%;
+  padding: .55rem .5rem;
+  border: 2px solid var(--field-green);
+  border-radius: .5rem;
+  color: var(--field-green-dark);
+  background: #fff;
+  transition: transform .1s ease-in-out, box-shadow .12s ease-in-out,
+              background-color .12s ease-in-out, color .12s ease-in-out;
+}
+.pick-option:hover {
+  border-color: var(--pick-accent, var(--gold));
+  color: var(--pick-accent-dark, var(--gold));
+  transform: translateY(-2px);
+  box-shadow: 0 .35rem .6rem rgba(0, 0, 0, .13);
+}
+.btn-check:checked + .pick-option {
+  background: linear-gradient(160deg, var(--pick-accent, var(--gold)), var(--pick-accent-dark, var(--gold)));
+  border-color: var(--pick-accent-dark, var(--gold));
+  color: #fff;
+  box-shadow: 0 .3rem .7rem rgba(0, 0, 0, .22);
+  transform: translateY(-1px);
+}
+.btn-check:focus-visible + .pick-option {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+.btn-check:disabled + .pick-option {
+  background: #f1efed;
+  border-color: #d6d2ce;
+  color: #9a948e;
+  transform: none;
+  box-shadow: none;
+}
+.pick-option .pick-points {
+  display: inline-block;
+  font-size: .78rem;
+  font-weight: 700;
+  padding: .05rem .4rem;
+  border-radius: 999px;
+  background: var(--field-green);
+  color: #fff;
+}
+.btn-check:checked + .pick-option .pick-points {
+  background: rgba(255, 255, 255, .28);
+}
+.btn-check:disabled + .pick-option .pick-points {
+  background: #b9b4ae;
+}
+
+/* Status notes under a blocked button */
+.pick-note {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #8a837c;
+  margin-top: .15rem;
+}
+.pick-note.used {
+  color: var(--dropdead-accent);
+  font-weight: 700;
+}
+
+/* The locked-in pick, once saved */
+.locked-pick {
+  border-left: 6px solid var(--pick-accent, var(--gold));
+  background: var(--chalk);
+  border-radius: .5rem;
+  padding: .75rem 1rem;
+}
+.locked-pick .locked-team {
+  font-family: var(--poster-font);
+  font-size: 1.6rem;
+  line-height: 1.1;
+  color: var(--field-green-dark);
+}
+.locked-pick .locked-label {
+  font-family: var(--display-font);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: .78rem;
+  color: var(--pick-accent-dark, #6c757d);
+  font-weight: 700;
+}
+
+@media (max-width: 576px) {
+  .pick-option { font-size: .95rem; padding: .45rem .35rem; }
+  .pick-table .matchup { font-size: 1rem; }
+}
+
+/* Gridiron offers two side-by-side options per market; a plain flex row keeps
+   the full-width .pick-option buttons from fighting Bootstrap's btn-group. */
+.pick-choice-group {
+  display: flex;
+  gap: .4rem;
+  align-items: stretch;
+}
+.pick-choice-group > .pick-option {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Keep option labels breaking between words, never mid-word ("Unde r 38.5"),
+   and let the narrow Over/Under buttons shrink their type instead of wrapping. */
+.pick-option {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.pick-choice-group > .pick-option {
+  /* Wrap between words if it must -- `nowrap` here forced the whole table
+     wider and pushed the Over/Under buttons off-screen. */
+  white-space: normal;
+  font-size: .95rem;
+  padding-left: .35rem;
+  padding-right: .35rem;
+}
+/* Don't let the matchup column collapse when the option columns get greedy. */
+.pick-table td:first-child,
+.pick-table th:first-child {
+  min-width: 11rem;
+}
+@media (max-width: 767.98px) {
+  .pick-choice-group > .pick-option { font-size: .85rem; }
+}

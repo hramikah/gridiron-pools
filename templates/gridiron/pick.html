@@ -91,7 +91,7 @@
              hiding the whole row (which made fully-picked games vanish). #}
           <tr>
             <td>
-              <div class="fw-semibold">{{ g.away_team }} @ {{ g.home_team }}</div>
+              <div class="matchup">{{ g.away_team }} @ {{ g.home_team }}</div>
               <div class="small text-muted">
                 {% if g.kickoff %}{{ g.kickoff.strftime('%a %b %d, %I:%M %p') }} Eastern &middot; {% endif %}
                 {% if g.favorite == 'home' %}{{ g.home_team }} -{{ g.spread }} / {{ g.away_team }} +{{ g.spread }}
@@ -108,13 +108,13 @@
               {% else %}
               {% set away_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if locked %}disabled{% endif %}>
-                <label class="btn btn-outline-primary btn-sm" for="sp_{{ g.id }}_away">{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                <label class="pick-option" for="sp_{{ g.id }}_away">{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
               {% set home_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if locked %}disabled{% endif %}>
-                <label class="btn btn-outline-primary btn-sm" for="sp_{{ g.id }}_home">{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                <label class="pick-option" for="sp_{{ g.id }}_home">{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
-              <div class="btn-group" role="group">
+              <div class="pick-choice-group" role="group">
                 {# favorite on the left, underdog on the right (plain away/home order for pick'em) #}
                 {% if g.favorite == 'home' %}{{ home_btn }}{{ away_btn }}{% else %}{{ away_btn }}{{ home_btn }}{% endif %}
 
@@ -130,12 +130,12 @@
                   <span class="badge bg-secondary">Locked: {{ total_locked|capitalize }} {{ g.over_under }}</span>
                   {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'total'))) }}{% endif %}
                 {% else %}
-                <div class="btn-group" role="group">
+                <div class="pick-choice-group" role="group">
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_over" value="over" autocomplete="off" {% if locked %}disabled{% endif %}>
-                  <label class="btn btn-outline-success btn-sm" for="ou_{{ g.id }}_over">Over {{ g.over_under }}</label>
+                  <label class="pick-option" for="ou_{{ g.id }}_over">Over {{ g.over_under }}</label>
 
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_under" value="under" autocomplete="off" {% if locked %}disabled{% endif %}>
-                  <label class="btn btn-outline-success btn-sm" for="ou_{{ g.id }}_under">Under {{ g.over_under }}</label>
+                  <label class="pick-option" for="ou_{{ g.id }}_under">Under {{ g.over_under }}</label>
 
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_none" value="" autocomplete="off" checked {% if locked %}disabled{% endif %}>
                   <label class="btn btn-outline-secondary btn-sm d-none" for="ou_{{ g.id }}_none"></label>
@@ -148,7 +148,7 @@
     {% endmacro %}
 
     {% if display_games %}
-    <form method="post" class="gridiron-pick-form" data-max-picks="{{ remaining }}" data-warn-unsaved>
+    <form method="post" class="gridiron-pick-form pool-theme-gridiron" data-max-picks="{{ remaining }}" data-warn-unsaved>
       <input type="hidden" name="entry_id" value="{{ entry.id }}">
       {% if makeup_by_entry.get(entry.id) %}
       <div class="alert alert-warning py-2 small mb-2">
@@ -192,7 +192,7 @@
       {% if nfl_games %}
       <h6 class="text-uppercase text-muted fw-bold mt-3 mb-2">🏈 NFL</h6>
       <div class="table-responsive">
-      <table class="table table-sm align-middle table-pick-sticky">
+      <table class="table table-sm align-middle pick-table table-pick-sticky">
         <thead><tr><th>Game</th><th>Spread pick</th>{% if nfl_games|selectattr('over_under')|list %}<th>Total pick</th>{% endif %}</tr></thead>
         <tbody>
         {% for g in nfl_games %}{{ game_row(g, my_picks, locked, nfl_games|selectattr('over_under')|list|length > 0, my_pick_ids) }}{% endfor %}
@@ -204,7 +204,7 @@
       {% if college_games %}
       <h6 class="text-uppercase text-muted fw-bold mt-4 mb-2 pt-3 border-top">🎓 College</h6>
       <div class="table-responsive">
-      <table class="table table-sm align-middle table-pick-sticky">
+      <table class="table table-sm align-middle pick-table table-pick-sticky">
         <thead><tr><th>Game</th><th>Spread pick</th></tr></thead>
         <tbody>
         {% for g in college_games %}{{ game_row(g, my_picks, locked, false, my_pick_ids) }}{% endfor %}

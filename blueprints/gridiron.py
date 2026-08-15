@@ -7,10 +7,9 @@ from helpers import (
     get_current_week,
     gridiron_signup_deadline,
     gridiron_signups_open,
-    send_async,
+   
 )
 from models import Entry, Game, Pick, db
-from notifications import email_entry_pick_confirmation
 from scoring import (
     GRIDIRON_MAKEUP_PENALTY_LOSSES,
     GRIDIRON_MAKEUP_PICKS,
@@ -159,7 +158,6 @@ def pick():
                 Pick(entry_id=entry.id, week_id=week.id, pool="gridiron", game_id=game_id, market=market, side=side)
             )
         db.session.commit()
-        send_async(email_entry_pick_confirmation, current_user.id, week.id, "gridiron", entry.id)
         flash("Picks saved and locked in.", "success")
         return redirect(url_for("gridiron.pick"))
 

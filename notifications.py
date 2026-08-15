@@ -35,19 +35,6 @@ def _user_week_recap_text(user, week):
     return "\n".join(lines) if lines else "No picks were submitted this week."
 
 
-def email_entry_pick_confirmation(user_id, week_id, pool_name, entry_id):
-    """Sent immediately once a single entry locks in its picks for a pool,
-    independent of the bulk deadline-triggered recap in email_week_picks."""
-    user = User.query.get(user_id)
-    week = Week.query.get(week_id)
-    entry = Entry.query.get(entry_id)
-    if not (user and week and entry):
-        return
-    pick_lines = _entry_week_pick_lines(pool_name, entry, week)
-    if not pick_lines:
-        return
-    body = f"{POOL_LABELS_LOCAL[pool_name]} ({entry.label}):\n" + "\n".join(pick_lines)
-    send_picks_recap_email(user, week, body)
 
 
 def email_week_picks(week):

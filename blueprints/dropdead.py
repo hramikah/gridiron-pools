@@ -1,9 +1,8 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import deadline_passed, game_pickable, get_current_week, send_async, team_game_this_week, team_matchups_for_week
+from helpers import deadline_passed, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
 from models import Entry, Game, Pick, Team, db
-from notifications import email_entry_pick_confirmation
 from scoring import ensure_missed_processed, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
@@ -71,7 +70,6 @@ def pick():
             return redirect(url_for("dropdead.pick"))
         db.session.add(Pick(entry_id=entry.id, week_id=week.id, pool="dropdead", team_id=team_id))
         db.session.commit()
-        send_async(email_entry_pick_confirmation, current_user.id, week.id, "dropdead", entry.id)
         flash("Pick saved and locked in for the week.", "success")
         return redirect(url_for("dropdead.pick"))
 

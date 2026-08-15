@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import requests
 
 from helpers import EASTERN, get_setting, now_eastern
-from models import Game, Team, Week, db
+from models import PRESEASON_OFFSET, Game, Team, Week, db
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4/sports"
 PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm"]
@@ -18,6 +18,11 @@ SPORT_KEYS = {
     "nfl": "americanfootball_nfl",
     "college": "americanfootball_ncaaf",
 }
+
+# Before the regular season opens there's nothing on the main NFL feed, so
+# preseason weeks pull exhibition games (which carry real spreads/totals) from
+# the separate preseason feed instead.
+PRESEASON_SPORT_KEY = "americanfootball_nfl_preseason"
 
 
 def _team_lookup():
@@ -37,8 +42,8 @@ def _pick_bookmaker(event):
     return event["bookmakers"][0] if event.get("bookmakers") else None
 
 
-def fetch_odds(sport, api_key):
-    sport_key = SPORT_KEYS[sport]
+def fetch_odds(sport, api_key, preseason=False):
+    sport_key = PRESEASON_SPORT_KEY if (preseason and sport == "nfl") else SPORT_KEYS[sport]
     resp = requests.get(
         f"{ODDS_API_BASE}/{sport_key}/odds",
         params={
@@ -70,18 +75,44 @@ def _extract_lines(event):
     return spread_by_team, total
 
 
-def week_window(season_start, reference=None):
-    """Figure out which week number 'today' falls in relative to the
-    season's Week-1 Thursday, and that week's Thu-Wed window + Saturday
-    noon pick deadline (all Eastern, naive)."""
-    ref = reference or now_eastern()
-    days_since_start = (ref.date() - season_start).days
-    number = max(1, days_since_start // 7 + 1)
-    week_thursday = season_start + timedelta(weeks=number - 1)
+def _first_thursday_of_august(year):
+    d = datetime(year, 8, 1).date()
+    return d + timedelta(days=(3 - d.weekday()) % 7)  # Thursday = 3
+
+
+def _window_for_thursday(week_thursday):
+    """The Thu-Wed game window and Saturday-noon pick deadline for a week
+    that starts on the given Thursday (all Eastern, naive)."""
     window_start = datetime.combine(week_thursday, datetime.min.time())
     window_end = window_start + timedelta(days=6, hours=23, minutes=59)
     pick_deadline = datetime.combine(week_thursday + timedelta(days=2), datetime.min.time()) + timedelta(hours=12)
-    return number, window_start, window_end, pick_deadline
+    return window_start, window_end, pick_deadline
+
+
+def week_window(season_start, reference=None):
+    """Figure out which week 'today' falls in relative to the season's Week-1
+    Thursday, and that week's Thu-Wed window + Saturday noon pick deadline
+    (all Eastern, naive).
+
+    Before the season opens this returns a *preseason* week instead, numbered
+    from the first Thursday in August the way the NFL numbers its exhibition
+    weeks (Aug 6 -> Preseason Week 1, Aug 13 -> Week 2, ...), and stored
+    offset past the regular-season numbers. Returns
+    ``(number, window_start, window_end, pick_deadline, is_preseason)``."""
+    ref = reference or now_eastern()
+    days_since_start = (ref.date() - season_start).days
+
+    if days_since_start < 0:
+        # This week's Thursday, i.e. the Thursday on or before today.
+        week_thursday = ref.date() - timedelta(days=(ref.weekday() - 3) % 7)
+        # Clamped at 1 so an unusually early window (a July run, say) can't
+        # produce a number that collides back into regular-season territory.
+        ps_number = max(1, (week_thursday - _first_thursday_of_august(week_thursday.year)).days // 7 + 1)
+        return (PRESEASON_OFFSET + ps_number, *_window_for_thursday(week_thursday), True)
+
+    number = max(1, days_since_start // 7 + 1)
+    week_thursday = season_start + timedelta(weeks=number - 1)
+    return (number, *_window_for_thursday(week_thursday), False)
 
 
 def publish_week(app):
@@ -96,22 +127,39 @@ def publish_week(app):
         season_start = datetime.fromisoformat(season_start_str).date()
         season_year = app.config["CURRENT_SEASON"]
 
-        number, window_start, window_end, pick_deadline = week_window(season_start)
+        number, window_start, window_end, pick_deadline, is_preseason = week_window(season_start)
 
         # Published lines (spreads/O-U) are Gridiron's; it's the only pool
-        # with lines, so auto-publish targets the Gridiron week.
-        week = Week.query.filter_by(season_year=season_year, number=number, pool="gridiron").first()
-        if not week:
-            week = Week(season_year=season_year, number=number, pool="gridiron", pick_deadline=pick_deadline)
-            db.session.add(week)
-            db.session.commit()
+        # with lines, so auto-publish targets the Gridiron week. Drop Dead and
+        # Loser get the same week (and the straight-up matchups below) so all
+        # three pools are playable off one publish.
+        pool_weeks = {}
+        newly_created_weeks = set()
+        for pool in ("gridiron", "dropdead", "loser"):
+            w = Week.query.filter_by(season_year=season_year, number=number, pool=pool).first()
+            if not w:
+                w = Week(
+                    season_year=season_year,
+                    number=number,
+                    pool=pool,
+                    pick_deadline=pick_deadline,
+                    is_preseason=is_preseason,
+                )
+                db.session.add(w)
+                newly_created_weeks.add(pool)
+            pool_weeks[pool] = w
+        db.session.commit()
+        week = pool_weeks["gridiron"]
+        # Captured now: an empty week may be deleted below, and reading an
+        # attribute off a deleted instance afterwards would blow up.
+        week_label = week.label
 
         team_lookup = _team_lookup()
         created, already_published = 0, 0
         unmatched = set()
 
         for sport in ("nfl", "college"):
-            events = fetch_odds(sport, api_key)
+            events = fetch_odds(sport, api_key, preseason=is_preseason)
             for event in events:
                 kickoff = _parse_commence(event["commence_time"])
                 if not (window_start <= kickoff <= window_end):
@@ -168,22 +216,62 @@ def publish_week(app):
                 db.session.add(game)
                 created += 1
 
+                # Drop Dead and Loser are straight-up NFL pools: they carry the
+                # matchup and kickoff but never the line, and never college.
+                if sport != "nfl":
+                    continue
+                for pool in ("dropdead", "loser"):
+                    pw = pool_weeks[pool]
+                    if Game.query.filter_by(
+                        week_id=pw.id, home_team=home_name, away_team=away_name
+                    ).first():
+                        continue
+                    db.session.add(Game(
+                        week_id=pw.id,
+                        pool=pool,
+                        sport="nfl",
+                        home_team=home_name,
+                        away_team=away_name,
+                        home_team_id=home_team_obj.id if home_team_obj else None,
+                        away_team_id=away_team_obj.id if away_team_obj else None,
+                        kickoff=kickoff,
+                    ))
+
         db.session.commit()
 
-        # Determine the Monday-nighter from the week's full current game
+        # Determine the Monday-nighter from each pool week's full current game
         # set (existing + newly created), not just what this run touched --
         # otherwise a re-publish that only adds new games would miss an
-        # already-published Monday game when picking the MNF flag.
-        nfl_games = Game.query.filter_by(week_id=week.id, sport="nfl").all()
-        monday_games = [g for g in nfl_games if g.kickoff and g.kickoff.weekday() == 0]
-        monday_game = max(monday_games, key=lambda g: g.kickoff) if monday_games else None
-        if monday_game:
-            for g in nfl_games:
-                g.is_mnf = g is monday_game
+        # already-published Monday game when picking the MNF flag. Loser reads
+        # the flag off its own games for its auto-pick, so every pool week
+        # needs it set, not just Gridiron's.
+        for pw in pool_weeks.values():
+            nfl_games = Game.query.filter_by(week_id=pw.id, sport="nfl").all()
+            monday_games = [g for g in nfl_games if g.kickoff and g.kickoff.weekday() == 0]
+            monday_game = max(monday_games, key=lambda g: g.kickoff) if monday_games else None
+            if monday_game:
+                for g in nfl_games:
+                    g.is_mnf = g is monday_game
+        db.session.commit()
+
+        # A window with nothing to publish -- the gap between the last
+        # exhibition weekend and the opener, say -- shouldn't leave an empty
+        # week sitting on players' pick pages. Only weeks this run created are
+        # eligible, so a week an admin built by hand is never dropped.
+        dropped = []
+        for pool in sorted(newly_created_weeks):
+            pw = pool_weeks[pool]
+            if not Game.query.filter_by(week_id=pw.id).first():
+                dropped.append(pool)
+                db.session.delete(pw)
+        if dropped:
             db.session.commit()
 
         return {
             "week_number": number,
+            "week_label": week_label,
+            "dropped_empty_pools": dropped,
+            "is_preseason": is_preseason,
             "created": created,
             "already_published": already_published,
             "unmatched": sorted(unmatched),

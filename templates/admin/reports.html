@@ -33,7 +33,7 @@
 
 <div class="card mb-4">
   <div class="card-body">
-    <h5>Current Week Pick Compliance {% if current_week %}&mdash; Week {{ current_week.number }}{% endif %}</h5>
+    <h5>Current Week Pick Compliance {% if current_week %}&mdash; {{ current_week.label }}{% endif %}</h5>
     {% if not current_week %}
     <p class="text-muted mb-0">No weeks have been set up yet.</p>
     {% else %}
@@ -64,7 +64,7 @@
       <tbody>
       {% for g in pending_games %}
         <tr>
-          <td>Week {{ g.week.number }}</td>
+          <td>{{ g.week.label }}</td>
           <td><a href="{{ url_for('admin.pool_week', pool=g.pool, week_id=g.week_id) }}">{{ g.away_team }} @ {{ g.home_team }}</a></td>
           <td>{{ g.kickoff.strftime('%a %b %d, %I:%M %p') if g.kickoff else '—' }}</td>
         </tr>

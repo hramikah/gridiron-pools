@@ -5,7 +5,7 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 from flask_login import LoginManager, current_user, logout_user
 from flask_wtf import CSRFProtect
 
-from helpers import get_setting, week_is_complete
+from helpers import deadline_epoch_ms, get_setting, short_week_label, week_is_complete
 from models import Invite, User, db
 
 csrf = CSRFProtect()
@@ -119,6 +119,8 @@ def create_app():
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete
+    app.jinja_env.globals["deadline_epoch_ms"] = deadline_epoch_ms
+    app.jinja_env.globals["short_week_label"] = short_week_label
 
     # Site-wide login gate: nothing is visible to a logged-out visitor except
     # the login/register pages themselves and static assets.

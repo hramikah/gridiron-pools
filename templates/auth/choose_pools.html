@@ -44,9 +44,13 @@
         <p class="card-text">Pick 5 NFL/college games against the spread each week (plus optional NFL over/under). $100/entry.</p>
         {% if 'gridiron' in existing_pools %}
         <span class="badge badge-alive fs-6 px-3 py-2">✅ Already joined</span>
+        {% elif not gridiron_open %}
+        <span class="badge bg-secondary fs-6 px-3 py-2">🔒 Closed to new entries</span>
+        <div class="form-text mt-1">Entries closed at the Week 2 deadline{% if gridiron_deadline %} ({{ gridiron_deadline.strftime('%b %d, %Y at %I:%M %p') }} Eastern){% endif %}.</div>
         {% else %}
         <input type="checkbox" class="btn-check" name="pools" value="gridiron" id="pool-gridiron" autocomplete="off">
         <label class="btn btn-outline-warning btn-lg w-100 fw-bold" for="pool-gridiron">☐ Join Gridiron Investments</label>
+        {% if gridiron_deadline %}<div class="form-text mt-1">Open to new entries until {{ gridiron_deadline.strftime('%b %d, %Y, %I:%M %p') }} Eastern (Week 2 deadline).</div>{% endif %}
         {% endif %}
       </div>
     </div>

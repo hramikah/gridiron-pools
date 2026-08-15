@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ pool_label }} Week {{ week.number }} Picks{% endblock %}
+{% block title %}{{ pool_label }} {{ week.label }} Picks{% endblock %}
 {% block content %}
-<div class="page-header"><h2><span class="pool-icon">📋</span>{{ pool_label }} &mdash; Week {{ week.number }} Picks</h2></div>
+<div class="page-header"><h2><span class="pool-icon">📋</span>{{ pool_label }} &mdash; {{ week.label }} Picks</h2></div>
 <p class="text-muted">Pick deadline: {{ week.pick_deadline.strftime('%A %b %d, %Y %I:%M %p') }} Eastern &mdash; all picks below are locked in.</p>
 <p class="mb-4"><a href="{{ url_for('main.reports') }}">&larr; Back to Weekly Picks Reports</a></p>
 

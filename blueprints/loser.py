@@ -47,7 +47,17 @@ def pick():
 
     if request.method == "POST":
         entry_id = int(request.form["entry_id"])
-        team_id = int(request.form["team_id"])
+        # The form offers radios per game plus a fallback select for teams with
+        # no listed game; both post `team_id`, and either may be empty.
+        raw_team_id = next((v for v in request.form.getlist("team_id") if v.strip()), "")
+        if not raw_team_id:
+            flash("Choose a team to LOSE before saving.", "error")
+            return redirect(url_for("loser.pick"))
+        try:
+            team_id = int(raw_team_id)
+        except ValueError:
+            flash("That isn't a valid team.", "error")
+            return redirect(url_for("loser.pick"))
         entry = Entry.query.get_or_404(entry_id)
         if entry.user_id != current_user.id:
             flash("Not your entry.", "error")
@@ -76,6 +86,8 @@ def pick():
     removable_picks = {}
     unpickable_team_ids = set()
     team_matchups = {}
+    games = []
+    teams_with_games = set()
     if week:
         for e in entries:
             p = Pick.query.filter_by(entry_id=e.id, week_id=week.id).first()
@@ -87,6 +99,15 @@ def pick():
             if not game_pickable(g):
                 unpickable_team_ids.update(t for t in (g.home_team_id, g.away_team_id) if t is not None)
         team_matchups = team_matchups_for_week(week.id, "loser")
+        # Ordered game list so the pick page can lay out one row per matchup
+        # instead of cramming every team + its game into one dropdown.
+        games = (
+            Game.query.filter_by(week_id=week.id, pool="loser")
+            .order_by(Game.kickoff.asc().nullslast())
+            .all()
+        )
+        for g in games:
+            teams_with_games.update(t for t in (g.home_team_id, g.away_team_id) if t is not None)
 
     running_totals = {e.id: sum(p.points or 0 for p in e.picks) for e in entries}
 
@@ -102,6 +123,8 @@ def pick():
         team_matchups=team_matchups,
         running_totals=running_totals,
         unpickable_team_ids=unpickable_team_ids,
+        games=games,
+        teams_with_games=teams_with_games,
     )
 
 

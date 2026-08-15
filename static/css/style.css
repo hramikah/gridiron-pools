@@ -151,15 +151,71 @@ li.badge {
   text-align: left;
 }
 
-/* Big live clock on pick pages */
-.live-clock {
-  font-size: 3rem;
-  font-weight: 800;
-  color: var(--field-green-dark);
+/* Current time, shown small beneath the deadline inside the countdown box */
+.deadline-countdown .countdown-now {
+  margin-top: .35rem;
+  font-size: .8rem;
+  color: #6c757d;
   font-variant-numeric: tabular-nums;
 }
 @media (max-width: 576px) {
-  .live-clock { font-size: 2rem; }
+  .deadline-countdown .countdown-now { font-size: .7rem; }
+}
+
+/* Verbatim rules text: long legal paragraphs need breathing room between
+   numbered items so they stay readable on a phone. */
+.rules-list > li {
+  margin-bottom: 1rem;
+  line-height: 1.55;
+}
+
+/* Countdown to this week's pick deadline */
+.deadline-countdown {
+  display: inline-block;
+  padding: 1.5rem 3rem;
+  border: 2px solid var(--field-green);
+  border-radius: .5rem;
+  background: var(--chalk);
+}
+.deadline-countdown .countdown-label {
+  font-size: 1rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--field-green);
+}
+.deadline-countdown .countdown-value {
+  font-size: 4.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--field-green-dark);
+}
+.deadline-countdown .countdown-target {
+  font-size: 1rem;
+  color: #6c757d;
+}
+.deadline-countdown.countdown-soon {
+  border-color: var(--gold);
+}
+.deadline-countdown.countdown-soon .countdown-value {
+  color: var(--gridiron-accent-dark);
+}
+.deadline-countdown.countdown-urgent {
+  border-color: var(--dropdead-accent);
+}
+.deadline-countdown.countdown-urgent .countdown-value {
+  color: var(--dropdead-accent);
+}
+.deadline-countdown.countdown-closed {
+  border-color: #adb5bd;
+}
+.deadline-countdown.countdown-closed .countdown-value {
+  font-size: 3rem;
+  color: #6c757d;
+}
+@media (max-width: 576px) {
+  .deadline-countdown { display: block; padding: .6rem 1rem; }
+  .deadline-countdown .countdown-value { font-size: 3.5rem; }
 }
 
 /* Football laces divider */

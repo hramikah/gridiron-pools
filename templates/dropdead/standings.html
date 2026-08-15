@@ -18,7 +18,7 @@
         {% for p in e.picks|sort(attribute='week.number') %}
           {% set complete = week_is_complete(p.week) %}
           <span class="badge {% if complete and p.result == 'win' %}pick-win{% elif complete and p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
-            Wk{{ p.week.number }}: {{ p.team.name if p.team else '?' }}
+            {{ short_week_label(p.week.number) }}: {{ p.team.name if p.team else '?' }}
           </span>
         {% endfor %}
       </td>

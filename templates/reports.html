@@ -15,7 +15,7 @@
   <tbody>
   {% for week, unlocked in weeks_by_pool[pool] %}
     <tr>
-      <td>Week {{ week.number }}</td>
+      <td>{{ week.label }}</td>
       <td>{{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern</td>
       <td>
         {% if unlocked %}<span class="badge bg-success">Unlocked</span>

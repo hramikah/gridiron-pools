@@ -49,7 +49,7 @@
   <tbody>
   {% for w in weeks %}
     <tr>
-      <td>Week {{ w.number }}</td>
+      <td>{{ w.label }}</td>
       <td>{{ w.pick_deadline.strftime('%a %b %d, %I:%M %p') }}</td>
       <td>{{ game_counts.get(w.id, 0) }} game(s)</td>
       <td><a href="{{ url_for('admin.pool_week', pool=pool, week_id=w.id) }}" class="btn btn-sm btn-outline-primary">Manage week</a></td>

@@ -9,7 +9,7 @@
 {% else %}
 
 {% if week %}
-<p class="text-muted">Week {{ week.number }} &mdash; picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
+<p class="text-muted">{{ week.label }} &mdash; picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
   {% if locked %}<span class="badge bg-danger">Deadline passed</span>{% endif %}
 </p>
 {% else %}
@@ -25,7 +25,7 @@
       {% for p in entry.picks|sort(attribute='week.number') %}
         {% set complete = week_is_complete(p.week) %}
         <span class="badge {% if complete and p.result == 'win' %}pick-win{% elif complete and p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
-          Wk{{ p.week.number }}: {{ p.team.name if p.team else '?' }}
+          {{ short_week_label(p.week.number) }}: {{ p.team.name if p.team else '?' }}
           {% if complete and p.result == 'win' %} (+{{ p.points|int }}){% elif complete and p.result == 'loss' %} ({{ p.points|int }}){% endif %}
         </span>
       {% else %}<span class="text-muted">none yet</span>{% endfor %}
@@ -34,33 +34,82 @@
     {% if week %}
       {% set current_pick = picks_this_week.get(entry.id) %}
       {% if current_pick %}
-        <div class="mb-0 d-flex align-items-center">
-          <span class="me-1">Week {{ week.number }} pick: <strong>{{ current_pick.team.city }} {{ current_pick.team.name }}</strong> ({{ points_by_team.get(current_pick.team_id, '?') }} pts){% if current_pick.team_id in team_matchups %} &mdash; {{ team_matchups[current_pick.team_id] }}{% endif %}</span>
+        <div class="locked-pick d-flex justify-content-between align-items-start">
+          <div>
+            <div class="text-muted text-uppercase small fw-bold">{{ week.label }} pick &mdash; to LOSE</div>
+            <div class="fs-5 fw-bold">{{ current_pick.team.city }} {{ current_pick.team.name }}
+              <span class="badge bg-primary align-middle">{{ points_by_team.get(current_pick.team_id, '?') }} pts</span>
+            </div>
+            {% if current_pick.team_id in team_matchups %}
+            <div class="text-muted small">{{ team_matchups[current_pick.team_id] }}</div>
+            {% endif %}
+          </div>
           {% if removable_picks.get(entry.id) %}
           <form method="post" action="{{ url_for('loser.remove_pick', pick_id=current_pick.id) }}" class="mb-0"
                 onsubmit="return confirm('Remove this pick? You can make a new selection afterward.');">
-            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Remove pick" aria-label="Remove pick">&times;</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove pick" aria-label="Remove pick">&times;</button>
           </form>
           {% endif %}
         </div>
       {% else %}
-      <form method="post" class="row g-2 align-items-end mt-2" data-warn-unsaved>
+      <form method="post" class="mt-3" data-warn-unsaved>
         <input type="hidden" name="entry_id" value="{{ entry.id }}">
-        <div class="col-auto">
-          <label class="form-label">Week {{ week.number }} pick (team to LOSE)</label>
-          <select name="team_id" class="form-select" {% if locked %}disabled{% endif %} required>
+        <div class="fw-bold mb-1">{{ week.label }} pick &mdash; choose one team to <span class="text-danger">LOSE</span></div>
+        <p class="form-text mt-0 mb-2">Teams lock 1 hour before their own kickoff, even before Saturday's overall deadline. Points shown are what you gain if that team loses (or lose if it wins or ties).</p>
+
+        {% if games %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle loser-pick-table">
+            <thead>
+              <tr><th>Game</th><th class="text-center">Away &mdash; pick to lose</th><th class="text-center">Home &mdash; pick to lose</th></tr>
+            </thead>
+            <tbody>
+              {% for g in games %}
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ g.away_team }} @ {{ g.home_team }}</div>
+                  {% if g.kickoff %}<div class="text-muted small">{{ g.kickoff.strftime('%a %b %d, %I:%M %p') }} Eastern</div>{% endif %}
+                  {% if g.is_mnf %}<span class="badge bg-dark">MNF</span>{% endif %}
+                </td>
+                {% for side in ['away', 'home'] %}
+                {% set tid = g.away_team_id if side == 'away' else g.home_team_id %}
+                {% set tname = g.away_team if side == 'away' else g.home_team %}
+                <td class="text-center">
+                  {% if tid %}
+                  {% set blocked = locked or tid in unpickable_team_ids %}
+                  <input type="radio" class="btn-check" name="team_id" value="{{ tid }}"
+                         id="loser_{{ entry.id }}_{{ g.id }}_{{ side }}" autocomplete="off"
+                         {% if blocked %}disabled{% endif %}>
+                  <label class="btn btn-outline-dark btn-sm w-100" for="loser_{{ entry.id }}_{{ g.id }}_{{ side }}">
+                    {{ tname }}<br><span class="badge bg-secondary">{{ points_by_team.get(tid, '?') }} pts</span>
+                  </label>
+                  {% if tid in unpickable_team_ids %}<div class="form-text mb-0">kickoff passed</div>{% endif %}
+                  {% else %}<span class="text-muted small">&mdash;</span>{% endif %}
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No games have been posted for this week yet.</p>
+        {% endif %}
+
+        {% set other_teams = teams | rejectattr('id', 'in', teams_with_games) | list %}
+        {% if other_teams %}
+        <details class="mb-2">
+          <summary class="small text-muted">Pick a team with no game listed this week ({{ other_teams|length }})</summary>
+          <select name="team_id" class="form-select form-select-sm mt-2" {% if locked %}disabled{% endif %}>
             <option value="">Select a team&hellip;</option>
-            {% for t in teams %}
-            <option value="{{ t.id }}" {% if t.id in unpickable_team_ids %}disabled{% endif %}>
-              {{ t.city }} {{ t.name }} ({{ points_by_team.get(t.id, '?') }} pts){% if t.id in team_matchups %}: {{ team_matchups[t.id] }}{% endif %}{% if t.id in unpickable_team_ids %} (kickoff passed){% endif %}
-            </option>
+            {% for t in other_teams %}
+            <option value="{{ t.id }}">{{ t.city }} {{ t.name }} ({{ points_by_team.get(t.id, '?') }} pts)</option>
             {% endfor %}
           </select>
-          <div class="form-text">Teams lock 1 hour before their own kickoff, even before Saturday's overall deadline.</div>
-        </div>
-        <div class="col-auto">
-          <button type="submit" class="btn btn-loser" {% if locked %}disabled{% endif %}>Save Pick</button>
-        </div>
+        </details>
+        {% endif %}
+
+        <button type="submit" class="btn btn-loser" {% if locked %}disabled{% endif %}>Save Pick</button>
       </form>
       {% endif %}
     {% endif %}

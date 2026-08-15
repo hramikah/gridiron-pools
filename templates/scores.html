@@ -9,7 +9,7 @@
 {% endif %}
 
 {% for week, games in by_week %}
-<h5 class="mt-4">Week {{ week.number }}</h5>
+<h5 class="mt-4">{{ week.label }}</h5>
 <div class="table-responsive mb-4">
 <table class="table table-striped standings bg-white">
   <thead><tr><th>Sport</th><th>Away</th><th></th><th>Home</th><th>Final</th></tr></thead>

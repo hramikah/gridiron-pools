@@ -1,17 +1,38 @@
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import deadline_passed, game_pickable, get_current_week, send_async
+from helpers import (
+    deadline_passed,
+    game_pickable,
+    get_current_week,
+    gridiron_signup_deadline,
+    gridiron_signups_open,
+    send_async,
+)
 from models import Entry, Game, Pick, db
 from notifications import email_entry_pick_confirmation
-from scoring import ensure_missed_processed, gridiron_pick_limit, standings_gridiron
+from scoring import (
+    GRIDIRON_MAKEUP_PENALTY_LOSSES,
+    GRIDIRON_MAKEUP_PICKS,
+    GRIDIRON_STARTOVER_PICKS,
+    ensure_missed_processed,
+    gridiron_makeup_week,
+    gridiron_pick_limit,
+    gridiron_startover_available,
+    standings_gridiron,
+)
 
 bp = Blueprint("gridiron", __name__)
 
 
 @bp.route("/rules")
 def rules():
-    return render_template("gridiron/rules.html")
+    season_year = current_app.config["CURRENT_SEASON"]
+    return render_template(
+        "gridiron/rules.html",
+        signups_open=gridiron_signups_open(season_year),
+        signup_deadline=gridiron_signup_deadline(season_year),
+    )
 
 
 @bp.route("/join", methods=["POST"])
@@ -22,10 +43,56 @@ def join():
     if existing:
         flash("You already have an entry in Gridiron Investments (one per account). For another entry, register a separate account.", "error")
         return redirect(url_for("gridiron.pick"))
+    # Entries close for good at the Week 2 deadline.
+    if not gridiron_signups_open(season_year):
+        cutoff = gridiron_signup_deadline(season_year)
+        flash(
+            "Gridiron Investments is closed to new entries -- signups ended at the Week 2 deadline"
+            + (f" ({cutoff.strftime('%a %b %d, %Y at %I:%M %p')} Eastern)." if cutoff else "."),
+            "error",
+        )
+        return redirect(url_for("gridiron.rules"))
     entry = Entry(user_id=current_user.id, pool="gridiron", season_year=season_year, label="Entry 1")
     db.session.add(entry)
     db.session.commit()
     flash("You're in Gridiron Investments.", "success")
+    return redirect(url_for("gridiron.pick"))
+
+
+@bp.route("/makeup-choice/<int:entry_id>", methods=["POST"])
+@login_required
+def makeup_choice(entry_id):
+    """Player elects how to play their one makeup week: the standard 8 picks
+    with the 2-game penalty, or -- only if the week they missed was week 1 --
+    10 picks with no penalty ("start over"). Locked in once any pick for that
+    week has been saved, so the allowance can't shift under existing picks."""
+    season_year = current_app.config["CURRENT_SEASON"]
+    entry = Entry.query.get_or_404(entry_id)
+    if entry.user_id != current_user.id or entry.pool != "gridiron":
+        abort(403)
+
+    week = get_current_week(season_year, "gridiron")
+    if not gridiron_startover_available(entry, week):
+        flash("That option isn't available for this entry.", "error")
+        return redirect(url_for("gridiron.pick"))
+    if deadline_passed(week):
+        flash("The deadline for this week has passed.", "error")
+        return redirect(url_for("gridiron.pick"))
+    if Pick.query.filter_by(entry_id=entry.id, week_id=week.id, pool="gridiron").first():
+        flash("You've already saved picks this week, so this choice is locked in.", "error")
+        return redirect(url_for("gridiron.pick"))
+
+    choice = request.form.get("choice")
+    if choice not in ("makeup", "startover"):
+        flash("Choose one of the two options.", "error")
+        return redirect(url_for("gridiron.pick"))
+
+    entry.makeup_choice = choice
+    db.session.commit()
+    if choice == "startover":
+        flash(f"Starting over: {GRIDIRON_STARTOVER_PICKS} picks this week, no penalty.", "success")
+    else:
+        flash(f"Makeup week: {GRIDIRON_MAKEUP_PICKS} picks with the {GRIDIRON_MAKEUP_PENALTY_LOSSES}-game penalty.", "success")
     return redirect(url_for("gridiron.pick"))
 
 
@@ -101,6 +168,8 @@ def pick():
     picks_ids_this_week = {}
     pick_limits = {}
     remaining_by_entry = {}
+    makeup_by_entry = {}
+    startover_by_entry = {}
     if week:
         for e in entries:
             existing_picks = Pick.query.filter_by(entry_id=e.id, week_id=week.id, pool="gridiron").all()
@@ -110,6 +179,10 @@ def pick():
             limit = gridiron_pick_limit(e, week)
             pick_limits[e.id] = limit
             remaining_by_entry[e.id] = max(0, limit - len(existing_picks))
+            # Flag the one makeup week so the page can explain the 8-of-10
+            # allowance and the 2 losses that come with it.
+            makeup_by_entry[e.id] = gridiron_makeup_week(e) == week.number
+            startover_by_entry[e.id] = gridiron_startover_available(e, week)
 
     # A game whose kickoff is more than an hour out is still in `games`
     # (the pickable set); use that same set to decide which locked-in picks
@@ -129,6 +202,11 @@ def pick():
         pick_limits=pick_limits,
         remaining_by_entry=remaining_by_entry,
         pickable_game_ids=pickable_game_ids,
+        makeup_by_entry=makeup_by_entry,
+        startover_by_entry=startover_by_entry,
+        startover_picks=GRIDIRON_STARTOVER_PICKS,
+        makeup_picks=GRIDIRON_MAKEUP_PICKS,
+        makeup_penalty=GRIDIRON_MAKEUP_PENALTY_LOSSES,
     )
 
 

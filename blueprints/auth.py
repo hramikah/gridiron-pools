@@ -1,7 +1,13 @@
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from helpers import clear_login_attempts, login_rate_limited, record_failed_login
+from helpers import (
+    clear_login_attempts,
+    gridiron_signup_deadline,
+    gridiron_signups_open,
+    login_rate_limited,
+    record_failed_login,
+)
 from mailer import send_welcome_email
 from models import POOL_LABELS, POOLS, Entry, Invite, User, db
 from models import now as _now
@@ -84,6 +90,12 @@ def login():
         if user and user.check_password(password):
             clear_login_attempts()
             login_user(user)
+            # A fresh login should see the current announcement again. The
+            # "already seen" marker lives in the session, and logging out
+            # doesn't wipe the session cookie, so without this a player who
+            # dismissed an announcement once would never be shown it again on
+            # any later login from the same browser.
+            session.pop("seen_popup_id", None)
             flash("Logged in.", "success")
             next_url = request.args.get("next")
             if next_url:
@@ -153,11 +165,22 @@ def choose_pools():
         e.pool for e in Entry.query.filter_by(user_id=current_user.id, season_year=season_year).all()
     }
 
+    gridiron_open = gridiron_signups_open(season_year)
+
     if request.method == "POST":
         selected = [p for p in request.form.getlist("pools") if p in POOLS]
         joined = []
         for pool in selected:
             if pool in existing_pools:
+                continue
+            # Gridiron closes to new entries at the Week 2 deadline; enforced
+            # here too, not just on the rules page, since this form is the
+            # other way into a pool.
+            if pool == "gridiron" and not gridiron_open:
+                flash(
+                    "Gridiron Investments is closed to new entries -- signups ended at the Week 2 deadline.",
+                    "error",
+                )
                 continue
             count = Entry.query.filter_by(user_id=current_user.id, pool=pool, season_year=season_year).count()
             db.session.add(
@@ -171,13 +194,23 @@ def choose_pools():
             flash("No pools joined. You can join any pool later from its rules page.", "success")
         return redirect(url_for("main.index"))
 
-    return render_template("auth/choose_pools.html", existing_pools=existing_pools)
+    return render_template(
+        "auth/choose_pools.html",
+        existing_pools=existing_pools,
+        gridiron_open=gridiron_open,
+        gridiron_deadline=gridiron_signup_deadline(season_year),
+    )
 
 
 @bp.route("/logout")
 @login_required
 def logout():
     logout_user()
+    # logout_user() only drops Flask-Login's own keys; everything else the app
+    # stashed (seen announcements, invite token, last-seen stamp) would survive
+    # into the next login on this browser. Clear the lot, as the inactivity
+    # timeout already does.
+    session.clear()
     flash("Logged out.", "success")
     return redirect(url_for("main.index"))
 

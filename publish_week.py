@@ -18,8 +18,8 @@ if __name__ == "__main__":
     try:
         summary = publish_week(app)
         logging.info(
-            "Published week %s: %s created, %s already published (lines frozen, unchanged)",
-            summary["week_number"],
+            "Published %s: %s created, %s already published (lines frozen, unchanged)",
+            summary["week_label"],
             summary["created"],
             summary["already_published"],
         )

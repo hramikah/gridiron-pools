@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from flask import abort, current_app, request
 from flask_login import current_user
 
-from models import Game, Setting, Week, db
+from models import PRESEASON_OFFSET, Game, Setting, Week, db
 
 EASTERN = ZoneInfo("America/New_York")
 
@@ -58,6 +58,26 @@ def now_eastern():
     return datetime.now(EASTERN).replace(tzinfo=None)
 
 
+def short_week_label(number):
+    """Compact label for a bare week number, for standings-matrix headers and
+    anywhere else that only carries the number: 'Wk5', or 'PS2' for a
+    preseason week (stored offset past the regular-season numbers)."""
+    return f"PS{number - PRESEASON_OFFSET}" if number > PRESEASON_OFFSET else f"Wk{number}"
+
+
+def deadline_epoch_ms(week):
+    """The week's pick deadline as a real epoch-millisecond timestamp.
+
+    Deadlines are stored naive-Eastern, so a countdown in the browser can't
+    just parse them -- a player in another time zone (or on a machine with a
+    skewed clock) would count down to the wrong instant. Stamping the true UTC
+    epoch here lets the client subtract it from its own Date.now() and get the
+    same remaining time everywhere, DST included."""
+    if week is None or week.pick_deadline is None:
+        return None
+    return int(week.pick_deadline.replace(tzinfo=EASTERN).timestamp() * 1000)
+
+
 def admin_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -94,6 +114,37 @@ def get_current_week(season_year, pool):
     if upcoming:
         return upcoming
     return Week.query.filter_by(season_year=season_year, pool=pool).order_by(Week.number.desc()).first()
+
+
+def gridiron_signup_deadline(season_year):
+    """When Gridiron Investments closes to new entries: the Week 2 pick
+    deadline (Saturday noon Eastern of regular-season week 2).
+
+    Prefers the real Week 2 row so an admin who moves that deadline moves the
+    signup cutoff with it. Falls back to deriving it from the configured season
+    start, so the cutoff is well-defined even before Week 2 has been published.
+    Returns None only if neither is available, which leaves signups open."""
+    week2 = Week.query.filter_by(season_year=season_year, number=2, pool="gridiron").first()
+    if week2:
+        return week2.pick_deadline
+
+    season_start_str = get_setting("season_start_thursday")
+    if not season_start_str:
+        return None
+    try:
+        season_start = datetime.fromisoformat(season_start_str).date()
+    except ValueError:
+        return None
+    # Week 2's Thursday is a week after Week 1's; its deadline is that
+    # Saturday at noon.
+    week2_saturday = season_start + timedelta(weeks=1, days=2)
+    return datetime.combine(week2_saturday, datetime.min.time()) + timedelta(hours=12)
+
+
+def gridiron_signups_open(season_year):
+    """True while new Gridiron entries are still allowed."""
+    cutoff = gridiron_signup_deadline(season_year)
+    return cutoff is None or now_eastern() <= cutoff
 
 
 def deadline_passed(week):

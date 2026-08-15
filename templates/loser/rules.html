@@ -1,23 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Loser Pool Rules{% endblock %}
 {% block content %}
-<div class="page-header header-loser"><h2><span class="pool-icon">📉</span>Loser Pool</h2></div>
-<p class="text-muted">NO point spreads &mdash; just pick losers! $20 per entry, good for the whole season. More than one entry per person is permitted &mdash; one entry per account, so register a separate account for each additional entry. 70% to first, 20% to second, 10% to third.</p>
+{# Rules text below is reproduced word for word from the 2026 "Can You Pick
+   Losers?" sheet. Do not paraphrase or condense. The point-value table is
+   rendered from the database (verified 2026-08-14 to match the sheet exactly,
+   10 Cards through 41 Rams) so scoring and the published rules can't drift. #}
+<div class="page-header header-loser"><h2><span class="pool-icon">📉</span>Can You Pick Losers?</h2></div>
 
-<ul class="mb-4">
-  <li>Pick one NFL team to LOSE each week of the 18-week regular season. Any team may be selected any week (NFL only).</li>
-  <li>For each correct LOSER pick, you accumulate that team's point value (see table below).</li>
-  <li>If your picked team wins or ties, its point value is <strong>deducted</strong> from your total.</li>
-  <li>Highest accumulated points at season's end wins.</li>
-  <li>Picks are due Saturday at noon (EST). If you forget, the visiting team on that week's Monday Night Football game becomes your automatic pick.</li>
+<p class="fw-bold mb-1">NO POINT SPREADS . . . JUST PICK LOSERS!</p>
+<p class="fw-bold">Here's how it works . . .</p>
+
+<ul class="mb-4 rules-list">
+  <li>Pick one NFL team to LOSE each week of the 18 week regular NFL season. Any team may be selected any week.(NFL only please)</li>
+
+  <li>For each correct LOSER you select, you will receive and accumulate points (points are determined by which team you select to LOSE -- see below).</li>
+
+  <li>If your team wins or ties, <span class="text-danger">[the team's point value]</span> will be deducted from your accumulated point total.</li>
+
+  <li>Highest number of points accumulated at the end of the season wins 1st place - 70% of take, 2nd - 20%, 3rd - 10%.</li>
 </ul>
 
-<h5>{{ season_year }} Point Values</h5>
+<h5 class="fw-bold">{{ season_year }} POINTS</h5>
 <div class="row">
   {% for lp in points %}
   <div class="col-6 col-md-3 mb-1"><span class="badge bg-secondary">{{ lp.points }}</span> {{ lp.team.name }}</div>
   {% endfor %}
 </div>
+<p class="text-muted mt-2">Remember, these designated points for each team remain the same all season long.</p>
+
+<p class="mt-4 mb-1"><strong>COST: $20.00 per entry - - good for the whole season.</strong><br>
+<strong>(More than one entry is permitted)</strong></p>
+
+<p class="mb-1"><strong>TO PLAY: Send $20 per entry To: Cedric Hay 12300 US Hwy 19 Hudson Fl 34667, then just e-mail your LOSER in each week. Our commissioners and technician will tabulate standings each week and will each receive 1 free entry for their labor.</strong><br>
+<strong>Send picks to gridironlines@yahoo.com AND Awardsltd@icloud.com</strong></p>
+
+<p class="fw-bold">Picks must be in by Saturday at noon(EST).</p>
+
+<p><strong>* If you forget to make your LOSER pick by Saturday at noon (EST), the team on the first Monday Night Football game of the betting week shall be your selection for that week.</strong></p>
 
 <div class="mt-4">
 {% if current_user.is_authenticated %}

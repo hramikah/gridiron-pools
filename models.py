@@ -64,22 +64,39 @@ class LoserPoolPoints(db.Model):
     __table_args__ = (db.UniqueConstraint("season_year", "team_id", name="uq_loser_points_season_team"),)
 
 
+# Preseason weeks live in the same season/pool space as the regular season,
+# so their numbers are offset past any real week number (1-18) to keep the
+# (season, number, pool) uniqueness from colliding once Week 1 is published.
+# Preseason week N is stored as PRESEASON_OFFSET + N.
+PRESEASON_OFFSET = 100
+
+
 class Week(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     season_year = db.Column(db.Integer, nullable=False)
-    number = db.Column(db.Integer, nullable=False)  # 1-18 regular season
+    number = db.Column(db.Integer, nullable=False)  # 1-18 regular season, 101+ preseason
     pool = db.Column(db.String(20), nullable=False)  # each pool keeps its own weeks + deadline
     pick_deadline = db.Column(db.DateTime, nullable=False)
     picks_emailed = db.Column(db.Boolean, default=False)  # picks recap sent to players
     missed_processed = db.Column(db.Boolean, default=False, nullable=False)  # missed-pick penalties applied (auto or manual)
+    is_preseason = db.Column(db.Boolean, default=False, nullable=False)  # exhibition week, doesn't count toward standings
 
     games = db.relationship("Game", backref="week", lazy=True, cascade="all, delete-orphan")
     picks = db.relationship("Pick", backref="week", lazy=True, cascade="all, delete-orphan")
 
     __table_args__ = (db.UniqueConstraint("season_year", "number", "pool", name="uq_week_season_number_pool"),)
 
+    @property
+    def display_number(self):
+        """The number players see: preseason weeks count from 1 again."""
+        return self.number - PRESEASON_OFFSET if self.is_preseason else self.number
+
+    @property
+    def label(self):
+        return f"Preseason Week {self.display_number}" if self.is_preseason else f"Week {self.number}"
+
     def __repr__(self):
-        return f"Week {self.number} ({self.season_year})"
+        return f"{self.label} ({self.season_year})"
 
 
 class Game(db.Model):
@@ -133,6 +150,10 @@ class Entry(db.Model):
     eliminated_week = db.Column(db.Integer, nullable=True)
     buy_backs_used = db.Column(db.Integer, default=0)
     buyback_week = db.Column(db.Integer, nullable=True)  # drop dead: week number the entry last bought back in, if ever
+    # Gridiron: how this entry is playing its one makeup week after missing
+    # week 1 -- None/"makeup" = 8 picks with the 2-game penalty (the default
+    # in the printed rules), "startover" = 10 picks with no penalty.
+    makeup_choice = db.Column(db.String(10), nullable=True)
     paid = db.Column(db.Boolean, default=False)  # entry-fee paid, admin-only visibility
 
     created_at = db.Column(db.DateTime, default=now)

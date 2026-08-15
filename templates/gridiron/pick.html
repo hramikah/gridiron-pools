@@ -9,7 +9,7 @@
 {% else %}
 
 {% if week %}
-<p class="text-muted">Week {{ week.number }} &mdash; Picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
+<p class="text-muted">{{ week.label }} &mdash; Picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
   {% if locked %}<span class="badge bg-danger">Deadline passed</span>{% endif %}
 </p>
 {% if not games %}<p class="text-muted">No games have been posted for this week yet.</p>{% endif %}
@@ -150,6 +150,38 @@
     {% if display_games %}
     <form method="post" class="gridiron-pick-form" data-max-picks="{{ remaining }}" data-warn-unsaved>
       <input type="hidden" name="entry_id" value="{{ entry.id }}">
+      {% if makeup_by_entry.get(entry.id) %}
+      <div class="alert alert-warning py-2 small mb-2">
+        {% if entry.makeup_choice == 'startover' %}
+        <strong>Starting over.</strong> You get {{ startover_picks }} picks this week and no penalty.
+        Your Week 1 record stands. This is the only week you get this.
+        {% else %}
+        <strong>Makeup week.</strong> You missed a week, so you get {{ makeup_picks }} picks
+        instead of 5 this week &mdash; out of 10, with a {{ makeup_penalty }}-game penalty already
+        counted as losses. This is the only makeup week you get; any later missed week is scored
+        0-5 with no extra picks.
+        {% endif %}
+      </div>
+
+      {% if startover_by_entry.get(entry.id) and not locked and not my_picks %}
+      <div class="card border-warning mb-3">
+        <div class="card-body py-2">
+          <p class="small mb-2"><strong>You missed Week 1 &mdash; choose how to play this week.</strong>
+          You can change this until you save your first pick.</p>
+          <form method="post" action="{{ url_for('gridiron.makeup_choice', entry_id=entry.id) }}" class="d-flex flex-wrap gap-2">
+            <button type="submit" name="choice" value="makeup"
+                    class="btn btn-sm {% if entry.makeup_choice != 'startover' %}btn-gridiron{% else %}btn-outline-secondary{% endif %}">
+              Makeup: {{ makeup_picks }} picks, {{ makeup_penalty }}-game penalty
+            </button>
+            <button type="submit" name="choice" value="startover"
+                    class="btn btn-sm {% if entry.makeup_choice == 'startover' %}btn-gridiron{% else %}btn-outline-secondary{% endif %}">
+              Start over: {{ startover_picks }} picks, no penalty
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+      {% endif %}
       {% if not locked %}
       <p class="text-muted small mb-2">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>
       {% endif %}

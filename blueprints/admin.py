@@ -997,7 +997,7 @@ def publish_now():
         return redirect(url_for("admin.settings"))
 
     msg = (
-        f"Published Week {summary['week_number']}: {summary['created']} games added, "
+        f"Published {summary['week_label']}: {summary['created']} games added, "
         f"{summary['already_published']} already published (lines frozen, unchanged)."
     )
     if summary["unmatched"]:

@@ -1,19 +1,71 @@
+{# Deadline countdown, with the live Eastern wall clock tucked underneath the
+   deadline line inside the same box -- the current time only means something
+   next to the deadline it's counting down to. #}
+{% set deadline_ms = deadline_epoch_ms(week) if week is defined else None %}
+{% if deadline_ms %}
 <div class="text-center mb-4">
-  <div id="live-clock" class="live-clock">&nbsp;</div>
-  <div class="text-muted small">Current time &mdash; Eastern (picks lock at the deadline shown below)</div>
+  <div class="deadline-countdown" id="deadline-countdown" data-deadline="{{ deadline_ms }}">
+    <div class="countdown-label">Time left to get picks in</div>
+    <div class="countdown-value" id="countdown-value">&nbsp;</div>
+    <div class="countdown-target">
+      Deadline: {{ week.pick_deadline.strftime('%A %b %d, %Y at %I:%M %p') }} Eastern
+    </div>
+    <div class="countdown-now">
+      <span id="live-clock">&nbsp;</span> &mdash; current time, Eastern
+    </div>
+  </div>
 </div>
 <script>
 (function () {
-  var el = document.getElementById('live-clock');
-  var options = {
-    timeZone: 'America/New_York', weekday: 'short', year: 'numeric', month: 'short',
+  // The target is stamped by the server as a true epoch millisecond value, so
+  // this stays correct in any time zone and across the DST switch mid-season.
+  var box = document.getElementById('deadline-countdown');
+  var out = document.getElementById('countdown-value');
+  var clock = document.getElementById('live-clock');
+  var deadline = box ? parseInt(box.dataset.deadline, 10) : NaN;
+  if (!box || isNaN(deadline)) return;
+
+  var clockFormat = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'short', month: 'short',
     day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
-  };
-  var formatter = new Intl.DateTimeFormat('en-US', options);
-  function tick() {
-    el.textContent = formatter.format(new Date());
+  });
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function render() {
+    if (clock) { clock.textContent = clockFormat.format(new Date()); }
+
+    var remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      box.classList.remove('countdown-soon', 'countdown-urgent');
+      box.classList.add('countdown-closed');
+      out.textContent = 'PICKS ARE LOCKED';
+      return false;
+    }
+    var totalSeconds = Math.floor(remaining / 1000);
+    var days = Math.floor(totalSeconds / 86400);
+    var hours = Math.floor((totalSeconds % 86400) / 3600);
+    var minutes = Math.floor((totalSeconds % 3600) / 60);
+    var seconds = totalSeconds % 60;
+    out.textContent = (days > 0 ? days + 'd ' : '') + pad(hours) + ':' + pad(minutes) + ':' + pad(seconds);
+
+    // Under 1 hour turns it red, under 6 hours amber -- a nudge without
+    // needing anyone to do the arithmetic themselves.
+    box.classList.toggle('countdown-urgent', remaining < 3600000);
+    box.classList.toggle('countdown-soon', remaining >= 3600000 && remaining < 21600000);
+    return true;
   }
-  tick();
-  setInterval(tick, 1000);
+
+  // The wall clock keeps ticking after the deadline passes; only the countdown
+  // itself stops updating once it reads LOCKED.
+  var countdownLive = render();
+  setInterval(function () {
+    if (countdownLive) {
+      countdownLive = render();
+    } else if (clock) {
+      clock.textContent = clockFormat.format(new Date());
+    }
+  }, 1000);
 })();
 </script>
+{% endif %}

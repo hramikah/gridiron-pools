@@ -39,7 +39,7 @@
     {% if entry.is_active and week %}
       {% set current_pick = picks_this_week.get(entry.id) %}
       {% if current_pick %}
-        <div class="locked-pick pool-theme-dropdead d-flex justify-content-between align-items-start">
+        <div class="locked-pick pool-theme-dropdead text-center">
           <div>
             <div class="locked-label">{{ week.label }} pick &mdash; to WIN outright</div>
             <div class="locked-team">{{ current_pick.team.city }} {{ current_pick.team.name }}</div>
@@ -48,9 +48,10 @@
             {% endif %}
           </div>
           {% if removable_picks.get(entry.id) %}
-          <form method="post" action="{{ url_for('dropdead.remove_pick', pick_id=current_pick.id) }}" class="mb-0"
+          <form method="post" action="{{ url_for('dropdead.remove_pick', pick_id=current_pick.id) }}" class="mb-0 mt-2 d-flex justify-content-center"
                 onsubmit="return confirm('Remove this pick? You can make a new selection afterward.');">
-            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove pick" aria-label="Remove pick">&times;</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger remove-pick-btn"
+                    title="Remove pick" aria-label="Remove pick">&times; Remove pick</button>
           </form>
           {% endif %}
         </div>
@@ -84,7 +85,10 @@
                   <input type="radio" class="btn-check" name="team_id" value="{{ tid }}"
                          id="dd_{{ entry.id }}_{{ g.id }}_{{ side }}" autocomplete="off"
                          {% if blocked %}disabled{% endif %}>
-                  <label class="pick-option" for="dd_{{ entry.id }}_{{ g.id }}_{{ side }}">{{ tname }}</label>
+                  {% set ts = team_styles.get(tname) %}
+                  <label class="pick-option {% if ts %}team-tinted{% endif %}"
+                         for="dd_{{ entry.id }}_{{ g.id }}_{{ side }}"
+                         {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ tname }}</label>
                   {% if used %}<div class="pick-note used">already used</div>
                   {% elif tid in unpickable_team_ids %}<div class="pick-note">kickoff passed</div>{% endif %}
                   {% else %}<span class="text-muted small">&mdash;</span>{% endif %}

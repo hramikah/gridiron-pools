@@ -86,24 +86,8 @@ def _send_bulk(recipient_addresses, subject, body):
             _log_email(addr, subject, body, note=" [SEND FAILED, see server log]")
 
 
-def send_admin_notification_email(sender_username, message_body, admin_addresses):
-    subject = f"New message from {sender_username} - Gridiron Pools"
-    body = (
-        f"{sender_username} sent a message on the Message Board:\n\n"
-        f"{message_body}\n\n"
-        "-- Gridiron Pools"
-    )
-    _send_bulk(admin_addresses, subject, body)
 
 
-def send_admin_reply_email(admin_username, message_body, player_email):
-    subject = "The admins replied to your message - Gridiron Pools"
-    body = (
-        f"{admin_username} replied to your message on the Message Board:\n\n"
-        f"{message_body}\n\n"
-        "-- Gridiron Pools"
-    )
-    _send(player_email, subject, body)
 
 
 def send_welcome_email(user):
@@ -116,6 +100,44 @@ def send_welcome_email(user):
         "-- Gridiron Pools"
     )
     _send(user.email, subject, body)
+
+
+def send_password_reset_email(user, temp_password):
+    subject = "Your Gridiron Pools password was reset"
+    body = (
+        f"Hi {user.username},\n\n"
+        "An admin reset your Gridiron Pools password. Your temporary password is:\n\n"
+        f"    {temp_password}\n\n"
+        "Log in with it, then change it right away from the top-right menu -> "
+        "Change Password.\n\n"
+        "-- Gridiron Pools"
+    )
+    _send(user.email, subject, body)
+
+
+def send_password_reset_link_email(email, username_links):
+    """username_links: list of (username, reset_url) pairs. One email may
+    have several accounts (one per entry), so a single message carries a
+    separate single-use link for each."""
+    subject = "Reset your Gridiron Pools password"
+    if len(username_links) == 1:
+        username, link = username_links[0]
+        accounts = f"Account: {username}\n{link}\n"
+    else:
+        accounts = (
+            "This email has more than one account. Use the link for the one "
+            "you want to reset:\n\n"
+            + "\n".join(f"Account: {u}\n{link}\n" for u, link in username_links)
+        )
+    body = (
+        "Hi,\n\n"
+        "Someone asked to reset the Gridiron Pools password for this email.\n\n"
+        f"{accounts}\n"
+        "The link works once and expires in 1 hour. If you didn't ask for "
+        "this, you can ignore this email -- your password hasn't changed.\n\n"
+        "-- Gridiron Pools"
+    )
+    _send(email, subject, body)
 
 
 def send_picks_recap_email(user, week, recap_body):

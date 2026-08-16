@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Player Activity Log{% endblock %}
+{% block content %}
+<div class="page-header"><h2><span class="pool-icon">🧾</span>Player Activity Log</h2></div>
+
+<p class="text-muted">Everything a player did while signed in &mdash; sign-ins, picks saved and removed,
+pool joins, buy-backs, password changes and messages. Newest first, most recent 500 entries.</p>
+
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-auto">
+    <label class="form-label mb-0 small fw-bold">Player</label>
+    <select name="player" class="form-select form-select-sm">
+      <option value="">All players</option>
+      {% for u in users %}
+      <option value="{{ u.id }}" {% if selected_id == u.id %}selected{% endif %}>
+        {{ u.username }}{% if u.is_admin %} (admin){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label mb-0 small fw-bold">Action</label>
+    <select name="action" class="form-select form-select-sm">
+      <option value="">All actions</option>
+      {% for a in actions %}
+      <option value="{{ a }}" {% if action_filter == a %}selected{% endif %}>{{ a.replace('_', ' ') }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-gridiron">Show</button>
+    <a href="{{ url_for('admin.activity') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+  </div>
+</form>
+
+{% if selected_user %}
+<h5>{{ selected_user.username }}
+  <span class="badge bg-secondary">{{ entries|length }} event{{ 's' if entries|length != 1 }}</span>
+</h5>
+{% endif %}
+
+{% if entries %}
+<div class="table-responsive">
+  <table class="table table-sm align-middle standings">
+    <thead>
+      <tr><th>When (Eastern)</th><th>Player</th><th>Action</th><th>Pool</th><th>Detail</th><th>IP</th></tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td class="text-nowrap">{{ e.created_at.strftime('%a %b %d, %Y %I:%M:%S %p') }}</td>
+        <td class="fw-bold">{{ e.username or (e.user.username if e.user else '—') }}</td>
+        <td>
+          {% set colours = {
+            'login': 'bg-success', 'logout': 'bg-secondary', 'login_failed': 'bg-danger',
+            'pick_saved': 'bg-primary', 'pick_removed': 'bg-warning text-dark',
+            'pool_joined': 'bg-info text-dark', 'buyback': 'bg-danger',
+            'password_change': 'bg-dark', 'message_sent': 'bg-info text-dark',
+            'makeup_choice': 'bg-warning text-dark', 'register': 'bg-success'
+          } %}
+          <span class="badge {{ colours.get(e.action, 'bg-secondary') }}">{{ e.action.replace('_', ' ') }}</span>
+        </td>
+        <td>{{ POOL_LABELS.get(e.pool, '') if e.pool else '' }}</td>
+        <td>{{ e.detail }}</td>
+        <td class="small text-muted">{{ e.ip or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-muted">No activity recorded{% if selected_user %} for {{ selected_user.username }}{% endif %} yet.</p>
+{% endif %}
+{% endblock %}

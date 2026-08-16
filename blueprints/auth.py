@@ -1,15 +1,21 @@
+import secrets
+
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from helpers import (
     clear_login_attempts,
+    get_setting,
+    log_activity,
     gridiron_signup_deadline,
     gridiron_signups_open,
     login_rate_limited,
     record_failed_login,
+    reset_request_rate_limited,
+    send_async,
 )
-from mailer import send_welcome_email
-from models import POOL_LABELS, POOLS, Entry, Invite, User, db
+from mailer import send_password_reset_link_email, send_welcome_email
+from models import POOL_LABELS, POOLS, Entry, Invite, PasswordReset, User, db
 from models import now as _now
 
 bp = Blueprint("auth", __name__)
@@ -66,6 +72,7 @@ def register():
         db.session.commit()
         send_welcome_email(user)
         login_user(user)
+        log_activity("register", f"Account created ({email})", user=user)
         flash("Welcome! Your account has been created.", "success")
         return redirect(url_for("auth.choose_pools"))
     return render_template("auth/register.html", invite=invite_row)
@@ -96,6 +103,7 @@ def login():
             # dismissed an announcement once would never be shown it again on
             # any later login from the same browser.
             session.pop("seen_popup_id", None)
+            log_activity("login", f"Signed in as {user.username}")
             flash("Logged in.", "success")
             next_url = request.args.get("next")
             if next_url:
@@ -104,8 +112,84 @@ def login():
                 return redirect(url_for("auth.choose_pools"))
             return redirect(url_for("main.index"))
         record_failed_login()
+        log_activity("login_failed", f"Failed sign-in attempt for '{identifier}'",
+                     user=user if user else None)
         flash("Invalid username/email or password.", "error")
     return render_template("auth/login.html")
+
+
+@bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        if reset_request_rate_limited():
+            flash("Too many reset requests. Please wait a few minutes and try again.", "error")
+            return render_template("auth/forgot_password.html")
+
+        identifier = request.form.get("identifier", "").strip().lower()
+        users = User.query.filter(
+            (db.func.lower(User.username) == identifier) | (db.func.lower(User.email) == identifier)
+        ).all()
+
+        # An email may cover several accounts (one per entry), so every
+        # match gets its own single-use link in one message.
+        # Same as invite links: build from the configured site_url, never
+        # from the request's Host header (which the tunnel rewrites and a
+        # caller can spoof).
+        site_url = get_setting("site_url", "http://100.71.232.56:8090")
+        by_email = {}
+        for user in users:
+            if not user.email:
+                continue
+            token = secrets.token_urlsafe(32)
+            db.session.add(PasswordReset(user_id=user.id, token=token))
+            link = f"{site_url}{url_for('auth.reset_password', token=token)}"
+            by_email.setdefault(user.email, []).append((user.username, link))
+        if by_email:
+            db.session.commit()
+            for email, username_links in by_email.items():
+                send_async(send_password_reset_link_email, email, username_links)
+            log_activity("password_reset_requested",
+                         f"Reset link sent for '{identifier}'", user=users[0])
+
+        # Deliberately the same answer whether or not anything matched --
+        # otherwise this form tells a stranger which usernames and emails
+        # are real.
+        flash(
+            "If that username or email has an account, a reset link is on its way. "
+            "Check your inbox (and spam) -- the link expires in 1 hour.",
+            "success",
+        )
+        return redirect(url_for("auth.login"))
+    return render_template("auth/forgot_password.html")
+
+
+@bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    row = PasswordReset.query.filter_by(token=token).first()
+    if not row or not row.is_valid():
+        return render_template("auth/reset_password.html", invalid=True)
+
+    if request.method == "POST":
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        if len(new_password) < 6:
+            flash("New password must be at least 6 characters.", "error")
+            return render_template("auth/reset_password.html", user=row.user)
+        if new_password != confirm_password:
+            flash("New passwords don't match.", "error")
+            return render_template("auth/reset_password.html", user=row.user)
+        row.user.set_password(new_password)
+        row.used_at = _now()
+        # Any other outstanding link for this account dies with it, so an
+        # older email can't be replayed to take the account back.
+        for other in PasswordReset.query.filter_by(user_id=row.user_id, used_at=None).all():
+            other.used_at = _now()
+        db.session.commit()
+        log_activity("password_reset", "Reset their password via emailed link", user=row.user)
+        flash("Password updated. You can log in now.", "success")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/reset_password.html", user=row.user)
 
 
 @bp.route("/add-account", methods=["GET", "POST"])
@@ -189,6 +273,7 @@ def choose_pools():
             joined.append(POOL_LABELS[pool])
         db.session.commit()
         if joined:
+            log_activity("pool_joined", f"Joined {', '.join(joined)}")
             flash(f"You're in: {', '.join(joined)}.", "success")
         else:
             flash("No pools joined. You can join any pool later from its rules page.", "success")
@@ -205,6 +290,7 @@ def choose_pools():
 @bp.route("/logout")
 @login_required
 def logout():
+    log_activity("logout", "Signed out")
     logout_user()
     # logout_user() only drops Flask-Login's own keys; everything else the app
     # stashed (seen announcements, invite token, last-seen stamp) would survive
@@ -233,6 +319,7 @@ def change_password():
             return render_template("auth/change_password.html")
         current_user.set_password(new_password)
         db.session.commit()
+        log_activity("password_change", "Changed their password")
         flash("Password changed.", "success")
         return redirect(url_for("main.index"))
     return render_template("auth/change_password.html")

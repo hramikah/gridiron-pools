@@ -8,8 +8,8 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import admin_required, deadline_passed, get_current_week, get_setting, send_async, set_setting
-from mailer import send_admin_reply_email, send_invite_link_emails
-from models import POOL_LABELS, POOLS, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, Pick, Team, User, Week, db
+from mailer import send_invite_link_emails, send_password_reset_email
+from models import ActivityLog, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_LABELS, Pick, Team, User, Week, db
 from notifications import email_week_picks
 from publisher import publish_week
 from scoring import enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
@@ -185,10 +185,15 @@ def reset_password(user_id):
     temp_password = secrets.token_urlsafe(6)
     user.set_password(temp_password)
     db.session.commit()
+    if user.email:
+        send_async(send_password_reset_email, user, temp_password)
+        emailed = f" It was also emailed to {user.email}."
+    else:
+        emailed = " They have no email on file, so it wasn't sent to them."
     flash(
         f"New temporary password for {user.username}: {temp_password} "
         "-- give this to them now, it won't be shown again. They should change it "
-        "immediately after logging in (top-right menu -> Change Password).",
+        f"immediately after logging in (top-right menu -> Change Password).{emailed}",
         "success",
     )
     return redirect(url_for("admin.players"))
@@ -751,6 +756,34 @@ def reports():
     )
 
 
+@bp.route("/activity")
+def activity():
+    """Audit trail: pick a player and see everything they did while logged in."""
+    users = User.query.order_by(User.username).all()
+    selected_id = request.args.get("player", type=int)
+    action_filter = request.args.get("action", "").strip()
+
+    q = ActivityLog.query
+    if selected_id:
+        q = q.filter(ActivityLog.user_id == selected_id)
+    if action_filter:
+        q = q.filter(ActivityLog.action == action_filter)
+    entries = q.order_by(ActivityLog.created_at.desc()).limit(500).all()
+
+    actions = sorted({a for (a,) in db.session.query(ActivityLog.action).distinct().all() if a})
+    selected_user = User.query.get(selected_id) if selected_id else None
+    return render_template(
+        "admin/activity.html",
+        users=users,
+        entries=entries,
+        selected_user=selected_user,
+        selected_id=selected_id,
+        actions=actions,
+        action_filter=action_filter,
+        POOL_LABELS=POOL_LABELS,
+    )
+
+
 @bp.route("/payments")
 def payments():
     season_year = current_app.config["CURRENT_SEASON"]
@@ -829,7 +862,6 @@ def reply_message(user_id):
     message = ContactMessage(user_id=player.id, sender_id=current_user.id, body=body)
     db.session.add(message)
     db.session.commit()
-    send_async(send_admin_reply_email, current_user.username, body, player.email)
     flash(f"Reply sent to {player.username}.", "success")
     return redirect(url_for("admin.message_thread", user_id=user_id))
 

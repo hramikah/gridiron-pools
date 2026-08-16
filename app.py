@@ -5,7 +5,13 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 from flask_login import LoginManager, current_user, logout_user
 from flask_wtf import CSRFProtect
 
-from helpers import deadline_epoch_ms, get_setting, short_week_label, week_is_complete
+from helpers import (
+    deadline_epoch_ms,
+    get_setting,
+    short_week_label,
+    unread_message_count,
+    week_is_complete,
+)
 from models import Invite, User, db
 
 csrf = CSRFProtect()
@@ -116,6 +122,7 @@ def create_app():
             "can_add_account": can_add_account,
             "has_valid_invite": has_valid_invite,
             "popup_announcement": popup_announcement,
+            "unread_messages": unread_message_count(current_user),
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete
@@ -123,8 +130,14 @@ def create_app():
     app.jinja_env.globals["short_week_label"] = short_week_label
 
     # Site-wide login gate: nothing is visible to a logged-out visitor except
-    # the login/register pages themselves and static assets.
-    PUBLIC_ENDPOINTS = {"auth.login", "auth.register", "static"}
+    # the login/register/password-reset pages themselves and static assets.
+    PUBLIC_ENDPOINTS = {
+        "auth.login",
+        "auth.register",
+        "auth.forgot_password",
+        "auth.reset_password",
+        "static",
+    }
 
     @app.before_request
     def enforce_inactivity_timeout():

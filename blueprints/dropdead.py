@@ -1,7 +1,8 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import deadline_passed, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
+from helpers import deadline_passed, log_activity, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
+from team_colors import styles_for
 from models import Entry, Game, Pick, Team, db
 from scoring import ensure_missed_processed, standings_dropdead
 
@@ -70,6 +71,12 @@ def pick():
             return redirect(url_for("dropdead.pick"))
         db.session.add(Pick(entry_id=entry.id, week_id=week.id, pool="dropdead", team_id=team_id))
         db.session.commit()
+        team = Team.query.get(team_id)
+        log_activity(
+            "pick_saved",
+            f"{week.label}: picked {team} to WIN",
+            pool="dropdead",
+        )
         flash("Pick saved and locked in for the week.", "success")
         return redirect(url_for("dropdead.pick"))
 
@@ -112,6 +119,9 @@ def pick():
         team_matchups=team_matchups,
         games=games,
         teams_with_games=teams_with_games,
+        team_styles=styles_for(
+            [g.away_team for g in games] + [g.home_team for g in games]
+        ),
     )
 
 
@@ -130,8 +140,11 @@ def remove_pick(pick_id):
     if not game_pickable(team_game):
         flash("Too late to remove that pick — it locks 1 hour before kickoff.", "error")
         return redirect(url_for("dropdead.pick"))
+    removed = str(pick.team) if pick.team else "pick"
+    removed_week = week.label if week else ""
     db.session.delete(pick)
     db.session.commit()
+    log_activity("pick_removed", f"{removed_week}: removed pick {removed}", pool="dropdead")
     flash("Pick removed — you can make a new selection.", "success")
     return redirect(url_for("dropdead.pick"))
 
@@ -157,6 +170,11 @@ def buyback(entry_id):
     entry.buy_backs_used += 1
     entry.buyback_week = entry.eliminated_week
     db.session.commit()
+    log_activity(
+        "buyback",
+        f"Bought back in ($30) after elimination in week {entry.eliminated_week}",
+        pool="dropdead",
+    )
     flash("Entry revived. ($30 buy-back fee due to the commissioners.)", "success")
     return redirect(url_for("dropdead.pick"))
 

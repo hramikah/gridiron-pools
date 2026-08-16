@@ -1,25 +1,10 @@
-import threading
-
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from mailer import send_admin_notification_email
+from helpers import log_activity
 from models import Announcement, ContactMessage, User, db
 
 bp = Blueprint("board", __name__)
-
-
-def _send_async(fn, *args):
-    """Run a mailer call on a background thread with its own app context,
-    so the request that triggered it (sending a contact message) returns
-    immediately instead of waiting on SMTP."""
-    app = current_app._get_current_object()
-
-    def run():
-        with app.app_context():
-            fn(*args)
-
-    threading.Thread(target=run, daemon=True).start()
 
 
 @bp.route("/")
@@ -31,13 +16,47 @@ def index():
         .order_by(ContactMessage.created_at.asc())
         .all()
     )
-    # opening the board reads any admin replies waiting for this player
-    unread_replies = [m for m in my_thread if m.from_admin and not m.is_read]
-    if unread_replies:
-        for m in unread_replies:
+    # Opening the board reads what's waiting for *you* in your own thread:
+    # messages someone else wrote. Never your own -- a player marking their own
+    # message read would clear the admin's unread badge before the admin ever
+    # saw it. The one exception is an admin's own thread: nothing else on
+    # either side would ever clear a note they left there themselves.
+    unread_here = [
+        m
+        for m in my_thread
+        if not m.is_read
+        and (m.sender_id != current_user.id or current_user.is_admin)
+    ]
+    if unread_here:
+        for m in unread_here:
             m.is_read = True
         db.session.commit()
-    return render_template("board/index.html", announcements=announcements, my_thread=my_thread)
+    # Admins are the other side of every player's thread, so the board has to
+    # surface those here too -- filtering on user_id alone only ever returned
+    # the admin's own thread, which is why player messages never appeared.
+    player_threads = []
+    if current_user.is_admin:
+        threads = {}
+        for m in ContactMessage.query.order_by(ContactMessage.created_at.asc()).all():
+            if m.user_id == current_user.id:
+                continue  # the admin's own thread is already shown above
+            threads.setdefault(m.user_id, []).append(m)
+        for msgs in threads.values():
+            player_threads.append({
+                "user": msgs[-1].user,
+                "last": msgs[-1],
+                "count": len(msgs),
+                "unread": sum(1 for m in msgs if not m.from_admin and not m.is_read),
+            })
+        # unread first, then most recently active
+        player_threads.sort(key=lambda r: (r["unread"] == 0, -r["last"].created_at.timestamp()))
+
+    return render_template(
+        "board/index.html",
+        announcements=announcements,
+        my_thread=my_thread,
+        player_threads=player_threads,
+    )
 
 
 @bp.route("/contact", methods=["POST"])
@@ -50,9 +69,7 @@ def contact():
     message = ContactMessage(user_id=current_user.id, sender_id=current_user.id, body=body)
     db.session.add(message)
     db.session.commit()
-
-    admin_addresses = [u.email for u in User.query.filter_by(is_admin=True).all()]
-    _send_async(send_admin_notification_email, current_user.username, body, admin_addresses)
+    log_activity("message_sent", f"Messaged the admin: {body[:120]}")
 
     flash("Your message was sent to the admin.", "success")
     return redirect(url_for("board.index"))

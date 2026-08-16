@@ -32,6 +32,41 @@
   </div>
 </div>
 
+{% if current_user.is_admin %}
+<div class="card mb-4 border-warning">
+  <div class="card-body">
+    <h5 class="mb-1">Player Messages
+      {% if unread_messages %}<span class="badge rounded-pill bg-danger">{{ unread_messages }} unread</span>{% endif %}
+    </h5>
+    <p class="text-muted small">Messages players have sent you. Open a thread to read and reply.</p>
+    {% if player_threads %}
+    <div class="list-group">
+      {% for row in player_threads %}
+      <a class="list-group-item list-group-item-action {% if row.unread %}list-group-item-warning{% endif %}"
+         href="{{ url_for('admin.message_thread', user_id=row.user.id) }}">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="me-2">
+            <div class="fw-bold">{{ row.user.username }}
+              {% if row.unread %}<span class="badge rounded-pill bg-danger">{{ row.unread }} new</span>{% endif %}
+            </div>
+            <div class="small text-muted">
+              {% if row.last.from_admin %}You replied{% else %}{{ row.user.username }} wrote{% endif %}
+              &middot; {{ row.last.created_at.strftime('%a %b %d, %I:%M %p') }}
+            </div>
+            <div class="text-truncate" style="max-width: 44rem;">{{ row.last.body }}</div>
+          </div>
+          <span class="badge bg-secondary">{{ row.count }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">No players have sent a message yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <h5>Announcements</h5>
 {% if announcements %}
   {% for a in announcements %}

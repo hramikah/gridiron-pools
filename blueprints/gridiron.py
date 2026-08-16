@@ -3,12 +3,14 @@ from flask_login import current_user, login_required
 
 from helpers import (
     deadline_passed,
+    log_activity,
     game_pickable,
     get_current_week,
     gridiron_signup_deadline,
     gridiron_signups_open,
    
 )
+from team_colors import styles_for
 from models import Entry, Game, Pick, db
 from scoring import (
     GRIDIRON_MAKEUP_PENALTY_LOSSES,
@@ -88,6 +90,13 @@ def makeup_choice(entry_id):
 
     entry.makeup_choice = choice
     db.session.commit()
+    log_activity(
+        "makeup_choice",
+        f"{week.label}: chose "
+        + ("start over (10 picks, no penalty)" if choice == "startover"
+           else "makeup (8 picks, 2-game penalty)"),
+        pool="gridiron",
+    )
     if choice == "startover":
         flash(f"Starting over: {GRIDIRON_STARTOVER_PICKS} picks this week, no penalty.", "success")
     else:
@@ -158,6 +167,20 @@ def pick():
                 Pick(entry_id=entry.id, week_id=week.id, pool="gridiron", game_id=game_id, market=market, side=side)
             )
         db.session.commit()
+        saved = []
+        for game_id, market, side in selections:
+            g = game_by_id.get(game_id)
+            if not g:
+                continue
+            if market == "spread":
+                saved.append(f"{g.away_team if side == 'away' else g.home_team} (spread)")
+            else:
+                saved.append(f"{side.capitalize()} {g.over_under} in {g.label}")
+        log_activity(
+            "pick_saved",
+            f"{week.label}: saved {len(selections)} pick(s) -- " + "; ".join(saved),
+            pool="gridiron",
+        )
         flash("Picks saved and locked in.", "success")
         return redirect(url_for("gridiron.pick"))
 
@@ -205,6 +228,9 @@ def pick():
         startover_picks=GRIDIRON_STARTOVER_PICKS,
         makeup_picks=GRIDIRON_MAKEUP_PICKS,
         makeup_penalty=GRIDIRON_MAKEUP_PENALTY_LOSSES,
+        team_styles=styles_for(
+            [g.away_team for g in all_games] + [g.home_team for g in all_games]
+        ),
     )
 
 
@@ -222,8 +248,16 @@ def remove_pick(pick_id):
     if not game_pickable(pick.game):
         flash("Too late to remove that pick — it locks 1 hour before kickoff.", "error")
         return redirect(url_for("gridiron.pick"))
+    removed_game = pick.game.label if pick.game else "pick"
+    removed_market = pick.market or "pick"
+    removed_week = pick.week.label if pick.week else ""
     db.session.delete(pick)
     db.session.commit()
+    log_activity(
+        "pick_removed",
+        f"{removed_week}: removed {removed_market} pick on {removed_game}",
+        pool="gridiron",
+    )
     flash("Pick removed — you can make a new selection.", "success")
     return redirect(url_for("gridiron.pick"))
 

@@ -257,8 +257,9 @@ li.badge {
    ========================================================================== */
 
 :root {
-  --display-font: "Barlow Condensed", "Helvetica Neue", Arial, sans-serif;
-  --poster-font: "Anton", "Barlow Condensed", Impact, sans-serif;
+  --display-font: "Oswald", "Helvetica Neue", Arial, sans-serif;
+  --poster-font: "Alfa Slab One", "Oswald", Georgia, serif;
+  --body-font: "Rubik", "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Headline type: pool titles, the countdown, section headers */
@@ -283,9 +284,9 @@ li.badge {
 }
 
 /* Per-pool accents */
-.pool-theme-gridiron { --pick-accent: #ff7900; --pick-accent-dark: #cc6100; }
-.pool-theme-loser    { --pick-accent: #00b3a4; --pick-accent-dark: #00887c; }
-.pool-theme-dropdead { --pick-accent: #e5122e; --pick-accent-dark: #a80d21; }
+.pool-theme-gridiron { --pick-accent: #e06700; --pick-accent-dark: #a84c00; }
+.pool-theme-loser    { --pick-accent: #c47a0a; --pick-accent-dark: #94590a; }
+.pool-theme-dropdead { --pick-accent: #cc1526; --pick-accent-dark: #96101c; }
 
 /* The pick tables themselves */
 .pick-table thead th {
@@ -442,4 +443,172 @@ li.badge {
 }
 @media (max-width: 767.98px) {
   .pick-choice-group > .pick-option { font-size: .85rem; }
+}
+
+
+/* ==========================================================================
+   Warm type palette
+   Every run of text sits in the brown/amber family rather than the default
+   near-black and cool grey. Values are contrast-checked against the page
+   (#eeecea), cards (#fff) and the chalk panels (#f5f5f0) -- the muted tone is
+   #6f5b49 rather than a lighter taupe because anything lighter drops under
+   4.5:1 for small text.
+   ========================================================================== */
+
+:root {
+  --warm-text: #4a3527;    /* body copy            -- 9.7:1 on page */
+  --warm-heading: #8f3a10; /* headings, poster type -- 6.4:1 */
+  --warm-muted: #6f5b49;   /* secondary text        -- 5.5:1 */
+  --warm-soft: #7d6753;    /* timestamps, captions  -- 4.5:1 */
+}
+
+body {
+  font-family: var(--body-font);
+  color: var(--warm-text);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--warm-heading);
+}
+
+/* Bootstrap's muted/secondary greys are cool; warm them up. */
+.text-muted,
+.form-text,
+small.text-muted,
+.card-text.text-muted {
+  color: var(--warm-muted) !important;
+}
+
+/* Table copy inherits the warm body tone rather than Bootstrap's near-black */
+.table { color: var(--warm-text); }
+
+/* Pick pages */
+.pick-table .matchup { color: #5a3a22; }
+.pick-table .kickoff { color: var(--warm-soft); }
+.pick-option { color: var(--warm-text); }
+.pick-note { color: var(--warm-soft); }
+.deadline-countdown .countdown-target { color: var(--warm-muted); }
+.deadline-countdown .countdown-now { color: var(--warm-soft); }
+.deadline-countdown .countdown-value { color: var(--warm-heading); }
+.deadline-countdown .countdown-label { color: var(--warm-text); }
+.locked-pick .locked-team { color: var(--warm-heading); }
+.pick-heading { color: var(--warm-heading); }
+
+/* Anything sitting on a dark or filled surface stays white -- warming these
+   would wreck the contrast the filled states rely on. */
+.navbar .navbar-brand,
+.navbar .nav-link,
+.hero-band h1,
+.hero-band p,
+.pick-table thead th,
+table.standings thead th,
+.btn-check:checked + .pick-option,
+.btn-dropdead, .btn-loser, .btn-gridiron,
+.badge {
+  color: #fff;
+}
+.navbar .nav-link { color: rgba(255, 255, 255, .85); }
+
+/* Alfa Slab One is a heavy slab; ease the tracking so headings don't crowd. */
+.page-header h2,
+.hero-band h1,
+.pick-heading,
+.locked-pick .locked-team,
+.countdown-value {
+  letter-spacing: -.01em;
+}
+
+/* The unselected button keeps the brighter accent on its border; the filled
+   state uses a darker pair so white label text clears 4.5:1 across the whole
+   gradient, not just its dark end. */
+.pool-theme-gridiron { --pick-fill: #b85400; --pick-fill-dark: #8f4100; }
+.pool-theme-loser    { --pick-fill: #a86608; --pick-fill-dark: #7d4a08; }
+.pool-theme-dropdead { --pick-fill: #b31222; --pick-fill-dark: #8a0f19; }
+
+.btn-check:checked + .pick-option {
+  background: linear-gradient(160deg,
+    var(--pick-fill, var(--pick-accent, var(--gold))),
+    var(--pick-fill-dark, var(--pick-accent-dark, var(--gold))));
+  border-color: var(--pick-fill-dark, var(--pick-accent-dark, var(--gold)));
+}
+
+/* Bootstrap's .card sets its own colour, so card copy and card titles keep the
+   default near-black unless they're named explicitly. */
+.card,
+.list-group-item,
+.card-text {
+  color: var(--warm-text);
+}
+.card-title,
+.card h1, .card h2, .card h3, .card h4, .card h5, .card h6 {
+  color: var(--warm-heading);
+}
+
+/* The Loser pool's button was plain black -- warm it in line with its accent. */
+.btn-loser {
+  background-color: #a86608;
+  border-color: #7d4a08;
+}
+.btn-loser:hover {
+  background-color: #7d4a08;
+  border-color: #633b06;
+}
+.pool-card.pool-loser { border-top-color: #a86608; }
+.page-header.header-loser { border-left-color: #a86608; }
+
+/* ==========================================================================
+   Team-coloured pick buttons
+   Each button carries its club's brand colour via inline custom properties
+   (--team-fill / --team-ink / --team-label), set server-side where the ink is
+   picked by luminance so the lettering always clears 4.5:1. College sides and
+   anything unrecognised keep the pool's own accent.
+   ========================================================================== */
+
+.pick-option.team-tinted {
+  border-color: var(--team-fill);
+  border-left-width: 6px;
+  color: var(--team-label);
+}
+.pick-option.team-tinted:hover {
+  background: var(--team-fill);
+  border-color: var(--team-fill);
+  color: var(--team-ink);
+}
+.btn-check:checked + .pick-option.team-tinted {
+  background: var(--team-fill);
+  border-color: var(--team-fill);
+  color: var(--team-ink);
+  box-shadow: 0 .3rem .7rem rgba(0, 0, 0, .28);
+}
+.pick-option.team-tinted .pick-points {
+  background: var(--team-fill);
+  color: var(--team-ink);
+}
+.btn-check:checked + .pick-option.team-tinted .pick-points,
+.pick-option.team-tinted:hover .pick-points {
+  background: rgba(255, 255, 255, .3);
+  color: var(--team-ink);
+}
+/* A disabled team button drops its colour entirely -- a greyed-out club still
+   showing its brand colour reads as available. */
+.btn-check:disabled + .pick-option.team-tinted {
+  border-color: #d6d2ce;
+  border-left-width: 6px;
+  background: #f1efed;
+  color: #9a948e;
+}
+.btn-check:disabled + .pick-option.team-tinted .pick-points {
+  background: #b9b4ae;
+  color: #fff;
+}
+
+/* The remove-pick control used to sit hard right of the locked pick, far from
+   the thing it deletes. It now sits centred under it, and carries a label so
+   a bare "x" isn't the only affordance. */
+.locked-pick .remove-pick-btn {
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.locked-pick .locked-team {
+  margin-bottom: .15rem;
 }

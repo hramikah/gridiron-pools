@@ -56,6 +56,13 @@
 
 <div class="card mb-4">
   <div class="card-body">
+    <div class="mb-4">
+      <h5>Player Activity Log</h5>
+      <p class="text-muted mb-2">Pick a player and see everything they did while signed in &mdash; picks saved and
+      removed, sign-ins, pool joins, buy-backs, password changes and messages.</p>
+      <a href="{{ url_for('admin.activity') }}" class="btn btn-sm btn-gridiron">Open activity log</a>
+    </div>
+
     <h5>Pending Results</h5>
     {% if pending_games %}
     <div class="table-responsive">

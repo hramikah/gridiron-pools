@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from flask_login import UserMixin
@@ -6,6 +6,8 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
+
+PASSWORD_RESET_LIFETIME = timedelta(hours=1)
 
 POOLS = ("dropdead", "loser", "gridiron")
 POOL_LABELS = {
@@ -235,6 +237,28 @@ class ContactMessage(db.Model):
         return self.sender_id != self.user_id
 
 
+class ActivityLog(db.Model):
+    """Audit trail of what a player did while logged in: sign-ins, picks saved
+    and removed, pool joins, password changes, messages -- anything an admin
+    might need to reconstruct later when someone disputes a pick.
+
+    ``detail`` is a plain human-readable sentence rather than structured data,
+    because this is read by people, not queried by code. Rows are never edited
+    or deleted by the app; they're append-only.
+    """
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    username = db.Column(db.String(80))  # kept verbatim so a deleted account still reads sensibly
+    action = db.Column(db.String(40), nullable=False)  # 'login', 'pick_saved', ...
+    pool = db.Column(db.String(20))
+    detail = db.Column(db.Text)
+    ip = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime, default=now, index=True)
+
+    user = db.relationship("User")
+
+
 class Invite(db.Model):
     """An admin-sent invite: registration is only allowed via a valid,
     unused token tied to the invited email, so the site can't be joined by
@@ -245,3 +269,20 @@ class Invite(db.Model):
     token = db.Column(db.String(64), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=now)
     used_at = db.Column(db.DateTime, nullable=True)
+
+
+class PasswordReset(db.Model):
+    """A single-use, time-limited token from the "forgot password" form.
+    Tied to one account, not one email: several accounts may share an
+    email (one per entry), so each gets its own link."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=now)
+    used_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User")
+
+    def is_valid(self):
+        return self.used_at is None and now() - self.created_at < PASSWORD_RESET_LIFETIME

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from flask import abort, current_app, request
 from flask_login import current_user
 
-from models import PRESEASON_OFFSET, Game, Setting, Week, db
+from models import PRESEASON_OFFSET, ActivityLog, ContactMessage, Game, Setting, Week, db
 
 EASTERN = ZoneInfo("America/New_York")
 
@@ -21,6 +21,11 @@ LOGIN_MAX_ATTEMPTS = 8
 LOGIN_WINDOW_SECONDS = 300
 _login_attempts = defaultdict(list)
 _login_attempts_lock = threading.Lock()
+
+RESET_MAX_REQUESTS = 5
+RESET_WINDOW_SECONDS = 900
+_reset_requests = defaultdict(list)
+_reset_requests_lock = threading.Lock()
 
 
 def _client_ip():
@@ -48,6 +53,21 @@ def clear_login_attempts():
         _login_attempts.pop(ip, None)
 
 
+def reset_request_rate_limited():
+    """Throttle the "forgot password" form per IP. Kept separate from the
+    login counter so asking for a reset never eats into (or clears) the
+    failed-login budget for the same address."""
+    ip = _client_ip()
+    now = time.time()
+    with _reset_requests_lock:
+        attempts = _reset_requests[ip]
+        attempts[:] = [t for t in attempts if now - t < RESET_WINDOW_SECONDS]
+        if len(attempts) >= RESET_MAX_REQUESTS:
+            return True
+        attempts.append(now)
+        return False
+
+
 def now_eastern():
     """Naive datetime representing the current time in US Eastern (EST/EDT).
 
@@ -56,6 +76,50 @@ def now_eastern():
     as naive Eastern-local datetimes and compared against this.
     """
     return datetime.now(EASTERN).replace(tzinfo=None)
+
+
+def log_activity(action, detail=None, pool=None, user=None):
+    """Record one thing a player did. Never raises: an audit-trail failure must
+    not take down the action being audited."""
+    try:
+        actor = user or (current_user if getattr(current_user, "is_authenticated", False) else None)
+        db.session.add(
+            ActivityLog(
+                user_id=getattr(actor, "id", None),
+                username=getattr(actor, "username", None),
+                action=action,
+                pool=pool,
+                detail=detail,
+                ip=_client_ip() if request else None,
+            )
+        )
+        db.session.commit()
+    except Exception:  # pragma: no cover - logging must never break a request
+        db.session.rollback()
+
+
+def unread_message_count(user):
+    """Messages waiting for this user on the message board.
+
+    Admins are the other side of every player's thread, so they count unread
+    player-authored messages across all threads; a player counts unread admin
+    replies in their own thread only."""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return 0
+    if user.is_admin:
+        # Player-authored messages only, and never the admin's own thread --
+        # a note an admin sends themselves through the board would otherwise
+        # count forever, since nothing on either side ever marks it read.
+        return sum(
+            1
+            for m in ContactMessage.query.filter_by(is_read=False).all()
+            if not m.from_admin and m.user_id != user.id
+        )
+    return sum(
+        1
+        for m in ContactMessage.query.filter_by(user_id=user.id, is_read=False).all()
+        if m.from_admin
+    )
 
 
 def short_week_label(number):

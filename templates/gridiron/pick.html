@@ -103,16 +103,18 @@
             </td>
             <td>
               {% if spread_locked %}
-                <span class="badge bg-secondary">Locked: {{ g.home_team if spread_locked == 'home' else g.away_team }}</span>
-                {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'spread'))) }}{% endif %}
+                <div class="d-flex justify-content-center align-items-center gap-1 flex-wrap">
+                  <span class="badge bg-secondary">Locked: {{ g.home_team if spread_locked == 'home' else g.away_team }}</span>
+                  {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'spread'))) }}{% endif %}
+                </div>
               {% else %}
               {% set away_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if locked %}disabled{% endif %}>
-                <label class="pick-option" for="sp_{{ g.id }}_away">{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                {% set ts = team_styles.get(g.away_team) %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_away" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
               {% set home_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if locked %}disabled{% endif %}>
-                <label class="pick-option" for="sp_{{ g.id }}_home">{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                {% set ts = team_styles.get(g.home_team) %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_home" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
               <div class="pick-choice-group" role="group">
                 {# favorite on the left, underdog on the right (plain away/home order for pick'em) #}
@@ -127,8 +129,10 @@
             <td>
               {% if g.over_under %}
                 {% if total_locked %}
-                  <span class="badge bg-secondary">Locked: {{ total_locked|capitalize }} {{ g.over_under }}</span>
-                  {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'total'))) }}{% endif %}
+                  <div class="d-flex justify-content-center align-items-center gap-1 flex-wrap">
+                    <span class="badge bg-secondary">Locked: {{ total_locked|capitalize }} {{ g.over_under }}</span>
+                    {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'total'))) }}{% endif %}
+                  </div>
                 {% else %}
                 <div class="pick-choice-group" role="group">
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_over" value="over" autocomplete="off" {% if locked %}disabled{% endif %}>

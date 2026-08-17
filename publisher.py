@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import requests
 
 from helpers import EASTERN, get_setting, now_eastern
-from models import PRESEASON_OFFSET, Game, Team, Week, db
+from models import PRESEASON_OFFSET, Game, Team, Week, db, default_buyback_open
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4/sports"
 PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm"]
@@ -144,6 +144,7 @@ def publish_week(app):
                     pool=pool,
                     pick_deadline=pick_deadline,
                     is_preseason=is_preseason,
+                    buyback_open=default_buyback_open(pool, number, is_preseason),
                 )
                 db.session.add(w)
                 newly_created_weeks.add(pool)

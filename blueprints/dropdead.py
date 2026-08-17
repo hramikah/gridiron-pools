@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 
 from helpers import deadline_passed, log_activity, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
-from models import Entry, Game, Pick, Team, db
+from models import Entry, Game, Pick, Team, Week, db
 from scoring import ensure_missed_processed, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
@@ -159,12 +159,21 @@ def buyback(entry_id):
     if entry.is_active:
         flash("That entry is still alive.", "error")
         return redirect(url_for("dropdead.pick"))
-    if not entry.eliminated_week or entry.eliminated_week > 4:
-        flash("Buy-backs are only available for eliminations in weeks 1-4.", "error")
+    if not entry.eliminated_week:
+        flash("That entry has no recorded elimination to buy back from.", "error")
         return redirect(url_for("dropdead.pick"))
     week = get_current_week(entry.season_year, "dropdead")
     if week and week.number != entry.eliminated_week:
         flash("The buy-back window closed once the next week's picks opened.", "error")
+        return redirect(url_for("dropdead.pick"))
+    # Whether a week allows buy-backs is the admin's call per week (Pool
+    # Manager), not a week-number rule -- preseason and test weeks don't
+    # number the way the printed weeks 1-4 rule assumes.
+    elim_week = week or Week.query.filter_by(
+        season_year=entry.season_year, pool="dropdead", number=entry.eliminated_week
+    ).first()
+    if not elim_week or not elim_week.buyback_open:
+        flash("Buy-backs aren't open for that week.", "error")
         return redirect(url_for("dropdead.pick"))
     entry.is_active = True
     entry.buy_backs_used += 1

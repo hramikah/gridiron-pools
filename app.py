@@ -37,11 +37,47 @@ def get_or_create_secret_key():
     return key
 
 
+def is_local_test():
+    """True when this is the practice copy on a laptop rather than the live
+    site, so the templates can shout about it. Keyed on the hostname being
+    localhost: the live site is only ever reached through Cloudflare at the
+    real domain, so it can never match."""
+    host = (request.host or "").split(":")[0].lower()
+    return host in ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+
+
+def migrate_schema():
+    """Add columns that create_all() can't add to tables it already made.
+
+    create_all() only ever creates missing *tables*, so a new column on an
+    existing model is invisible to it and every query then blows up on
+    "no such column". Each step is idempotent, so this is safe on every boot.
+    """
+    cols = {row[1] for row in db.session.execute(db.text("PRAGMA table_info(week)")).all()}
+    if "buyback_open" not in cols:
+        db.session.execute(db.text("ALTER TABLE week ADD COLUMN buyback_open BOOLEAN DEFAULT 0 NOT NULL"))
+        # Backfill what the printed rules already granted: Drop Dead weeks
+        # 1-4 of a real season. Preseason weeks (101+) are left closed --
+        # that's the case the admin now controls by hand.
+        db.session.execute(db.text(
+            "UPDATE week SET buyback_open = 1 WHERE pool = 'dropdead' AND number <= 4"
+        ))
+        db.session.commit()
+
+
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = get_or_create_secret_key()
     os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'pools.db')}"
+    # GRIDIRON_DATABASE_URI lets a test run point at a throwaway database.
+    # Flask-SQLAlchemy binds its engine when init_app runs, so overriding
+    # app.config afterwards silently does nothing and the test ends up
+    # writing to instance/pools.db -- which is how a test once wiped it.
+    # The override has to happen here, before init_app, to take effect.
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        os.environ.get("GRIDIRON_DATABASE_URI")
+        or f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'pools.db')}"
+    )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["CURRENT_SEASON"] = int(os.environ.get("SEASON_YEAR", 2026))
 
@@ -131,6 +167,7 @@ def create_app():
             "has_valid_invite": has_valid_invite,
             "popup_announcement": popup_announcement,
             "unread_messages": unread_message_count(current_user),
+            "is_local_test": is_local_test(),
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete
@@ -211,6 +248,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        migrate_schema()
 
     return app
 

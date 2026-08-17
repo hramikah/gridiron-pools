@@ -73,6 +73,14 @@ class LoserPoolPoints(db.Model):
 PRESEASON_OFFSET = 100
 
 
+def default_buyback_open(pool, number, is_preseason=False):
+    """What a freshly created week's buy-back window should start as: open
+    for Drop Dead weeks 1-4 of a real season, matching the printed rules, so
+    a normal season needs no admin action. Preseason and test weeks start
+    closed and are opened by hand from the Pool Manager."""
+    return pool == "dropdead" and not is_preseason and number <= 4
+
+
 class Week(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     season_year = db.Column(db.Integer, nullable=False)
@@ -82,6 +90,10 @@ class Week(db.Model):
     picks_emailed = db.Column(db.Boolean, default=False)  # picks recap sent to players
     missed_processed = db.Column(db.Boolean, default=False, nullable=False)  # missed-pick penalties applied (auto or manual)
     is_preseason = db.Column(db.Boolean, default=False, nullable=False)  # exhibition week, doesn't count toward standings
+    # Drop Dead: may an entry eliminated in this week buy back in? The printed
+    # rules say weeks 1-4, but week numbers don't line up during preseason
+    # testing, so the admin sets it per week instead of it being derived.
+    buyback_open = db.Column(db.Boolean, default=False, nullable=False)
 
     games = db.relationship("Game", backref="week", lazy=True, cascade="all, delete-orphan")
     picks = db.relationship("Pick", backref="week", lazy=True, cascade="all, delete-orphan")

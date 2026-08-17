@@ -7,9 +7,9 @@ from datetime import datetime
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import admin_required, deadline_passed, get_current_week, get_setting, send_async, set_setting
+from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting
 from mailer import send_invite_link_emails, send_password_reset_email
-from models import ActivityLog, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_LABELS, Pick, Team, User, Week, db
+from models import ActivityLog, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open
 from notifications import email_week_picks
 from publisher import publish_week
 from scoring import enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
@@ -231,10 +231,22 @@ def new_week(pool):
     if Week.query.filter_by(season_year=season_year, number=number, pool=pool).first():
         flash(f"Week {number} already exists for {POOL_LABELS[pool]}.", "error")
         return redirect(url_for("admin.pool_manager", pool=pool))
-    db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline))
+    db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline,
+                        buyback_open=default_buyback_open(pool, number)))
     db.session.commit()
     flash(f"Week {number} created for {POOL_LABELS[pool]}.", "success")
     return redirect(url_for("admin.pool_manager", pool=pool))
+
+
+@bp.route("/weeks/<int:week_id>/buyback", methods=["POST"])
+def toggle_buyback(week_id):
+    week = Week.query.get_or_404(week_id)
+    week.buyback_open = not week.buyback_open
+    db.session.commit()
+    state = "open" if week.buyback_open else "closed"
+    log_activity("buyback_window", f"{week.label}: buy-backs {state}", pool=week.pool)
+    flash(f"Buy-backs are now {state} for {week.label}.", "success")
+    return redirect(url_for("admin.pool_manager", pool=week.pool))
 
 
 @bp.route("/weeks/<int:week_id>/deadline", methods=["POST"])
@@ -401,7 +413,8 @@ def game_creator_new_week():
     created = []
     for pool in POOLS:
         if not Week.query.filter_by(season_year=season_year, number=number, pool=pool).first():
-            db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline))
+            db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline,
+                                buyback_open=default_buyback_open(pool, number)))
             created.append(POOL_LABELS[pool])
     db.session.commit()
     if created:

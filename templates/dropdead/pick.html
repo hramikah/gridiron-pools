@@ -121,7 +121,7 @@
         <button type="submit" class="btn btn-dropdead" {% if locked %}disabled{% endif %}>Save Pick</button>
       </form>
       {% endif %}
-    {% elif not entry.is_active and entry.eliminated_week and entry.eliminated_week <= 4 and week and week.number == entry.eliminated_week %}
+    {% elif not entry.is_active and entry.eliminated_week and week and week.number == entry.eliminated_week and week.buyback_open %}
       <form method="post" action="{{ url_for('dropdead.buyback', entry_id=entry.id) }}">
         <button type="submit" class="btn btn-outline-danger btn-sm">Buy Back In ($30)</button>
       </form>

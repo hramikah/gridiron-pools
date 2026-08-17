@@ -203,6 +203,22 @@ def ensure_missed_processed(week):
     db.session.commit()
 
 
+def dropdead_eliminated_for_no_pick(entry):
+    """True if this entry's elimination was for failing to turn in a pick.
+
+    The printed rules deny a buy-back in that case ("with the exception of
+    an entrant who failed to turn in a pick"), so it has to be told apart
+    from being eliminated by a losing pick. A no-show leaves no Pick row
+    for the week it died in -- that absence is the whole signal.
+    """
+    if entry.eliminated_week is None:
+        return False
+    return not Pick.query.filter_by(entry_id=entry.id, pool="dropdead").join(Week).filter(
+        Week.number == entry.eliminated_week,
+        Week.season_year == entry.season_year,
+    ).first()
+
+
 def gridiron_first_miss_week(entry):
     """Week number of this entry's first missed Gridiron week, or None."""
     first = (

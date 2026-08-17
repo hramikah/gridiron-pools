@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, log_activity, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
 from models import Entry, Game, Pick, Team, Week, db
-from scoring import ensure_missed_processed, standings_dropdead
+from scoring import dropdead_eliminated_for_no_pick, ensure_missed_processed, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
 
@@ -119,6 +119,9 @@ def pick():
         team_matchups=team_matchups,
         games=games,
         teams_with_games=teams_with_games,
+        # Entries whose elimination was a no-show: no buy-back offered, per
+        # the printed rules.
+        no_pick_eliminations={e.id for e in entries if dropdead_eliminated_for_no_pick(e)},
         team_styles=styles_for(
             [g.away_team for g in games] + [g.home_team for g in games]
         ),
@@ -174,6 +177,14 @@ def buyback(entry_id):
     ).first()
     if not elim_week or not elim_week.buyback_open:
         flash("Buy-backs aren't open for that week.", "error")
+        return redirect(url_for("dropdead.pick"))
+    # Printed rules: no buy-back for an entrant who failed to turn in a pick.
+    if dropdead_eliminated_for_no_pick(entry):
+        flash(
+            "Buy-backs aren't available when the entry was eliminated for not "
+            "turning in a pick.",
+            "error",
+        )
         return redirect(url_for("dropdead.pick"))
     entry.is_active = True
     entry.buy_backs_used += 1

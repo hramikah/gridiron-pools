@@ -122,10 +122,14 @@
       </form>
       {% endif %}
     {% elif not entry.is_active and entry.eliminated_week and week and week.number == entry.eliminated_week and week.buyback_open %}
+      {% if entry.id in no_pick_eliminations %}
+      <p class="text-muted small mb-0">No buy-back available &mdash; the entry was eliminated for not turning in a pick.</p>
+      {% else %}
       <form method="post" action="{{ url_for('dropdead.buyback', entry_id=entry.id) }}">
         <button type="submit" class="btn btn-outline-danger btn-sm">Buy Back In ($30)</button>
       </form>
       <p class="text-muted small mb-0 mt-1">Buy back before next week's picks open, or this window closes.</p>
+      {% endif %}
     {% endif %}
   </div>
 </div>

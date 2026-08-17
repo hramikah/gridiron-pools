@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user, logout_user
 from flask_wtf import CSRFProtect
+from flask_wtf.csrf import CSRFError
 
 from helpers import (
     deadline_epoch_ms,
@@ -49,6 +50,13 @@ def create_app():
     # Lax stops it being sent on cross-site POSTs (CSRF mitigation, on top
     # of the CSRFProtect tokens below). This app is only ever reached over
     # HTTPS (Cloudflare terminates TLS in front of it), so Secure is safe.
+    # Flask-WTF expires CSRF tokens after an hour by default, which on a
+    # phone means any tab left open past that logs you out with a cryptic
+    # 400. The token is stored in the session, and the session is already
+    # bounded by the 30-minute inactivity logout above, so tying the token's
+    # life to the session's is no weaker and far less confusing.
+    app.config["WTF_CSRF_TIME_LIMIT"] = None
+
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -140,6 +148,29 @@ def create_app():
     }
 
     @app.before_request
+    def force_https():
+        """Send plain-HTTP visitors to HTTPS before anything else runs.
+
+        The session cookie is Secure, so over http the browser accepts the
+        page but throws the cookie away -- every form then POSTs a CSRF
+        token with no session behind it and dies on "The CSRF session token
+        is missing". Phones hit this constantly, since typing a bare domain
+        still tries http first.
+
+        Only redirects when Cloudflare explicitly reports the visitor came
+        in over http; with no such header (local dev, LAN access by IP)
+        nothing changes, so plain http still works there.
+        """
+        forwarded = request.headers.get("X-Forwarded-Proto", "").lower()
+        if not forwarded:
+            visitor = request.headers.get("CF-Visitor", "")
+            if '"scheme":"http"' in visitor.replace(" ", ""):
+                forwarded = "http"
+        if forwarded == "http":
+            return redirect(request.url.replace("http://", "https://", 1), code=301)
+        return None
+
+    @app.before_request
     def enforce_inactivity_timeout():
         if not current_user.is_authenticated:
             return None
@@ -160,6 +191,18 @@ def create_app():
         if current_user.is_authenticated or request.endpoint in PUBLIC_ENDPOINTS:
             return None
         return redirect(url_for("auth.login", next=request.path))
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        """A stale token is a normal thing to hit -- a page left open on a
+        phone overnight, or a browser that dropped the session cookie --
+        so say so in plain language on the page they were on instead of
+        showing Flask's raw "400 Bad Request: The CSRF token is missing"."""
+        flash("That page had been sitting open too long, so the form was rejected. "
+              "Please try again.", "error")
+        if current_user.is_authenticated:
+            return redirect(url_for("main.index")), 302
+        return redirect(url_for("auth.login")), 302
 
     @app.errorhandler(403)
     def forbidden(e):

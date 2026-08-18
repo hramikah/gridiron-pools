@@ -8,7 +8,8 @@
 {% if picks_grid is defined %}
 {# ---- Gridiron: same picks-grid style as the admin weekly view ---- #}
 {% macro spread_opt(g, side) %}{% if side == 'home' %}{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}{% else %}{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}{% endif %}{% endmacro %}
-{% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }} ({{ p.game.home_team }}){% endif %}{% endmacro %}
+{# The matchup is printed under the pick already, so the total doesn't repeat a team name. #}
+{% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }}{% endif %}{% endmacro %}
 
 <p class="text-muted small mb-2">Green = win, red = loss, black = not yet final.</p>
 <div class="table-responsive">

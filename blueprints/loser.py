@@ -47,8 +47,8 @@ def pick():
 
     if request.method == "POST":
         entry_id = int(request.form["entry_id"])
-        # The form offers radios per game plus a fallback select for teams with
-        # no listed game; both post `team_id`, and either may be empty.
+        # One radio per team in this week's games; the field may be empty if
+        # nothing was selected.
         raw_team_id = next((v for v in request.form.getlist("team_id") if v.strip()), "")
         if not raw_team_id:
             flash("Choose a team to LOSE before saving.", "error")
@@ -69,6 +69,11 @@ def pick():
             flash("You already have a pick locked in for this week. Remove it first if you want to pick a different team.", "error")
             return redirect(url_for("loser.pick"))
         team_game = team_game_this_week(team_id, week.id, pool="loser")
+        # A bye team has no game to lose, so it isn't a legal pick. Checked
+        # here too, not just hidden from the page.
+        if team_game is None:
+            flash("That team isn't playing this week, so it can't be picked.", "error")
+            return redirect(url_for("loser.pick"))
         if not game_pickable(team_game):
             flash("Too late to pick that team — picks lock 1 hour before their game's kickoff.", "error")
             return redirect(url_for("loser.pick"))

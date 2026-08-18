@@ -219,6 +219,29 @@ def dropdead_eliminated_for_no_pick(entry):
     ).first()
 
 
+def dropdead_buyback_available(entry, current_week):
+    """May this entry buy back in right now?
+
+    The buy-back is for the week *after* the one that knocked you out -- the
+    elimination week is already played -- so it's offered only while that
+    following week is current and still open for picks. Whether a given
+    week's eliminations are eligible at all is the admin's per-week flag,
+    and it lives on the week the entry died in.
+    """
+    if entry.is_active or not entry.eliminated_week or not current_week:
+        return False
+    if current_week.number != entry.eliminated_week + 1:
+        return False
+    if deadline_passed(current_week):
+        return False
+    if dropdead_eliminated_for_no_pick(entry):
+        return False
+    elim_week = Week.query.filter_by(
+        season_year=entry.season_year, pool="dropdead", number=entry.eliminated_week
+    ).first()
+    return bool(elim_week and elim_week.buyback_open)
+
+
 def gridiron_first_miss_week(entry):
     """Week number of this entry's first missed Gridiron week, or None."""
     first = (
@@ -591,3 +614,29 @@ def gridiron_matrix(season_year, week_numbers):
         rows.append({"entry": e, "cells": cells, "wins": wins, "losses": losses, "ties": ties})
     rows.sort(key=lambda r: (-r["wins"], r["losses"]))
     return rows
+
+
+def gridiron_week_records(season_year, week_number):
+    """Each Gridiron entry's win-loss-push record for one week alone.
+
+    Distinct from gridiron_record_through_week, which accumulates from the
+    start of the season -- this is just the week named, for the "last week"
+    column on the standings.
+    """
+    week = Week.query.filter_by(
+        season_year=season_year, pool="gridiron", number=week_number
+    ).first()
+    if week is None:
+        return {}
+
+    records = {}
+    for pick in Pick.query.filter_by(pool="gridiron", week_id=week.id).all():
+        w, l, t = records.get(pick.entry_id, (0, 0, 0))
+        if pick.result == "win":
+            w += 1
+        elif pick.result == "loss":
+            l += 1
+        elif pick.result == "push":
+            t += 1
+        records[pick.entry_id] = (w, l, t)
+    return records

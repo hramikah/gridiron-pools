@@ -22,13 +22,24 @@
 {% else %}
 <p class="text-muted">
   Drop Dead is straight-up NFL survival, no spreads. Picks due Saturday at noon Eastern; losses and no-shows eliminate entries.
-  Tick <strong>Buy-backs</strong> on a week to let anyone eliminated in that week revive their entry for $30, up until the next week's picks open.
+  Tick <strong>Buy-backs</strong> on a week to let anyone eliminated in that week revive their entry for $30. They buy back during the <em>following</em> week, before its pick deadline.
 </p>
 {% endif %}
 
 <div class="card mb-4">
   <div class="card-body">
+    <h5>Build the season</h5>
+    <p class="text-muted small mb-2">
+      Creates Weeks 1&ndash;18 in all three pools, with deadlines at Saturday noon Eastern
+      off the season start date. Existing weeks are left untouched, so this is safe to press again.
+    </p>
+    <form method="post" action="{{ url_for('admin.build_season') }}" class="mb-4">
+      <input type="hidden" name="pool" value="{{ pool }}">
+      <button type="submit" class="btn btn-outline-primary">Create Weeks 1&ndash;18</button>
+    </form>
+
     <h5>Add a Week to {{ pool_label }}</h5>
+    <p class="text-muted small mb-2">For anything off the standard schedule &mdash; a preseason or test week.</p>
     <form method="post" action="{{ url_for('admin.new_week', pool=pool) }}" class="row g-2 align-items-end">
       <div class="col-auto">
         <label class="form-label">Week #</label>

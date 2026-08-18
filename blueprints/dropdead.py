@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, log_activity, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
 from models import Entry, Game, Pick, Team, Week, db
-from scoring import dropdead_eliminated_for_no_pick, ensure_missed_processed, standings_dropdead
+from scoring import dropdead_buyback_available, dropdead_eliminated_for_no_pick, ensure_missed_processed, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
 
@@ -66,6 +66,12 @@ def pick():
             flash("You've already used that team this season.", "error")
             return redirect(url_for("dropdead.pick"))
         team_game = team_game_this_week(team_id, week.id, pool="dropdead")
+        # A team on a bye has no game this week, so there's nothing to win --
+        # it can't be picked. Checked here as well as hidden from the page,
+        # since game_pickable() treats "no game" as pickable for other callers.
+        if team_game is None:
+            flash("That team isn't playing this week, so it can't be picked.", "error")
+            return redirect(url_for("dropdead.pick"))
         if not game_pickable(team_game):
             flash("Too late to pick that team — picks lock 1 hour before their game's kickoff.", "error")
             return redirect(url_for("dropdead.pick"))
@@ -122,6 +128,9 @@ def pick():
         # Entries whose elimination was a no-show: no buy-back offered, per
         # the printed rules.
         no_pick_eliminations={e.id for e in entries if dropdead_eliminated_for_no_pick(e)},
+        # Which entries may buy back right now. Worked out here rather than in
+        # the template so the page and the route can't drift apart on the rule.
+        buyback_available={e.id for e in entries if dropdead_buyback_available(e, week)},
         team_styles=styles_for(
             [g.away_team for g in games] + [g.home_team for g in games]
         ),
@@ -165,14 +174,25 @@ def buyback(entry_id):
     if not entry.eliminated_week:
         flash("That entry has no recorded elimination to buy back from.", "error")
         return redirect(url_for("dropdead.pick"))
+    # You never buy back into the week that knocked you out -- that week is
+    # already played. The buy-back puts you into the *following* week, so it
+    # has to happen while that week is current and still open for picks.
     week = get_current_week(entry.season_year, "dropdead")
-    if week and week.number != entry.eliminated_week:
-        flash("The buy-back window closed once the next week's picks opened.", "error")
+    if not week or week.number != entry.eliminated_week + 1:
+        flash(
+            "Buy-backs are only open during the week after the one you were "
+            "eliminated in.",
+            "error",
+        )
         return redirect(url_for("dropdead.pick"))
-    # Whether a week allows buy-backs is the admin's call per week (Pool
-    # Manager), not a week-number rule -- preseason and test weeks don't
-    # number the way the printed weeks 1-4 rule assumes.
-    elim_week = week or Week.query.filter_by(
+    if deadline_passed(week):
+        flash("The pick deadline for this week has passed, so it's too late to buy back.", "error")
+        return redirect(url_for("dropdead.pick"))
+    # Whether a week's eliminations may be bought back from is the admin's
+    # call per week (Pool Manager), not a week-number rule -- preseason and
+    # test weeks don't number the way the printed weeks 1-4 rule assumes.
+    # The flag lives on the week the entry died in, not the week they return for.
+    elim_week = Week.query.filter_by(
         season_year=entry.season_year, pool="dropdead", number=entry.eliminated_week
     ).first()
     if not elim_week or not elim_week.buyback_open:

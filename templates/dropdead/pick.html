@@ -103,33 +103,19 @@
         <p class="text-muted">No games have been posted for this week yet.</p>
         {% endif %}
 
-        {% set other_teams = teams | rejectattr('id', 'in', teams_with_games) | list %}
-        {% if other_teams %}
-        <details class="mb-2">
-          <summary class="small text-muted">Pick a team with no game listed this week ({{ other_teams|length }})</summary>
-          <select name="team_id" class="form-select form-select-sm mt-2" {% if locked %}disabled{% endif %}>
-            <option value="">Select a team&hellip;</option>
-            {% for t in other_teams %}
-            <option value="{{ t.id }}" {% if t.id in used_ids %}disabled{% endif %}>
-              {{ t.city }} {{ t.name }}{% if t.id in used_ids %} (already used){% endif %}
-            </option>
-            {% endfor %}
-          </select>
-        </details>
-        {% endif %}
-
         <button type="submit" class="btn btn-dropdead" {% if locked %}disabled{% endif %}>Save Pick</button>
       </form>
       {% endif %}
-    {% elif not entry.is_active and entry.eliminated_week and week and week.number == entry.eliminated_week and week.buyback_open %}
-      {% if entry.id in no_pick_eliminations %}
-      <p class="text-muted small mb-0">No buy-back available &mdash; the entry was eliminated for not turning in a pick.</p>
-      {% else %}
-      <form method="post" action="{{ url_for('dropdead.buyback', entry_id=entry.id) }}">
+    {% elif entry.id in buyback_available %}
+      <form method="post" action="{{ url_for('dropdead.buyback', entry_id=entry.id) }}"
+            onsubmit="return confirm('Please confirm that you would like to buy back into Drop Dead. You will be requested to pay $30 and are responsible for submitting your pick this week before the deadline.');">
         <button type="submit" class="btn btn-outline-danger btn-sm">Buy Back In ($30)</button>
       </form>
-      <p class="text-muted small mb-0 mt-1">Buy back before next week's picks open, or this window closes.</p>
-      {% endif %}
+      <p class="text-muted small mb-0 mt-1">
+        Eliminated in Week {{ entry.eliminated_week }}. Buy back in to play {{ week.label }} &mdash; before this week's pick deadline.
+      </p>
+    {% elif not entry.is_active and entry.id in no_pick_eliminations %}
+      <p class="text-muted small mb-0">No buy-back available &mdash; the entry was eliminated for not turning in a pick.</p>
     {% endif %}
   </div>
 </div>

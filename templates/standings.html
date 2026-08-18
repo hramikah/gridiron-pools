@@ -7,7 +7,10 @@
 
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="gridiron-tab" data-bs-toggle="tab" data-bs-target="#gridiron-pane" type="button" role="tab">🏈 Gridiron Investments</button>
+    <button class="nav-link active" id="allweeks-tab" data-bs-toggle="tab" data-bs-target="#allweeks-pane" type="button" role="tab">📊 All Weeks</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="gridiron-tab" data-bs-toggle="tab" data-bs-target="#gridiron-pane" type="button" role="tab">🏈 Gridiron Investments</button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="dropdead-tab" data-bs-toggle="tab" data-bs-target="#dropdead-pane" type="button" role="tab">💀 Drop Dead Pool</button>
@@ -21,18 +24,14 @@
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="player-tab" data-bs-toggle="tab" data-bs-target="#player-pane" type="button" role="tab">🔍 By Player</button>
   </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="allweeks-tab" data-bs-toggle="tab" data-bs-target="#allweeks-pane" type="button" role="tab">📊 All Weeks</button>
-  </li>
 </ul>
 
 <div class="tab-content">
-  <div class="tab-pane fade show active" id="gridiron-pane" role="tabpanel">
-    {% if gridiron_recent_week %}
-    <p class="text-muted small mb-2">Each player's Week {{ gridiron_recent_week }} picks are shown under their row, colored green for a win and red for a loss.</p>
-    {% endif %}
+  <div class="tab-pane fade" id="gridiron-pane" role="tabpanel">
     <table class="table table-striped standings bg-white">
-      <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>Status</th></tr></thead>
+      <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th>
+        <th>{% if gridiron_last_week %}Week {{ gridiron_last_week }}{% else %}Last week{% endif %} W-L-T</th>
+        <th>Status</th></tr></thead>
       <tbody>
       {% for rank, entry, wins, losses, ties in gridiron_rows %}
         <tr>
@@ -42,25 +41,16 @@
           <td>{{ losses }}</td>
           <td>{{ ties }}</td>
           <td>
+            {% set lw = gridiron_last_week_records.get(entry.id) %}
+            {% if lw %}{{ lw[0] }}-{{ lw[1] }}-{{ lw[2] }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+          </td>
+          <td>
             {% if entry.is_active %}<span class="badge badge-alive">Active</span>
             {% else %}<span class="badge badge-eliminated">Benched (Wk{{ entry.eliminated_week }})</span>{% endif %}
           </td>
         </tr>
-        {% if gridiron_recent_week %}
-        <tr>
-          <td></td>
-          <td colspan="5">
-            {% set recent_picks = gridiron_recent_picks.get(entry.id) %}
-            {% if recent_picks %}
-              {% for wp in recent_picks %}
-              <span class="me-3 {% if wp.result == 'win' %}text-success fw-bold{% elif wp.result == 'loss' %}text-danger fw-bold{% endif %}">{{ wp.label }}</span>
-              {% endfor %}
-            {% else %}<span class="text-muted small">No picks Week {{ gridiron_recent_week }}</span>{% endif %}
-          </td>
-        </tr>
-        {% endif %}
       {% else %}
-        <tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
+        <tr><td colspan="7" class="text-muted">No entries yet.</td></tr>
       {% endfor %}
       </tbody>
     </table>
@@ -244,7 +234,7 @@
     {% endif %}
   </div>
 
-  <div class="tab-pane fade" id="allweeks-pane" role="tabpanel">
+  <div class="tab-pane fade show active" id="allweeks-pane" role="tabpanel">
     <p class="text-muted">Every unlocked week side by side, per pool.</p>
 
     <h5><span class="pool-icon">💀</span>Drop Dead Pool</h5>

@@ -303,7 +303,8 @@ document.addEventListener('DOMContentLoaded', function () {
 {% if pool == 'gridiron' %}
 {# ---- Player picks grid ---- #}
 {% macro spread_opt(g, side) %}{% if side == 'home' %}{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}{% else %}{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}{% endif %}{% endmacro %}
-{% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }} ({{ p.game.home_team }}){% endif %}{% endmacro %}
+{# Matchup shown alongside already -- no need to name a team in the total. #}
+{% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }}{% endif %}{% endmacro %}
 {% set result_class = {'win': 'text-success fw-bold', 'loss': 'text-danger fw-bold', 'push': 'text-muted'} %}
 
 <h5 class="mt-4">Player Picks</h5>

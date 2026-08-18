@@ -10,6 +10,7 @@ from scoring import (
     gridiron_matrix,
     gridiron_picks_grid,
     gridiron_record_through_week,
+    gridiron_week_records,
     loser_matrix,
     loser_totals_through_week,
     player_pick_history,
@@ -82,11 +83,12 @@ def standings():
         "gridiron": gridiron_matrix(season_year, unlocked_by_pool["gridiron"]),
     }
 
-    gridiron_recent_picks = {}
-    gridiron_recent_week = max(unlocked_by_pool["gridiron"]) if unlocked_by_pool["gridiron"] else None
-    if gridiron_recent_week is not None:
-        for entry, _wins, _losses, _ties, week_picks in gridiron_record_through_week(season_year, gridiron_recent_week):
-            gridiron_recent_picks[entry.id] = week_picks
+    # Last completed Gridiron week, for the "last week" column on the standings.
+    gridiron_last_week = max(unlocked_by_pool["gridiron"]) if unlocked_by_pool["gridiron"] else None
+    gridiron_last_week_records = (
+        gridiron_week_records(season_year, gridiron_last_week)
+        if gridiron_last_week is not None else {}
+    )
 
     return render_template(
         "standings.html",
@@ -101,8 +103,8 @@ def standings():
         player_history=player_history,
         unlocked_week_numbers=unlocked_week_numbers,
         all_weeks_data=all_weeks_data,
-        gridiron_recent_picks=gridiron_recent_picks,
-        gridiron_recent_week=gridiron_recent_week,
+        gridiron_last_week=gridiron_last_week,
+        gridiron_last_week_records=gridiron_last_week_records,
     )
 
 

@@ -2,7 +2,7 @@ import os
 import re
 import secrets
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -236,6 +236,55 @@ def new_week(pool):
     db.session.commit()
     flash(f"Week {number} created for {POOL_LABELS[pool]}.", "success")
     return redirect(url_for("admin.pool_manager", pool=pool))
+
+
+@bp.route("/build-season", methods=["POST"])
+def build_season():
+    """Create the full 18-week regular season across all three pools.
+
+    Week numbers used to be typed in one at a time, which let them drift
+    apart between pools and left gaps -- and a gap breaks the Drop Dead
+    buy-back, which needs the week *after* an elimination to exist. Deadlines
+    come off the season-start Thursday: Saturday noon Eastern each week,
+    the same rule auto-publish uses.
+
+    Idempotent: existing weeks are left exactly as they are, so this is safe
+    to press twice and never touches a deadline an admin has adjusted.
+    """
+    season_year = current_app.config["CURRENT_SEASON"]
+    season_start_str = get_setting("season_start_thursday")
+    if not season_start_str:
+        flash("Set the season start Thursday in Admin > Settings first.", "error")
+        return redirect(url_for("admin.dashboard"))
+    try:
+        season_start = datetime.fromisoformat(season_start_str).date()
+    except ValueError:
+        flash("The season start date isn't a valid date. Fix it in Admin > Settings.", "error")
+        return redirect(url_for("admin.dashboard"))
+
+    created = 0
+    for number in range(1, 19):
+        # Week N's Thursday is N-1 weeks after Week 1's; its deadline is the
+        # Saturday after that, at noon.
+        week_thursday = season_start + timedelta(weeks=number - 1)
+        deadline = datetime.combine(week_thursday + timedelta(days=2), datetime.min.time()) + timedelta(hours=12)
+        for pool in POOLS:
+            if Week.query.filter_by(season_year=season_year, number=number, pool=pool).first():
+                continue
+            db.session.add(Week(
+                season_year=season_year, number=number, pool=pool,
+                pick_deadline=deadline,
+                buyback_open=default_buyback_open(pool, number),
+            ))
+            created += 1
+    db.session.commit()
+
+    if created:
+        log_activity("build_season", f"Built the 18-week season ({created} week rows created)")
+        flash(f"Season built: {created} new week(s) across the three pools. Existing weeks were left alone.", "success")
+    else:
+        flash("All 18 weeks already exist in every pool. Nothing to do.", "success")
+    return redirect(url_for("admin.pool_manager", pool=request.form.get("pool", "gridiron")))
 
 
 @bp.route("/weeks/<int:week_id>/buyback", methods=["POST"])

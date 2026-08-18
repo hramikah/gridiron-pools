@@ -100,19 +100,6 @@
         <p class="text-muted">No games have been posted for this week yet.</p>
         {% endif %}
 
-        {% set other_teams = teams | rejectattr('id', 'in', teams_with_games) | list %}
-        {% if other_teams %}
-        <details class="mb-2">
-          <summary class="small text-muted">Pick a team with no game listed this week ({{ other_teams|length }})</summary>
-          <select name="team_id" class="form-select form-select-sm mt-2" {% if locked %}disabled{% endif %}>
-            <option value="">Select a team&hellip;</option>
-            {% for t in other_teams %}
-            <option value="{{ t.id }}">{{ t.city }} {{ t.name }} ({{ points_by_team.get(t.id, '?') }} pts)</option>
-            {% endfor %}
-          </select>
-        </details>
-        {% endif %}
-
         <button type="submit" class="btn btn-loser" {% if locked %}disabled{% endif %}>Save Pick</button>
       </form>
       {% endif %}

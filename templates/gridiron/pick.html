@@ -39,8 +39,34 @@
     {% endmacro %}
 
     {% if not entry.is_active %}
-      <p class="text-muted mb-0">This entry has been benched for missing more than 5 weeks and can no longer submit picks.</p>
+      <p class="text-muted mb-0">This entry has been benched for missing more than 5 weeks and can no longer submit picks.
+      Its record is final as of Week {{ entry.eliminated_week }}.</p>
     {% else %}
+      {% if buyback_by_entry.get(entry.id) %}
+      {# Outside the pick form on purpose -- a nested <form> is dropped by every browser. #}
+      <div class="card border-warning mb-3">
+        <div class="card-body py-2">
+          <p class="small mb-2"><strong>Buy back in for ${{ buyback_fee }}?</strong>
+          Week {{ week.number - 1 }} stops counting entirely &mdash; wins, losses and ties all
+          wiped &mdash; and you play this week with your normal {{ normal_picks }} picks.
+          {% if makeup_by_entry.get(entry.id) %}Your one-time {{ makeup_picks }}-pick makeup stays
+          banked for the first week you miss from here on, instead of being spent on Week
+          {{ week.number - 1 }}.{% endif %}
+          The ${{ buyback_fee }} is owed to the commissioners. One per entry, this week only.</p>
+          <form method="post" action="{{ url_for('gridiron.buyback', entry_id=entry.id) }}">
+            <button type="submit" class="btn btn-sm btn-gridiron"
+                    onclick="return confirm('Buy back in for ${{ buyback_fee }}? Week {{ week.number - 1 }} will stop counting. This cannot be undone.');">
+              Buy back in (${{ buyback_fee }})
+            </button>
+          </form>
+        </div>
+      </div>
+      {% elif entry.buyback_week %}
+      <div class="alert alert-info py-2 small mb-3">
+        <strong>Bought back in.</strong> Week {{ entry.buyback_week }} no longer counts toward your record.
+      </div>
+      {% endif %}
+
       {% if my_picks %}
       {% set my_results = picks_results_this_week.get(entry.id, {}) %}
       {% set complete = week_is_complete(week) %}
@@ -156,35 +182,12 @@
       <input type="hidden" name="entry_id" value="{{ entry.id }}">
       {% if makeup_by_entry.get(entry.id) %}
       <div class="alert alert-warning py-2 small mb-2">
-        {% if entry.makeup_choice == 'startover' %}
-        <strong>Starting over.</strong> You get {{ startover_picks }} picks this week and no penalty.
-        Your Week 1 record stands. This is the only week you get this.
-        {% else %}
         <strong>Makeup week.</strong> You missed a week, so you get {{ makeup_picks }} picks
-        instead of 5 this week &mdash; out of 10, with a {{ makeup_penalty }}-game penalty already
-        counted as losses. This is the only makeup week you get; any later missed week is scored
-        0-5 with no extra picks.
-        {% endif %}
+        instead of {{ normal_picks }} this week &mdash; out of 10, with a {{ makeup_penalty }}-game
+        penalty already counted as losses. This is the only makeup week you get; any later missed
+        week is scored 0-{{ normal_picks }} with no extra picks. If you sit this week out too, it's
+        scored as a plain 0-{{ normal_picks }} and the {{ makeup_penalty }}-game penalty is dropped.
       </div>
-
-      {% if startover_by_entry.get(entry.id) and not locked and not my_picks %}
-      <div class="card border-warning mb-3">
-        <div class="card-body py-2">
-          <p class="small mb-2"><strong>You missed Week 1 &mdash; choose how to play this week.</strong>
-          You can change this until you save your first pick.</p>
-          <form method="post" action="{{ url_for('gridiron.makeup_choice', entry_id=entry.id) }}" class="d-flex flex-wrap gap-2">
-            <button type="submit" name="choice" value="makeup"
-                    class="btn btn-sm {% if entry.makeup_choice != 'startover' %}btn-gridiron{% else %}btn-outline-secondary{% endif %}">
-              Makeup: {{ makeup_picks }} picks, {{ makeup_penalty }}-game penalty
-            </button>
-            <button type="submit" name="choice" value="startover"
-                    class="btn btn-sm {% if entry.makeup_choice == 'startover' %}btn-gridiron{% else %}btn-outline-secondary{% endif %}">
-              Start over: {{ startover_picks }} picks, no penalty
-            </button>
-          </form>
-        </div>
-      </div>
-      {% endif %}
       {% endif %}
       {% if not locked %}
       <p class="text-muted small mb-2">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>

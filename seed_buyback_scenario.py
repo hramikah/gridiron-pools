@@ -19,6 +19,7 @@ from app import app
 from helpers import set_setting
 from models import Entry, Game, LoserPoolPoints, Pick, Team, User, Week, db
 from scoring import score_game
+from testbed_guard import require_testbed_database
 
 SEASON = 2026
 ME = "phone"
@@ -110,8 +111,7 @@ def make_games(week, spec, final):
 
 def run():
     uri = app.config["SQLALCHEMY_DATABASE_URI"]
-    if "/root/" in uri:
-        raise SystemExit("Refusing to run against the live database.")
+    require_testbed_database(app, "seed_buyback_scenario.py")
 
     random.seed(2026)  # same scenario every time it's rebuilt
 

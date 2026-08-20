@@ -15,6 +15,7 @@ from app import app
 from helpers import set_setting
 from models import Entry, Game, Pick, Team, User, Week, db
 from scoring import score_game
+from testbed_guard import require_testbed_database
 
 SEASON = 2026
 ME = "phone"
@@ -50,8 +51,7 @@ def team_by_name(name):
 
 
 def run():
-    if "/root/" in app.config["SQLALCHEMY_DATABASE_URI"]:
-        raise SystemExit("Refusing to run against the live database.")
+    require_testbed_database(app, "seed_advance_week3.py")
     random.seed(3)
 
     with app.app_context():

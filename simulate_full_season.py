@@ -19,6 +19,7 @@ from helpers import set_setting
 from models import (Entry, Game, GridironMiss, LoserPoolPoints, Pick, Team,
                     User, Week, db)
 from scoring import score_game
+from testbed_guard import require_testbed_database
 
 SEASON = 2026
 ME = "phone"
@@ -102,8 +103,7 @@ def make_week_slate(week_row, nfl, cfb, lines):
 
 
 def run():
-    if "/root/" in app.config["SQLALCHEMY_DATABASE_URI"]:
-        raise SystemExit("Refusing to run against the live database.")
+    require_testbed_database(app, "simulate_full_season.py")
     rng = random.Random(2026)
 
     with app.app_context():

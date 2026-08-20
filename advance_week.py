@@ -21,6 +21,7 @@ from app import app
 from helpers import set_setting, get_setting
 from models import Entry, Game, Pick, Team, User, Week, db
 from scoring import score_game
+from testbed_guard import require_testbed_database
 
 SEASON = 2026
 ME = "phone"
@@ -39,8 +40,7 @@ def build_slate(must_include_ids):
 
 
 def run(make_loss):
-    if "/root/" in app.config["SQLALCHEMY_DATABASE_URI"]:
-        raise SystemExit("Refusing to run against the live database.")
+    require_testbed_database(app, "advance_week.py")
 
     with app.app_context():
         current = int(get_setting("active_week") or 1)

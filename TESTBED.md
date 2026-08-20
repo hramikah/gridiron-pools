@@ -46,9 +46,11 @@ To test the new Gridiron rules specifically:
   entry, then load Admin → Pool Manager. That's what applies the penalties.
   The entry should show 0-5 for that week and get 8 picks the next week.
 - **Two missed weeks in a row**: should total 10 losses, not 15.
-- **The $100 buy-back**: Admin → Pool Manager → Week 2 → tick **buy-backs
-  open**. The offer then appears on the Gridiron pick page for any entry, and
-  voids Week 1 outright.
+- **The $100 buy-back**: Gridiron Week 2 opens buy-backs automatically when the
+  week is created, so there's nothing to tick. The offer appears on the
+  Gridiron pick page for any entry while Week 2 is current and still open, and
+  voids Week 1 outright. (Drop Dead weeks 1-4 open automatically too; preseason
+  weeks always start closed and are opened by hand from the Pool Manager.)
 
 ## Start over
 

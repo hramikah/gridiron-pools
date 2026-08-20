@@ -2,7 +2,17 @@
 actions and any future batch/cron processing can share the same code."""
 
 from helpers import deadline_passed, week_is_complete
-from models import Entry, Game, GridironMiss, LoserPoolPoints, Pick, User, Week, db
+from models import (
+    GRIDIRON_BUYBACK_WEEK,
+    Entry,
+    Game,
+    GridironMiss,
+    LoserPoolPoints,
+    Pick,
+    User,
+    Week,
+    db,
+)
 
 # Rule 8: "the loss of all games for that week" -- what a week the entry sat
 # out costs, whether it's their first missed week or their fifth.
@@ -17,7 +27,8 @@ GRIDIRON_MAKEUP_PENALTY_LOSSES = 2
 # It voids week 1 outright and leaves the one-time makeup allowance unspent,
 # so a player who forgot to submit can pay rather than burn their makeup on
 # week 1 -- and a player who did submit can pay to erase a bad opening week.
-GRIDIRON_BUYBACK_WEEK = 2
+# GRIDIRON_BUYBACK_WEEK is defined in models.py, where default_buyback_open
+# needs it too, and re-exported here so callers have one place to import from.
 GRIDIRON_BUYBACK_FEE = 100
 
 

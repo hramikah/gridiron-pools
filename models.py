@@ -73,12 +73,25 @@ class LoserPoolPoints(db.Model):
 PRESEASON_OFFSET = 100
 
 
+# Which weeks each pool's buy-back covers. Defined here rather than in
+# scoring.py so default_buyback_open can use them without importing upwards.
+DROPDEAD_BUYBACK_LAST_WEEK = 4  # printed rules: eliminations in weeks 1-4
+GRIDIRON_BUYBACK_WEEK = 2  # the $100 week-2 clean slate, week 2 only
+
+
 def default_buyback_open(pool, number, is_preseason=False):
-    """What a freshly created week's buy-back window should start as: open
-    for Drop Dead weeks 1-4 of a real season, matching the printed rules, so
-    a normal season needs no admin action. Preseason and test weeks start
-    closed and are opened by hand from the Pool Manager."""
-    return pool == "dropdead" and not is_preseason and number <= 4
+    """What a freshly created week's buy-back window should start as, so a
+    normal season needs no admin action: Drop Dead weeks 1-4 and Gridiron
+    week 2, matching the printed rules. Preseason and test weeks start closed
+    and are opened by hand from the Pool Manager, because their numbers don't
+    line up with the printed schedule."""
+    if is_preseason:
+        return False
+    if pool == "dropdead":
+        return number <= DROPDEAD_BUYBACK_LAST_WEEK
+    if pool == "gridiron":
+        return number == GRIDIRON_BUYBACK_WEEK
+    return False
 
 
 class Week(db.Model):

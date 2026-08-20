@@ -163,10 +163,15 @@ class Entry(db.Model):
     is_active = db.Column(db.Boolean, default=True)  # drop dead: still alive; gridiron: not benched for missing 5+ weeks
     eliminated_week = db.Column(db.Integer, nullable=True)
     buy_backs_used = db.Column(db.Integer, default=0)
-    buyback_week = db.Column(db.Integer, nullable=True)  # drop dead: week number the entry last bought back in, if ever
-    # Gridiron: how this entry is playing its one makeup week after missing
-    # week 1 -- None/"makeup" = 8 picks with the 2-game penalty (the default
-    # in the printed rules), "startover" = 10 picks with no penalty.
+    # Drop Dead: the week number the entry last bought back in, if ever.
+    # Gridiron: the last week voided by a buy-back -- every week up to and
+    # including this one stops counting toward the entry's record. Entries are
+    # per-pool, so the two meanings never share a row.
+    buyback_week = db.Column(db.Integer, nullable=True)
+    # Retired: held the Gridiron "startover" election, from before the makeup
+    # week became a single fixed allowance and the week-2 reset became a paid
+    # buy-back. Left in place because dropping a column means rebuilding the
+    # table in SQLite. Nothing reads it.
     makeup_choice = db.Column(db.String(10), nullable=True)
     paid = db.Column(db.Boolean, default=False)  # entry-fee paid, admin-only visibility
 

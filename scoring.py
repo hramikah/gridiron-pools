@@ -4,6 +4,8 @@ actions and any future batch/cron processing can share the same code."""
 from helpers import deadline_passed, week_is_complete
 from models import Entry, Game, GridironMiss, LoserPoolPoints, Pick, User, Week, db
 
+# Rule 8: "the loss of all games for that week" -- what a week the entry sat
+# out costs, whether it's their first missed week or their fifth.
 GRIDIRON_MISS_PENALTY_LOSSES = 5
 GRIDIRON_MAKEUP_PICKS = 8
 GRIDIRON_NORMAL_PICKS = 5
@@ -11,10 +13,12 @@ GRIDIRON_BENCH_AFTER_MISSES = 5
 # Rule 8: the makeup week is 8 picks out of 10 -- the 2 unpickable slots
 # are charged as losses from the start.
 GRIDIRON_MAKEUP_PENALTY_LOSSES = 2
-# A player who missed week 1 may instead 'start over': 10 picks in the makeup
-# week and no penalty. Their week-1 0-5 still stands.
-GRIDIRON_STARTOVER_PICKS = 10
-GRIDIRON_STARTOVER_MISS_WEEK = 1  # only a missed week 1 unlocks the option
+# Buy-back: $100 for a clean slate, offered in week 2 only, once per entry.
+# It voids week 1 outright and leaves the one-time makeup allowance unspent,
+# so a player who forgot to submit can pay rather than burn their makeup on
+# week 1 -- and a player who did submit can pay to erase a bad opening week.
+GRIDIRON_BUYBACK_WEEK = 2
+GRIDIRON_BUYBACK_FEE = 100
 
 
 def score_dropdead_pick(pick, game):
@@ -242,14 +246,65 @@ def dropdead_buyback_available(entry, current_week):
     return bool(elim_week and elim_week.buyback_open)
 
 
+def gridiron_void_through(entry):
+    """Week number through which this entry's Gridiron record is void.
+
+    A buy-back wipes every week before the one it was bought in: that is what
+    the fee pays for, so those weeks' wins, losses, ties and missed-week
+    records all stop counting. 0 when no buy-back was taken. Reuses
+    Entry.buyback_week, which Drop Dead already uses for the same "this entry
+    paid to undo something" bookkeeping -- entries are per-pool, so the two
+    meanings never meet on one row, and it needs no schema change.
+    """
+    if entry.pool != "gridiron":
+        return 0
+    return entry.buyback_week or 0
+
+
+def gridiron_frozen_after(entry):
+    """The last week that still counts for a benched entry, or None if live.
+
+    Benching ends the entry's season, so its record stops moving there rather
+    than collecting another 0-5 every week through the end of the schedule.
+    """
+    if entry.pool != "gridiron" or entry.is_active:
+        return None
+    return entry.eliminated_week
+
+
+def gridiron_week_counts(entry, week_number):
+    """Whether a week contributes to this entry's record at all -- false for
+    weeks voided by a buy-back, and for weeks after the entry was benched."""
+    if week_number is None:
+        return False
+    if week_number <= gridiron_void_through(entry):
+        return False
+    frozen = gridiron_frozen_after(entry)
+    return frozen is None or week_number <= frozen
+
+
+def gridiron_counted_picks(entry, through_week=None):
+    """This entry's Gridiron picks from the weeks that still count."""
+    picks = [p for p in entry.picks if gridiron_week_counts(entry, p.week.number)]
+    if through_week is not None:
+        picks = [p for p in picks if p.week.number <= through_week]
+    return picks
+
+
 def gridiron_first_miss_week(entry):
-    """Week number of this entry's first missed Gridiron week, or None."""
+    """Week number of this entry's first missed Gridiron week, or None.
+
+    Weeks voided by a buy-back don't count, which is the whole point of the
+    fee: an entry that paid to erase a missed week 1 still has its one makeup
+    allowance banked for the first week it misses afterwards.
+    """
     first = (
         GridironMiss.query.join(Week, GridironMiss.week_id == Week.id)
         .filter(
             GridironMiss.entry_id == entry.id,
             Week.season_year == entry.season_year,
             Week.pool == "gridiron",
+            Week.number > gridiron_void_through(entry),
         )
         .order_by(Week.number.asc())
         .first()
@@ -268,41 +323,33 @@ def gridiron_makeup_week(entry):
     return first_miss + 1 if first_miss is not None else None
 
 
-def gridiron_startover_available(entry, week):
-    """True when this entry may choose to start over instead of taking the
-    penalised makeup: only in the makeup week, and only when the week it
-    missed was week 1."""
-    if week is None:
+def gridiron_buyback_available(entry, week):
+    """Whether this entry may pay for a clean slate right now.
+
+    Week 2 only and once per entry: the fee buys back the season's opening
+    week, not a mid-season reset. Gated on the admin's per-week buyback_open
+    flag for the same reason Drop Dead is -- preseason and test weeks don't
+    number the way the printed schedule assumes, so a week 2 that isn't the
+    real week 2 must not offer it.
+    """
+    if entry.pool != "gridiron" or week is None:
         return False
-    return (
-        gridiron_makeup_week(entry) == week.number
-        and gridiron_first_miss_week(entry) == GRIDIRON_STARTOVER_MISS_WEEK
-    )
-
-
-def gridiron_started_over(entry):
-    """Whether the start-over allowance is actually in effect.
-
-    Validates eligibility rather than trusting the stored flag on its own: the
-    option is earned only by missing week 1, and a stale flag (an admin
-    deleting that week's miss, a hand-edited row) must not silently hand an
-    entry 10 picks and drop its penalty."""
-    return (
-        entry.makeup_choice == "startover"
-        and gridiron_first_miss_week(entry) == GRIDIRON_STARTOVER_MISS_WEEK
-    )
+    if week.number != GRIDIRON_BUYBACK_WEEK or week.is_preseason:
+        return False
+    if not week.buyback_open:
+        return False
+    if entry.buyback_week is not None or entry.buy_backs_used:
+        return False
+    return entry.is_active and not deadline_passed(week)
 
 
 def gridiron_pick_limit(entry, week):
-    """5 picks normally. In the single makeup week after a first miss: 8 picks
-    (with the 2-game penalty), or 10 with no penalty if the entry missed week 1
-    and elected to start over."""
+    """5 picks normally. In the single makeup week after a first miss: 8
+    picks, with the 2-game penalty charged alongside."""
     if week is None:
         return GRIDIRON_NORMAL_PICKS
     if gridiron_makeup_week(entry) != week.number:
         return GRIDIRON_NORMAL_PICKS
-    if gridiron_started_over(entry):
-        return GRIDIRON_STARTOVER_PICKS
     return GRIDIRON_MAKEUP_PICKS
 
 
@@ -310,19 +357,28 @@ def gridiron_penalty_losses(entry, through_week=None):
     """The 2-game penalty attached to the makeup week (8 picks out of 10).
 
     Charged once the makeup week's deadline has passed, the same way empty
-    slots are, so it never shows up while that week's picks are still open."""
+    slots are, so it never shows up while that week's picks are still open.
+
+    Not charged when the makeup week was itself sat out. Rule 8 prices a
+    second failure at "the loss of all games for that week" -- a flat 5, the
+    same as any other missed week -- so that week is scored as a plain miss
+    (see _gridiron_week_empty_losses) and adding the penalty on top would
+    bill two missed weeks in a row at 15 losses instead of 10.
+    """
     makeup = gridiron_makeup_week(entry)
     if makeup is None:
         return 0
-    # Starting over trades the extra 2 picks for no penalty.
-    if gridiron_started_over(entry):
-        return 0
     if through_week is not None and makeup > through_week:
+        return 0
+    if not gridiron_week_counts(entry, makeup):
         return 0
     week = Week.query.filter_by(
         season_year=entry.season_year, pool="gridiron", number=makeup
     ).first()
     if week is None or not deadline_passed(week):
+        return 0
+    made = sum(1 for p in entry.picks if p.week_id == week.id and p.pool == "gridiron")
+    if made == 0:
         return 0
     return GRIDIRON_MAKEUP_PENALTY_LOSSES
 
@@ -350,25 +406,31 @@ def gridiron_picks_grid(week):
     return picks_grid, max_slots
 
 
-def _gridiron_missed_week_numbers(entry, through_week=None):
-    q = GridironMiss.query.join(Week, GridironMiss.week_id == Week.id).filter(GridironMiss.entry_id == entry.id)
-    if through_week is not None:
-        q = q.filter(Week.number <= through_week)
-    return {m.week.number for m in q.all()}
-
-
 def _gridiron_week_empty_losses(entry, week):
     """After a week's deadline, each pick slot a Gridiron entry left empty
     counts as a loss. Capped at what was actually pickable that week (number
     of games x available markets), so an entry is never penalized for slots it
-    couldn't fill. Zero while the deadline hasn't passed (picks still open)."""
+    couldn't fill. Zero while the deadline hasn't passed (picks still open).
+
+    A week the entry sat out entirely is always charged the flat
+    GRIDIRON_MISS_PENALTY_LOSSES, never the larger makeup allowance. Rule 8
+    grants 8 picks as an opportunity, not an obligation: an entry that doesn't
+    turn up for its makeup week has simply missed a second week, which the
+    rule prices at "the loss of all games for that week". Charging the 8- or
+    10-slot allowance instead billed two consecutive missed weeks at 15
+    losses when the rule says 10.
+    """
     if week is None or not deadline_passed(week):
+        return 0
+    if not gridiron_week_counts(entry, week.number):
         return 0
     games = Game.query.filter_by(week_id=week.id, pool="gridiron").all()
     available = sum(1 + (1 if g.over_under is not None else 0) for g in games)
     if available == 0:
         return 0
     made = sum(1 for p in entry.picks if p.week_id == week.id and p.pool == "gridiron")
+    if made == 0:
+        return min(GRIDIRON_MISS_PENALTY_LOSSES, available)
     expected = min(gridiron_pick_limit(entry, week), available)
     return max(0, expected - made)
 
@@ -417,11 +479,12 @@ def standings_gridiron(season_year):
     entries = Entry.query.filter_by(pool="gridiron", season_year=season_year).all()
     rows = []
     for e in entries:
-        wins = sum(1 for p in e.picks if p.result == "win")
-        losses = sum(1 for p in e.picks if p.result == "loss")
+        picks = gridiron_counted_picks(e)  # skips bought-back and post-bench weeks
+        wins = sum(1 for p in picks if p.result == "win")
+        losses = sum(1 for p in picks if p.result == "loss")
         losses += _gridiron_empty_losses(e)  # empty slots after deadline = losses
         losses += gridiron_penalty_losses(e)  # makeup week is 8 of 10
-        pushes = sum(1 for p in e.picks if p.result == "push")
+        pushes = sum(1 for p in picks if p.result == "push")
         rows.append((e, wins, losses, pushes))
     rows.sort(key=lambda r: (-r[1], r[2]))
     return _assign_ranks(rows, key_func=lambda r: (r[1], r[2]))
@@ -477,7 +540,7 @@ def gridiron_record_through_week(season_year, week_number):
     entries = Entry.query.filter_by(pool="gridiron", season_year=season_year).all()
     rows = []
     for e in entries:
-        picks_through = [p for p in e.picks if p.week.number <= week_number]
+        picks_through = gridiron_counted_picks(e, week_number)
         wins = sum(1 for p in picks_through if p.result == "win")
         losses = sum(1 for p in picks_through if p.result == "loss")
         losses += _gridiron_empty_losses(e, week_number)  # empty slots after deadline = losses
@@ -597,7 +660,8 @@ def gridiron_matrix(season_year, week_numbers):
         cells = {}
         for wn in week_numbers:
             week = weeks_by_num.get(wn)
-            week_picks = [p for p in e.picks if p.week.number == wn]
+            counts = gridiron_week_counts(e, wn)
+            week_picks = [p for p in e.picks if p.week.number == wn] if counts else []
             empty = _gridiron_week_empty_losses(e, week)
             if not week_picks and empty == 0:
                 cells[wn] = None
@@ -608,9 +672,11 @@ def gridiron_matrix(season_year, week_numbers):
                 "ties": sum(1 for p in week_picks if p.result == "push"),
                 "missed": not week_picks and empty > 0,
             }
-        wins = sum(1 for p in e.picks if p.result == "win")
-        losses = sum(1 for p in e.picks if p.result == "loss") + _gridiron_empty_losses(e)
-        ties = sum(1 for p in e.picks if p.result == "push")
+        picks = gridiron_counted_picks(e)
+        wins = sum(1 for p in picks if p.result == "win")
+        losses = sum(1 for p in picks if p.result == "loss") + _gridiron_empty_losses(e)
+        losses += gridiron_penalty_losses(e)  # same total standings_gridiron shows
+        ties = sum(1 for p in picks if p.result == "push")
         rows.append({"entry": e, "cells": cells, "wins": wins, "losses": losses, "ties": ties})
     rows.sort(key=lambda r: (-r["wins"], r["losses"]))
     return rows

@@ -168,8 +168,6 @@ def week_report(week_id):
         flash("This week's picks report unlocks once the pick deadline has passed.", "error")
         return redirect(url_for("main.reports"))
 
-    result_class = {"win": "text-success fw-bold", "loss": "text-danger fw-bold", "push": "text-muted"}
-
     if week.pool == "gridiron":
         picks_grid, max_slots = gridiron_picks_grid(week)
         return render_template(
@@ -178,7 +176,6 @@ def week_report(week_id):
             pool_label=POOL_LABELS[week.pool],
             picks_grid=picks_grid,
             max_slots=max_slots,
-            result_class=result_class,
         )
 
     entries = Entry.query.filter_by(pool=week.pool, season_year=week.season_year).join(User).order_by(User.username).all()
@@ -192,7 +189,6 @@ def week_report(week_id):
         week=week,
         pool_label=POOL_LABELS[week.pool],
         rows=rows,
-        result_class=result_class,
     )
 
 

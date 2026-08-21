@@ -15,6 +15,7 @@ from models import Entry, Game, Pick, db
 from scoring import (
     GRIDIRON_BUYBACK_FEE,
     GRIDIRON_MAKEUP_PENALTY_LOSSES,
+    GRIDIRON_BUYBACK_PICKS,
     GRIDIRON_MAKEUP_PICKS,
     GRIDIRON_NORMAL_PICKS,
     ensure_missed_processed,
@@ -84,12 +85,13 @@ def buyback(entry_id):
     if not gridiron_buyback_available(entry, week):
         flash("A buy-back isn't available for this entry.", "error")
         return redirect(url_for("gridiron.pick"))
-    # The buy-back drops the pick allowance back to the normal 5, so it can't
-    # land underneath picks already saved against an 8-pick makeup week.
+    # Picks already saved this week are left alone rather than silently
+    # re-based onto the new allowance: the entry has to clear them first, so
+    # it's explicit that the 2-game makeup penalty is going away with them.
     if Pick.query.filter_by(entry_id=entry.id, week_id=week.id, pool="gridiron").first():
         flash(
             f"You've already saved picks this week. Remove them first if you want to "
-            f"buy back in -- doing so resets you to {GRIDIRON_NORMAL_PICKS} picks.",
+            f"buy back in -- doing so moves you to {GRIDIRON_BUYBACK_PICKS} picks for the week.",
             "error",
         )
         return redirect(url_for("gridiron.pick"))
@@ -101,12 +103,13 @@ def buyback(entry_id):
     log_activity(
         "buyback",
         f"Bought back in (${GRIDIRON_BUYBACK_FEE}) -- week {voided} record voided, "
+        f"{GRIDIRON_BUYBACK_PICKS} picks granted for week {week.number}, "
         f"{GRIDIRON_MAKEUP_PICKS}-pick makeup allowance retained",
         pool="gridiron",
     )
     flash(
-        f"Clean slate. Week {voided} no longer counts and you have your normal "
-        f"{GRIDIRON_NORMAL_PICKS} picks this week. Your one-time {GRIDIRON_MAKEUP_PICKS}-pick "
+        f"Clean slate. Week {voided} no longer counts, and you have "
+        f"{GRIDIRON_BUYBACK_PICKS} picks this week to catch up. Your one-time {GRIDIRON_MAKEUP_PICKS}-pick "
         f"makeup is still banked for the first week you miss from here on. "
         f"(${GRIDIRON_BUYBACK_FEE} buy-back fee due to the commissioners.)",
         "success",
@@ -236,6 +239,7 @@ def pick():
         makeup_by_entry=makeup_by_entry,
         buyback_by_entry=buyback_by_entry,
         buyback_fee=GRIDIRON_BUYBACK_FEE,
+        buyback_picks=GRIDIRON_BUYBACK_PICKS,
         normal_picks=GRIDIRON_NORMAL_PICKS,
         makeup_picks=GRIDIRON_MAKEUP_PICKS,
         makeup_penalty=GRIDIRON_MAKEUP_PENALTY_LOSSES,

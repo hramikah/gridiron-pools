@@ -12,7 +12,11 @@
 <p class="text-muted">{{ week.label }} &mdash; Picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
   {% if locked %}<span class="badge bg-danger">Deadline passed</span>{% endif %}
 </p>
-{% if not games %}<p class="text-muted">No games have been posted for this week yet.</p>{% endif %}
+{# `games` is the *pickable* set, which is empty once the deadline passes even
+   though the week is full of games -- so key this on all_games, or a locked
+   week claims nothing was ever posted. The locked case has its own message
+   below. #}
+{% if not all_games %}<p class="text-muted">No games have been posted for this week yet.</p>{% endif %}
 {% else %}
 <p class="text-muted">No weeks have been set up yet.</p>
 {% endif %}
@@ -48,7 +52,11 @@
         <div class="card-body py-2">
           <p class="small mb-2"><strong>Buy back in for ${{ buyback_fee }}?</strong>
           Week {{ week.number - 1 }} stops counting entirely &mdash; wins, losses and ties all
-          wiped &mdash; and you play this week with your normal {{ normal_picks }} picks.
+          wiped, as if it never happened &mdash; and you pick
+          <strong>{{ buyback_picks }} games this week instead of {{ normal_picks }}</strong>,
+          with no penalty. That's the {{ normal_picks }} the fee erased plus this week's
+          {{ normal_picks }}, so you finish the week level on games played with everyone
+          who didn't miss.
           {% if makeup_by_entry.get(entry.id) %}Your one-time {{ makeup_picks }}-pick makeup stays
           banked for the first week you miss from here on, instead of being spent on Week
           {{ week.number - 1 }}.{% endif %}
@@ -64,6 +72,8 @@
       {% elif entry.buyback_week %}
       <div class="alert alert-info py-2 small mb-3">
         <strong>Bought back in.</strong> Week {{ entry.buyback_week }} no longer counts toward your record.
+        {% if pick_limits.get(entry.id) == buyback_picks %}You have
+        <strong>{{ buyback_picks }} picks</strong> this week to catch up.{% endif %}
       </div>
       {% endif %}
 

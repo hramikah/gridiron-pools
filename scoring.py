@@ -30,6 +30,10 @@ GRIDIRON_MAKEUP_PENALTY_LOSSES = 2
 # GRIDIRON_BUYBACK_WEEK is defined in models.py, where default_buyback_open
 # needs it too, and re-exported here so callers have one place to import from.
 GRIDIRON_BUYBACK_FEE = 100
+# A buy-back voids week 1, so the entry plays a double slate in week 2 --
+# the five games the fee erased plus the five that week is worth -- and
+# comes out level on games played with everyone who never missed.
+GRIDIRON_BUYBACK_PICKS = 10
 
 
 def score_dropdead_pick(pick, game):
@@ -354,11 +358,32 @@ def gridiron_buyback_available(entry, week):
     return entry.is_active and not deadline_passed(week)
 
 
+def gridiron_buyback_catchup_week(entry):
+    """The week a bought-back entry plays a double slate in, or None.
+
+    Buying back voids week 1, so the entry comes into week 2 with an empty
+    record while the rest of the field already has five games behind it. The
+    fee buys those games back rather than forfeiting them: the entry picks
+    both weeks' worth in week 2 and ends the week level on games played.
+    """
+    void = gridiron_void_through(entry)
+    return void + 1 if void else None
+
+
 def gridiron_pick_limit(entry, week):
-    """5 picks normally. In the single makeup week after a first miss: 8
-    picks, with the 2-game penalty charged alongside."""
+    """5 picks normally.
+
+    Two exceptions, which can never both apply to one entry -- a buy-back
+    voids the missed week that would otherwise have granted the makeup:
+    - the week a buy-back was taken in: 10 picks, a double slate replacing
+      the week the fee erased, with no penalty.
+    - the single makeup week after a first miss: 8 picks, with the 2-game
+      penalty charged alongside.
+    """
     if week is None:
         return GRIDIRON_NORMAL_PICKS
+    if gridiron_buyback_catchup_week(entry) == week.number:
+        return GRIDIRON_BUYBACK_PICKS
     if gridiron_makeup_week(entry) != week.number:
         return GRIDIRON_NORMAL_PICKS
     return GRIDIRON_MAKEUP_PICKS

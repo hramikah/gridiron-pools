@@ -24,6 +24,7 @@ from scoring import (
     gridiron_buyback_available,
     gridiron_first_miss_week,
     gridiron_makeup_week,
+    gridiron_penalty_losses,
     gridiron_pick_limit,
     process_missed_picks,
 )
@@ -192,12 +193,17 @@ def test_buyback_voids_week_one_after_a_miss(make_week, make_entry, submit, reco
     # the bank rather than being spent on week 1.
     assert gridiron_first_miss_week(entry) is None
     assert gridiron_makeup_week(entry) is None
-    assert gridiron_pick_limit(entry, weeks[2]) == 5
     assert record(entry) == (0, 0, 0)
+    # A double slate in the week it was bought: the 5 games the fee erased
+    # plus the 5 this week is worth, so the entry ends week 2 level on games
+    # played with everyone who never missed.
+    assert gridiron_pick_limit(entry, weeks[2]) == 10
+    assert gridiron_penalty_losses(entry) == 0, "no makeup penalty -- it wasn't the makeup"
 
 
 def test_buyback_preserves_the_makeup_for_a_later_miss(make_week, make_entry, submit, record):
-    weeks = {n: make_week(n) for n in range(1, 6)}
+    # Week 2 is the 10-pick catch-up slate, so these weeks need >8 games.
+    weeks = {n: make_week(n, games=12) for n in range(1, 6)}
     entry = make_entry("forgot_twice")
     play_season({1: weeks[1]}, [(entry, {})], submit)
     _buy_back(entry, weeks[2])
@@ -281,3 +287,30 @@ def test_buyback_closes_at_the_deadline(make_week, make_entry):
     entry = make_entry("late")
     past_week2 = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=True)  # deadline long gone
     assert gridiron_buyback_available(entry, past_week2) is False
+
+
+def test_buyback_week_is_worth_ten_games_played(make_week, make_entry, submit, record):
+    """The catch-up slate is real games, not bookkeeping: an entry that buys
+    back and wins all ten finishes week 2 on ten wins -- level with a player
+    who went 5-0 in each of the first two weeks and never paid a thing."""
+    # 12 games a week, so a 10-pick allowance has somewhere to land.
+    weeks = {1: make_week(1, games=12), 2: make_week(2, games=12)}
+    bought_back = make_entry("bought_back")
+    never_missed = make_entry("never_missed")
+
+    play_season(
+        {1: weeks[1]},
+        [(bought_back, {}), (never_missed, {1: "limit"})],
+        submit,
+    )
+    _buy_back(bought_back, weeks[2])
+    assert gridiron_pick_limit(bought_back, weeks[2]) == 10
+
+    play_season(
+        {2: weeks[2]},
+        [(bought_back, {2: "limit"}), (never_missed, {2: "limit"})],
+        submit,
+    )
+
+    assert record(bought_back) == (10, 0, 0)
+    assert record(never_missed) == (10, 0, 0)

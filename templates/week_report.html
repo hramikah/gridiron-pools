@@ -11,7 +11,7 @@
 {# The matchup is printed under the pick already, so the total doesn't repeat a team name. #}
 {% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }}{% endif %}{% endmacro %}
 
-<p class="text-muted small mb-2">Green = win, red = loss, black = not yet final.</p>
+<p class="text-muted small mb-2">Green = win, red = loss, <span class="text-push fw-bold">purple = push</span> (the result landed exactly on the line &mdash; neither a win nor a loss), black = not yet final.</p>
 <div class="table-responsive">
 <table class="table table-bordered bg-white align-middle small">
   <thead class="table-light">

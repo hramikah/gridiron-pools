@@ -7,6 +7,7 @@ from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError
 
 from helpers import (
+    RESULT_CLASS,
     deadline_epoch_ms,
     get_setting,
     short_week_label,
@@ -173,6 +174,9 @@ def create_app():
     app.jinja_env.globals["week_is_complete"] = week_is_complete
     app.jinja_env.globals["deadline_epoch_ms"] = deadline_epoch_ms
     app.jinja_env.globals["short_week_label"] = short_week_label
+    # Every view that colours a result as text reads this one map, so a
+    # colour change can't reach some pages and miss others.
+    app.jinja_env.globals["result_class"] = RESULT_CLASS
 
     # Site-wide login gate: nothing is visible to a logged-out visitor except
     # the login/register/password-reset pages themselves and static assets.

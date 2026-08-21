@@ -305,10 +305,10 @@ document.addEventListener('DOMContentLoaded', function () {
 {% macro spread_opt(g, side) %}{% if side == 'home' %}{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}{% else %}{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}{% endif %}{% endmacro %}
 {# Matchup shown alongside already -- no need to name a team in the total. #}
 {% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }}{% endif %}{% endmacro %}
-{% set result_class = {'win': 'text-success fw-bold', 'loss': 'text-danger fw-bold', 'push': 'text-muted'} %}
+{# result_class is a Jinja global (app.py) so every view colours a result the same way. #}
 
 <h5 class="mt-4">Player Picks</h5>
-<p class="text-muted small mb-2">Green = win, red = loss, black = not yet final. Delete returns the pick to the player; Change lets you reselect for them.</p>
+<p class="text-muted small mb-2">Green = win, red = loss, <span class="text-push fw-bold">purple = push</span> (the result landed exactly on the line &mdash; neither a win nor a loss), black = not yet final. Delete returns the pick to the player; Change lets you reselect for them.</p>
 <div class="table-responsive">
 <table class="table table-bordered bg-white align-middle small">
   <thead class="table-light">

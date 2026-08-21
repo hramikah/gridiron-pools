@@ -138,9 +138,18 @@ table.standings th, table.standings td {
   background-color: #dc3545 !important;
   color: #fff !important;
 }
+/* Purple, because a push is a graded outcome and has to be tellable apart at
+   a glance from a pick that hasn't been graded yet. Both used to be #6c757d
+   -- the same grey as Bootstrap's .bg-secondary, which is still what an
+   ungraded pick uses -- so "landed exactly on the number" and "this game
+   hasn't been scored" looked identical. White on this is 6.5:1, WCAG AA. */
 .pick-push {
-  background-color: #6c757d !important;
+  background-color: #6f42c1 !important;
   color: #fff !important;
+}
+/* The same meaning where a row colours text rather than a badge. */
+.text-push {
+  color: #6f42c1 !important;
 }
 
 /* Locked-in pick lists (gridiron pick page) use block-level badges with

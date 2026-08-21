@@ -1,12 +1,16 @@
 # Gridiron Pools — local test site
 
-A complete copy of the site that runs on this Mac and cannot reach or change
-gridironinvestment.com.
+A complete copy of the site that runs on your own machine and cannot reach or
+change gridironinvestment.com. It runs on macOS and on Windows.
 
 ## Start it
 
-Double-click **`start-testbed.command`** in Finder. (First run takes about a
-minute while it builds a Python environment; after that it's a few seconds.)
+**macOS** — double-click **`start-testbed.command`** in Finder.
+
+**Windows** — double-click **`start-testbed.bat`** in Explorer.
+
+(First run takes about a minute while it builds a Python environment; after
+that it's a few seconds.)
 
 Then open **http://127.0.0.1:8090** and log in as:
 
@@ -18,6 +22,12 @@ Stop it with Ctrl-C in the Terminal window that opened.
 
 If macOS blocks the file the first time — right-click it → Open → Open. That
 only happens once.
+
+On Windows, if SmartScreen warns about the `.bat`, choose **More info → Run
+anyway**. If it says Python isn't found, install it from
+[python.org](https://www.python.org/downloads/windows/) and tick **"Add
+python.exe to PATH"** during setup — that checkbox is what the script looks
+for.
 
 ## What's loaded
 
@@ -48,8 +58,10 @@ To test the new Gridiron rules specifically:
 - **Two missed weeks in a row**: should total 10 losses, not 15.
 - **The $100 buy-back**: Gridiron Week 2 opens buy-backs automatically when the
   week is created, so there's nothing to tick. The offer appears on the
-  Gridiron pick page for any entry while Week 2 is current and still open, and
-  voids Week 1 outright. (Drop Dead weeks 1-4 open automatically too; preseason
+  Gridiron pick page for any entry while Week 2 is current and still open. It
+  voids Week 1 outright and grants a 10-pick catch-up slate for Week 2 -- the
+  5 games the fee erased plus the 5 that week is worth -- so a bought-back
+  entry ends Week 2 level on games played with everyone who never missed. (Drop Dead weeks 1-4 open automatically too; preseason
   weeks always start closed and are opened by hand from the Pool Manager.)
 
 ## Start over

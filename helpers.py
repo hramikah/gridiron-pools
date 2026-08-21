@@ -317,3 +317,20 @@ def set_setting(key, value):
     else:
         db.session.add(Setting(key=key, value=value))
     db.session.commit()
+
+
+# One definition of how a graded pick is coloured, used by every view that
+# prints a result as text rather than as a badge (the badge styles live in
+# style.css as .pick-win / .pick-loss / .pick-push).
+#
+# This map used to be written out separately in blueprints/main.py and in
+# templates/admin/pool_week.html. When pushes moved from grey to purple, one
+# copy was updated and the other wasn't, so the Weekly Picks report went on
+# rendering pushes in the same muted grey as an ungraded pick -- which is the
+# exact confusion the colour change was meant to end. Registered as a Jinja
+# global in app.py so templates don't need it passed in.
+RESULT_CLASS = {
+    "win": "text-success fw-bold",
+    "loss": "text-danger fw-bold",
+    "push": "text-push fw-bold",
+}

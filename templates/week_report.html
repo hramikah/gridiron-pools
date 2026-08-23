@@ -11,13 +11,42 @@
 {# The matchup is printed under the pick already, so the total doesn't repeat a team name. #}
 {% macro pick_label(p) %}{% if p.market == 'spread' %}{{ spread_opt(p.game, p.side) }}{% else %}{{ p.side|capitalize }} {{ p.game.over_under }}{% endif %}{% endmacro %}
 
-<p class="text-muted small mb-2">Green = win, red = loss, <span class="text-push fw-bold">purple = push</span> (the result landed exactly on the line &mdash; neither a win nor a loss), black = not yet final.</p>
+<p class="text-muted small mb-2"><span class="text-success fw-bold">Green = win</span>, <span class="text-danger fw-bold">red = loss</span>, <span class="text-push fw-bold">purple = push</span> (the result landed exactly on the line &mdash; neither a win nor a loss), black = not yet final.</p>
+
+{# One slot: a pick, an empty slot being charged as a loss, an automatic
+   penalty loss, or nothing at all. #}
+{% macro slot_cell(slot, voided=false) %}
+  {% if voided %}
+    {# The $100 wiped this week. Any picks it holds are shown underneath,
+       greyed, so the record of what was picked survives the void. #}
+    <div class="text-muted fw-bold">VOID (Rebought $100)</div>
+    {% if slot.kind == 'pick' %}
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1; text-decoration:line-through">{{ pick_label(slot.pick) }}</div>
+    {% endif %}
+  {% elif slot.kind == 'pick' %}
+    <div class="{{ result_class.get(slot.pick.result, '') }}">{{ pick_label(slot.pick) }}</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">{{ slot.pick.game.away_team }} @ {{ slot.pick.game.home_team }}</div>
+  {% elif slot.kind == 'nopick' %}
+    <div class="text-danger fw-bold">No pick</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">counts as a loss</div>
+  {% elif slot.kind == 'freemiss' %}
+    {# First miss: forgiven. The price is the makeup week's 2 losses. #}
+    <div class="text-muted fw-bold">No pick</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">first miss &mdash; no loss</div>
+  {% elif slot.kind == 'penalty' %}
+    <div class="text-danger fw-bold">Penalty loss</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">automatic &mdash; makeup week</div>
+  {% else %}
+    <span class="text-muted">&mdash;</span>
+  {% endif %}
+{% endmacro %}
+
 <div class="table-responsive">
 <table class="table table-bordered bg-white align-middle small">
   <thead class="table-light">
     <tr>
       <th style="min-width:9rem">Player</th>
-      {% for i in range(max_slots) %}<th class="text-center">Pick {{ i + 1 }}</th>{% endfor %}
+      {% for i in range(columns) %}<th class="text-center">Pick {{ i + 1 }}</th>{% endfor %}
     </tr>
   </thead>
   <tbody>
@@ -26,24 +55,33 @@
       <td>
         {{ row.entry.user.username }}
         {% if row.entry.label and row.entry.label != 'Entry 1' %}<span class="text-muted">({{ row.entry.label }})</span>{% endif %}
+        {% if row.voided %}
+        <div class="text-muted" style="font-size:.72rem; line-height:1.1">bought back &mdash; week voided</div>
+        {% endif %}
+        {% if row.slot_rows|length > 1 %}
+        <div class="text-muted" style="font-size:.72rem; line-height:1.1">
+          {% if row.allowance == 'buyback' %}buy-back &mdash; {{ row.limit }} picks
+          {%- elif row.allowance == 'makeup' %}makeup week &mdash; {{ row.limit }} picks{% if row.penalty %} + {{ row.penalty }} {{ 'loss' if row.penalty == 1 else 'losses' }}{% endif %}
+          {%- endif %}
+        </div>
+        {% endif %}
       </td>
-      {% for i in range(max_slots) %}
-        <td class="text-center">
-          {% if i < row.picks|length %}
-            {% set p = row.picks[i] %}
-            <div class="{{ result_class.get(p.result, '') }}">{{ pick_label(p) }}</div>
-            <div class="text-muted" style="font-size:.72rem; line-height:1.1">{{ p.game.away_team }} @ {{ p.game.home_team }}</div>
-          {% elif i < row.limit %}
-            <div class="text-danger fw-bold">No pick</div>
-            <div class="text-muted" style="font-size:.72rem; line-height:1.1">counts as a loss</div>
-          {% else %}
-            <span class="text-muted">&mdash;</span>
-          {% endif %}
+      {% for col in range(columns) %}
+        <td class="text-center p-0 align-top">
+          {% for slot_row in row.slot_rows %}
+            <div class="px-2 py-2 {% if not loop.first %}border-top{% endif %}"
+                 {% if row.slot_rows|length > 1 %}style="min-height:3.6rem"{% endif %}>
+              {% if not loop.first %}
+              <div class="text-muted fw-bold text-uppercase" style="font-size:.65rem; letter-spacing:.04em">Pick {{ loop.index0 * columns + col + 1 }}</div>
+              {% endif %}
+              {{ slot_cell(slot_row[col], row.voided) }}
+            </div>
+          {% endfor %}
         </td>
       {% endfor %}
     </tr>
   {% else %}
-    <tr><td colspan="{{ max_slots + 1 }}" class="text-muted">No players have joined Gridiron Investments yet.</td></tr>
+    <tr><td colspan="{{ columns + 1 }}" class="text-muted">No players have joined Gridiron Investments yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

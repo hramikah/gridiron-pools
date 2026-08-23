@@ -1,4 +1,6 @@
+import importlib
 import os
+import re
 from datetime import datetime, timedelta
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -15,6 +17,7 @@ from helpers import (
     week_is_complete,
 )
 from models import Invite, User, db
+from testbed_guard import TESTBED_MARKER
 
 csrf = CSRFProtect()
 
@@ -257,7 +260,54 @@ def create_app():
     return app
 
 
+def run_requested_testbed_seed(app):
+    """Run a seed script that a marker file asks for, then disarm.
+
+    Whoever is maintaining this site remotely can write files into the folder
+    but has no shell on the machine the test site runs on, so there is
+    otherwise no way to load a scenario without the operator typing a
+    command. Dropping a file at testbed/SEED_ME containing a script name asks
+    the next reload to run it -- and the live-reload runner restarts whenever
+    a .py file changes, so writing the seed script is itself the trigger.
+
+    The marker is deleted before the script runs, so a seed that fails does
+    so once instead of on every restart. Only a module name is accepted, and
+    only from this directory: no paths, no arguments, nothing to point at
+    another part of the disk.
+
+    Testbed databases only, checked the same way testbed_guard.py checks --
+    on the live site this returns before it looks at the filesystem.
+    """
+    if TESTBED_MARKER not in (app.config.get("SQLALCHEMY_DATABASE_URI") or "").lower():
+        return
+    here = os.path.dirname(os.path.abspath(__file__))
+    marker = os.path.join(here, "testbed", "SEED_ME")
+    if not os.path.exists(marker):
+        return
+
+    try:
+        with open(marker) as fh:
+            name = fh.read().strip()
+    finally:
+        os.remove(marker)
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]{2,63}", name or ""):
+        print(f"[testbed] ignoring SEED_ME: {name!r} is not a script name")
+        return
+    if not os.path.exists(os.path.join(here, f"{name}.py")):
+        print(f"[testbed] ignoring SEED_ME: {name}.py is not in this folder")
+        return
+
+    print(f"[testbed] running {name}.py ...")
+    try:
+        importlib.import_module(name).main()
+        print(f"[testbed] {name}.py finished. Refresh the browser.")
+    except Exception as exc:  # a bad seed must not take the site down
+        print(f"[testbed] {name}.py failed: {exc!r}")
+
+
 app = create_app()
+run_requested_testbed_seed(app)
 
 if __name__ == "__main__":
     # debug=False: the Werkzeug interactive debugger allows arbitrary code

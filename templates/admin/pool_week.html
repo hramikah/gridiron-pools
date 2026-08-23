@@ -308,13 +308,63 @@ document.addEventListener('DOMContentLoaded', function () {
 {# result_class is a Jinja global (app.py) so every view colours a result the same way. #}
 
 <h5 class="mt-4">Player Picks</h5>
-<p class="text-muted small mb-2">Green = win, red = loss, <span class="text-push fw-bold">purple = push</span> (the result landed exactly on the line &mdash; neither a win nor a loss), black = not yet final. Delete returns the pick to the player; Change lets you reselect for them.</p>
+<p class="text-muted small mb-2"><span class="text-success fw-bold">Green = win</span>, <span class="text-danger fw-bold">red = loss</span>, <span class="text-push fw-bold">purple = push</span> (the result landed exactly on the line &mdash; neither a win nor a loss), black = not yet final. Delete returns the pick to the player; Change lets you reselect for them.</p>
+
+{# One slot, with the controls that make this the editor rather than the
+   read-only report. Slot order is fixed in scoring._gridiron_grid_slots. #}
+{% macro slot_cell(slot, row) %}
+  {% if slot.kind == 'pick' %}
+    {% set p = slot.pick %}
+    <div class="{{ result_class.get(p.result, '') }}">{{ pick_label(p) }}</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">{{ p.game.away_team }} @ {{ p.game.home_team }}</div>
+    <div class="btn-group btn-group-sm mt-1">
+      <button type="button" class="btn btn-outline-primary change-pick-btn"
+              data-action="{{ url_for('admin.change_pick', pick_id=p.id) }}"
+              data-current="{{ p.game_id }}|{{ p.market }}|{{ p.side }}">Change</button>
+      <form method="post" action="{{ url_for('admin.delete_pick', pick_id=p.id) }}" class="d-inline"
+            onsubmit="return confirm('Delete this pick and return it to the player?')">
+        <button type="submit" class="btn btn-outline-danger">Delete</button>
+      </form>
+    </div>
+  {% elif slot.kind == 'nopick' %}
+    {% if deadline_passed %}
+      <div class="text-danger fw-bold">No pick</div>
+      <div class="text-muted" style="font-size:.72rem; line-height:1.1">counts as a loss</div>
+    {% else %}
+      <div class="text-muted fst-italic">Not selected yet</div>
+    {% endif %}
+    <button type="button" class="btn btn-sm btn-outline-success change-pick-btn mt-1"
+            data-action="{{ url_for('admin.add_pick', entry_id=row.entry.id, week_id=week.id) }}"
+            data-current="">Add pick</button>
+  {% elif slot.kind == 'freemiss' %}
+    <div class="text-muted fw-bold">No pick</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">first miss &mdash; no loss</div>
+    <button type="button" class="btn btn-sm btn-outline-success change-pick-btn mt-1"
+            data-action="{{ url_for('admin.add_pick', entry_id=row.entry.id, week_id=week.id) }}"
+            data-current="">Add pick</button>
+  {% elif slot.kind == 'spare' %}
+    {# Allowance the entry had but isn't charged for: a week sat out entirely
+       is a flat 0-5 however many picks it was worth. Still fillable. #}
+    <div class="text-muted fw-bold">Not charged</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">week sat out &mdash; scored 0-{{ miss_penalty }}</div>
+    <button type="button" class="btn btn-sm btn-outline-success change-pick-btn mt-1"
+            data-action="{{ url_for('admin.add_pick', entry_id=row.entry.id, week_id=week.id) }}"
+            data-current="">Add pick</button>
+  {% elif slot.kind == 'penalty' %}
+    {# The makeup week's automatic losses -- nothing to add here. #}
+    <div class="text-danger fw-bold">Penalty loss</div>
+    <div class="text-muted" style="font-size:.72rem; line-height:1.1">automatic &mdash; makeup week</div>
+  {% else %}
+    <span class="text-muted">—</span>
+  {% endif %}
+{% endmacro %}
+
 <div class="table-responsive">
 <table class="table table-bordered bg-white align-middle small">
   <thead class="table-light">
     <tr>
       <th style="min-width:9rem">Player</th>
-      {% for i in range(max_slots) %}<th class="text-center">Pick {{ i + 1 }}</th>{% endfor %}
+      {% for i in range(columns) %}<th class="text-center">Pick {{ i + 1 }}</th>{% endfor %}
     </tr>
   </thead>
   <tbody>
@@ -323,40 +373,36 @@ document.addEventListener('DOMContentLoaded', function () {
       <td>
         {{ row.entry.user.username }}
         {% if row.entry.label and row.entry.label != 'Entry 1' %}<span class="text-muted">({{ row.entry.label }})</span>{% endif %}
+        {% if row.voided %}
+        {# The $100 wiped this week for this entry. The cells stay editable --
+           a commissioner may still need to correct them -- but the row says
+           the week no longer counts. #}
+        <div class="text-muted" style="font-size:.72rem; line-height:1.1">bought back &mdash; week voided</div>
+        {% endif %}
+        {% if row.admin_slot_rows|length > 1 %}
+        <div class="text-muted" style="font-size:.72rem; line-height:1.1">
+          {% if row.allowance == 'buyback' %}buy-back &mdash; {{ row.limit }} picks
+          {%- elif row.allowance == 'makeup' %}makeup week &mdash; {{ row.limit }} picks{% if row.penalty %} + {{ row.penalty }} {{ 'loss' if row.penalty == 1 else 'losses' }}{% endif %}
+          {%- endif %}
+        </div>
+        {% endif %}
       </td>
-      {% for i in range(max_slots) %}
-        <td class="text-center">
-          {% if i < row.picks|length %}
-            {% set p = row.picks[i] %}
-            <div class="{{ result_class.get(p.result, '') }}">{{ pick_label(p) }}</div>
-            <div class="text-muted" style="font-size:.72rem; line-height:1.1">{{ p.game.away_team }} @ {{ p.game.home_team }}</div>
-            <div class="btn-group btn-group-sm mt-1">
-              <button type="button" class="btn btn-outline-primary change-pick-btn"
-                      data-action="{{ url_for('admin.change_pick', pick_id=p.id) }}"
-                      data-current="{{ p.game_id }}|{{ p.market }}|{{ p.side }}">Change</button>
-              <form method="post" action="{{ url_for('admin.delete_pick', pick_id=p.id) }}" class="d-inline"
-                    onsubmit="return confirm('Delete this pick and return it to the player?')">
-                <button type="submit" class="btn btn-outline-danger">Delete</button>
-              </form>
+      {% for col in range(columns) %}
+        <td class="text-center p-0 align-top">
+          {% for slot_row in row.admin_slot_rows %}
+            <div class="px-2 py-2 {% if not loop.first %}border-top{% endif %}"
+                 {% if row.admin_slot_rows|length > 1 %}style="min-height:6.4rem"{% endif %}>
+              {% if not loop.first %}
+              <div class="text-muted fw-bold text-uppercase" style="font-size:.65rem; letter-spacing:.04em">Pick {{ loop.index0 * columns + col + 1 }}</div>
+              {% endif %}
+              {{ slot_cell(slot_row[col], row) }}
             </div>
-          {% elif i < row.limit %}
-            {% if deadline_passed %}
-              <div class="text-danger fw-bold">No pick</div>
-              <div class="text-muted" style="font-size:.72rem; line-height:1.1">counts as a loss</div>
-            {% else %}
-              <div class="text-muted fst-italic">Not selected yet</div>
-            {% endif %}
-            <button type="button" class="btn btn-sm btn-outline-success change-pick-btn mt-1"
-                    data-action="{{ url_for('admin.add_pick', entry_id=row.entry.id, week_id=week.id) }}"
-                    data-current="">Add pick</button>
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
+          {% endfor %}
         </td>
       {% endfor %}
     </tr>
   {% else %}
-    <tr><td colspan="{{ max_slots + 1 }}" class="text-muted">No players have joined Gridiron Investments yet.</td></tr>
+    <tr><td colspan="{{ columns + 1 }}" class="text-muted">No players have joined Gridiron Investments yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

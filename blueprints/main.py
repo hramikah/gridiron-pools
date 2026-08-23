@@ -5,8 +5,11 @@ from helpers import week_unlocked
 from models import POOL_LABELS, POOLS, Entry, Game, User, Week
 from pdf_report import build_week_pdf
 from scoring import (
+    GRIDIRON_GRID_COLUMNS,
     dropdead_matrix,
     dropdead_status_through_week,
+    gridiron_awards,
+    gridiron_first_miss_week,
     gridiron_matrix,
     gridiron_picks_grid,
     gridiron_record_through_week,
@@ -90,6 +93,13 @@ def standings():
         if gridiron_last_week is not None else {}
     )
 
+    # The week each entry first missed its picks, for the Penalties column.
+    # One entry per season: a second miss adds nothing to read here.
+    gridiron_first_miss = {
+        e.id: gridiron_first_miss_week(e)
+        for e in Entry.query.filter_by(pool="gridiron", season_year=season_year).all()
+    }
+
     return render_template(
         "standings.html",
         dropdead_entries=standings_dropdead(season_year),
@@ -105,6 +115,8 @@ def standings():
         all_weeks_data=all_weeks_data,
         gridiron_last_week=gridiron_last_week,
         gridiron_last_week_records=gridiron_last_week_records,
+        gridiron_first_miss=gridiron_first_miss,
+        awards=gridiron_awards(season_year),
     )
 
 
@@ -176,6 +188,9 @@ def week_report(week_id):
             pool_label=POOL_LABELS[week.pool],
             picks_grid=picks_grid,
             max_slots=max_slots,
+            # The report is a fixed 5 columns wide -- entries with a bigger
+            # allowance wrap onto a second line rather than stretching it.
+            columns=min(GRIDIRON_GRID_COLUMNS, max_slots) or GRIDIRON_GRID_COLUMNS,
         )
 
     entries = Entry.query.filter_by(pool=week.pool, season_year=week.season_year).join(User).order_by(User.username).all()

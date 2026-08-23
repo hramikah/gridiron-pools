@@ -60,7 +60,13 @@
           {% if makeup_by_entry.get(entry.id) %}Your one-time {{ makeup_picks }}-pick makeup stays
           banked for the first week you miss from here on, instead of being spent on Week
           {{ week.number - 1 }}.{% endif %}
+          Open to every entry however Week {{ week.number - 1 }} went &mdash; {{ normal_picks }}-0,
+          0-{{ normal_picks }}, or 0-{{ normal_picks }} for never submitting.
           The ${{ buyback_fee }} is owed to the commissioners. One per entry, this week only.</p>
+          {% if buyback_deadline %}
+          <p class="small mb-2 text-danger"><strong>Closes {{ buyback_deadline.strftime('%A %b %d at %I:%M %p') }}
+          Eastern</strong> &mdash; before this week's first kickoff, not at the Saturday pick deadline.</p>
+          {% endif %}
           <form method="post" action="{{ url_for('gridiron.buyback', entry_id=entry.id) }}">
             <button type="submit" class="btn btn-sm btn-gridiron"
                     onclick="return confirm('Buy back in for ${{ buyback_fee }}? Week {{ week.number - 1 }} will stop counting. This cannot be undone.');">
@@ -77,11 +83,13 @@
       </div>
       {% endif %}
 
-      {% if my_picks %}
+      {% set penalty_slots = penalty_slots_by_entry.get(entry.id, 0) %}
+      {% if my_picks or penalty_slots %}
       {% set my_results = picks_results_this_week.get(entry.id, {}) %}
       {% set complete = week_is_complete(week) %}
       <div class="p-3 mb-3 bg-light rounded border border-2" style="border-left: 5px solid var(--gridiron-accent) !important;">
-      <p class="mb-1"><strong>Locked in so far ({{ my_picks|length }} / {{ limit }}):</strong></p>
+      <p class="mb-1"><strong>Locked in so far ({{ my_picks|length }} / {{ limit }}){% if penalty_slots %},
+        plus {{ penalty_slots }} penalty {{ 'loss' if penalty_slots == 1 else 'losses' }}{% endif %}:</strong></p>
       <ul class="list-unstyled mb-0">
         {% for g in all_games %}
           {% set removable = not locked and g.id in pickable_game_ids %}
@@ -103,6 +111,14 @@
               {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'total'))) }}{% endif %}
             </li>
           {% endif %}
+        {% endfor %}
+        {# The makeup week is 8 of 10: the 2 slots you can't fill sit here as
+           losses from the start, with nothing to select. #}
+        {% for i in range(penalty_slots) %}
+          <li class="mb-1 d-block text-start">
+            <span class="badge pick-loss"><strong>Penalty loss</strong></span>
+            <span class="small text-muted ms-1">automatic &mdash; no selection needed</span>
+          </li>
         {% endfor %}
       </ul>
       </div>
@@ -194,9 +210,10 @@
       <div class="alert alert-warning py-2 small mb-2">
         <strong>Makeup week.</strong> You missed a week, so you get {{ makeup_picks }} picks
         instead of {{ normal_picks }} this week &mdash; out of 10, with a {{ makeup_penalty }}-game
-        penalty already counted as losses. This is the only makeup week you get; any later missed
-        week is scored 0-{{ normal_picks }} with no extra picks. If you sit this week out too, it's
-        scored as a plain 0-{{ normal_picks }} and the {{ makeup_penalty }}-game penalty is dropped.
+        penalty already counted as losses. Those {{ makeup_penalty }} appear in your list above as
+        <strong>Penalty loss</strong> &mdash; there is nothing to select for them.
+        This is the only makeup week you get; any later missed
+        week is scored 0-{{ normal_picks }}.
       </div>
       {% endif %}
       {% if not locked %}

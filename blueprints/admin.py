@@ -12,7 +12,7 @@ from mailer import send_invite_link_emails, send_password_reset_email
 from models import ActivityLog, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open
 from notifications import email_week_picks
 from publisher import publish_week
-from scoring import enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
+from scoring import GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -103,6 +103,10 @@ def pool_week(pool, week_id):
         deadline_passed=deadline_passed(week),
         picks_grid=picks_grid,
         max_slots=max_slots,
+        # Fixed-width grid: entries with a bigger allowance wrap onto a second
+        # line rather than stretching the table to 10 columns for everyone.
+        columns=min(GRIDIRON_GRID_COLUMNS, max_slots) or GRIDIRON_GRID_COLUMNS,
+        miss_penalty=GRIDIRON_MISS_PENALTY_LOSSES,
     )
 
 

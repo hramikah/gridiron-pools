@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from collections import defaultdict
@@ -10,6 +11,7 @@ from flask import abort, current_app, request
 from flask_login import current_user
 
 from models import PRESEASON_OFFSET, ActivityLog, ContactMessage, Game, Setting, Week, db
+from testbed_guard import TESTBED_MARKER
 
 EASTERN = ZoneInfo("America/New_York")
 
@@ -68,6 +70,32 @@ def reset_request_rate_limited():
         return False
 
 
+TESTBED_CLOCK_SETTING = "testbed_fake_now"
+
+
+def _testbed_clock():
+    """The frozen clock a testbed database has asked for, or None.
+
+    Only ever consulted when GRIDIRON_DATABASE_URI marks the database as a
+    testbed one -- the same marker testbed_guard.py checks -- so the live
+    site can't be talked into a fake clock and never pays for the lookup.
+
+    Scenario seeds need the site to believe it is a particular moment: "week
+    1 is scored, week 2 is open, it is Thursday afternoon and the buy-back
+    shuts at 7." Dating the rows relative to the real clock can't do that --
+    every day name on the page comes out wrong -- so the clock moves instead.
+    """
+    if TESTBED_MARKER not in os.environ.get("GRIDIRON_DATABASE_URI", "").lower():
+        return None
+    try:
+        raw = get_setting(TESTBED_CLOCK_SETTING)
+        return datetime.fromisoformat(raw) if raw else None
+    except Exception:
+        # No app context, no Setting table yet, or a value someone typed by
+        # hand: fall through to the real clock rather than break the page.
+        return None
+
+
 def now_eastern():
     """Naive datetime representing the current time in US Eastern (EST/EDT).
 
@@ -75,6 +103,9 @@ def now_eastern():
     at noon EST"), so all Week.pick_deadline / Game.kickoff values are stored
     as naive Eastern-local datetimes and compared against this.
     """
+    frozen = _testbed_clock()
+    if frozen is not None:
+        return frozen
     return datetime.now(EASTERN).replace(tzinfo=None)
 
 
@@ -215,6 +246,40 @@ def deadline_passed(week):
     if week is None:
         return True
     return now_eastern() > week.pick_deadline
+
+
+# The Gridiron buy-back closes earlier than the week it is taken in: 7:00 PM
+# Eastern on that week's Thursday, before Thursday night kicks off (~8:20).
+# The week's own pick deadline is Saturday noon, which would leave the offer
+# standing after two nights of football had already been played.
+GRIDIRON_BUYBACK_CUTOFF_HOUR = 19
+
+
+def gridiron_buyback_deadline(week):
+    """When the $100 Gridiron buy-back closes for this week, or None.
+
+    Derived from the week's own pick deadline rather than the configured
+    season start, so an admin who moves a week moves this with it: walk back
+    to the Thursday on or before that deadline, then set 7:00 PM. With the
+    normal Saturday-noon deadline that lands on the Thursday two days before,
+    which is the Thursday the betting week opens on.
+    """
+    if week is None or week.pick_deadline is None:
+        return None
+    # Monday is 0, so Thursday is 3. Walking back (weekday - 3) % 7 days lands
+    # on the Thursday of that same betting week, or the deadline's own day
+    # when the deadline is itself a Thursday.
+    days_back = (week.pick_deadline.weekday() - 3) % 7
+    thursday = (week.pick_deadline - timedelta(days=days_back)).date()
+    return datetime.combine(thursday, datetime.min.time()) + timedelta(
+        hours=GRIDIRON_BUYBACK_CUTOFF_HOUR
+    )
+
+
+def gridiron_buyback_closed(week):
+    """True once the buy-back window for this week has shut."""
+    cutoff = gridiron_buyback_deadline(week)
+    return cutoff is None or now_eastern() > cutoff
 
 
 def week_is_complete(week):

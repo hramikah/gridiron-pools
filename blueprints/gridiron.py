@@ -6,9 +6,9 @@ from helpers import (
     log_activity,
     game_pickable,
     get_current_week,
+    gridiron_buyback_deadline,
     gridiron_signup_deadline,
     gridiron_signups_open,
-   
 )
 from team_colors import styles_for
 from models import Entry, Game, Pick, db
@@ -21,6 +21,7 @@ from scoring import (
     ensure_missed_processed,
     gridiron_buyback_available,
     gridiron_makeup_week,
+    gridiron_penalty_slots,
     gridiron_pick_limit,
     standings_gridiron,
 )
@@ -203,6 +204,7 @@ def pick():
     pick_limits = {}
     remaining_by_entry = {}
     makeup_by_entry = {}
+    penalty_slots_by_entry = {}
     buyback_by_entry = {}
     if week:
         for e in entries:
@@ -216,6 +218,9 @@ def pick():
             # Flag the one makeup week so the page can explain the 8-of-10
             # allowance and the 2 losses that come with it.
             makeup_by_entry[e.id] = gridiron_makeup_week(e) == week.number
+            # ...and show those 2 losses as slots in the pick list, so the
+            # week reads as 10 games from the start.
+            penalty_slots_by_entry[e.id] = gridiron_penalty_slots(e, week)
             buyback_by_entry[e.id] = gridiron_buyback_available(e, week)
 
     # A game whose kickoff is more than an hour out is still in `games`
@@ -237,7 +242,9 @@ def pick():
         remaining_by_entry=remaining_by_entry,
         pickable_game_ids=pickable_game_ids,
         makeup_by_entry=makeup_by_entry,
+        penalty_slots_by_entry=penalty_slots_by_entry,
         buyback_by_entry=buyback_by_entry,
+        buyback_deadline=gridiron_buyback_deadline(week),
         buyback_fee=GRIDIRON_BUYBACK_FEE,
         buyback_picks=GRIDIRON_BUYBACK_PICKS,
         normal_picks=GRIDIRON_NORMAL_PICKS,

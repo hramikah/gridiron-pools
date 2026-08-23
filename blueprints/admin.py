@@ -12,7 +12,7 @@ from mailer import send_invite_link_emails, send_password_reset_email
 from models import ActivityLog, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open
 from notifications import email_week_picks
 from publisher import publish_week
-from scoring import GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
+from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -861,13 +861,77 @@ def payments():
     )
 
     fees = {"dropdead": 20, "loser": 20, "gridiron": 100}
+    # A buy-back is money owed just like an entry fee, and until now the page
+    # never billed it: a revived Drop Dead entry showed "Paid" and $0 owed
+    # while its $30 was outstanding. The Loser Pool has no buy-back.
+    buyback_fees = {
+        "dropdead": DROPDEAD_BUYBACK_FEE,
+        "gridiron": GRIDIRON_BUYBACK_FEE,
+        "loser": 0,
+    }
+
+    # One row per buy-back taken, so an entry that died and came back twice
+    # is billed twice. Buy-backs within an entry are interchangeable, so the
+    # first `buy_backs_paid` of them are the settled ones.
+    buybacks = {}
+    for e in entries:
+        used = e.buy_backs_used or 0
+        fee = buyback_fees[e.pool]
+        if not used or not fee:
+            buybacks[e.id] = {"used": 0, "paid": 0, "unpaid": 0, "fee": fee, "owed": 0}
+            continue
+        paid = max(0, min(e.buy_backs_paid or 0, used))
+        unpaid = used - paid
+        buybacks[e.id] = {
+            "used": used, "paid": paid, "unpaid": unpaid,
+            "fee": fee, "owed": unpaid * fee,
+        }
+
     by_player = {}
     for e in entries:
         row = by_player.setdefault(e.user.username, {"dropdead": [], "loser": [], "gridiron": [], "owed": 0})
         row[e.pool].append(e)
         if not e.paid:
             row["owed"] += fees[e.pool]
+        row["owed"] += buybacks[e.id]["owed"]
     player_rows = sorted(by_player.items())
+
+    # The All Entries table lists a buy-back as its own line rather than as a
+    # column hanging off the entry it belongs to: same player, same pool, the
+    # next entry number, and the buy-back's own fee and paid status. That is
+    # how the commissioners count the money -- a buy-back is another stake in
+    # the pool, not an annotation on an existing one.
+    #
+    # Numbering runs per (player, pool): the real entries first, then the
+    # buy-backs continuing the sequence. Buy-backs on one entry are
+    # interchangeable, so the first `buy_backs_paid` of them are the settled
+    # ones and each row's button just moves that counter.
+    grouped = {}
+    for e in entries:
+        grouped.setdefault((e.user.username, e.pool), []).append(e)
+
+    entry_rows = []
+    for (username, pool), group in grouped.items():
+        number = 1
+        for e in group:
+            entry_rows.append({
+                "username": username, "pool": pool,
+                "label": f"Entry {number}", "fee": fees[pool],
+                "paid": bool(e.paid), "kind": "entry", "entry_id": e.id,
+                "order": number,
+            })
+            number += 1
+        for e in group:
+            bb = buybacks[e.id]
+            for i in range(bb["used"]):
+                entry_rows.append({
+                    "username": username, "pool": pool,
+                    "label": f"Entry {number}", "fee": bb["fee"],
+                    "paid": i < bb["paid"], "kind": "buyback", "entry_id": e.id,
+                    "order": number,
+                })
+                number += 1
+    entry_rows.sort(key=lambda r: (r["username"].lower(), r["pool"], r["order"]))
 
     return render_template(
         "admin/payments.html",
@@ -875,6 +939,8 @@ def payments():
         pool_labels=POOL_LABELS,
         player_rows=player_rows,
         fees=fees,
+        buybacks=buybacks,
+        entry_rows=entry_rows,
     )
 
 
@@ -884,6 +950,29 @@ def toggle_paid(entry_id):
     entry.paid = not entry.paid
     db.session.commit()
     flash(f"{entry.user.username} ({POOL_LABELS[entry.pool]}, {entry.label}) marked {'paid' if entry.paid else 'unpaid'}.", "success")
+    return redirect(url_for("admin.payments"))
+
+
+@bp.route("/entries/<int:entry_id>/buyback-paid", methods=["POST"])
+def toggle_buyback_paid(entry_id):
+    """Settle (or un-settle) one buy-back fee on an entry.
+
+    Buy-backs on one entry are interchangeable -- same pool, same fee -- so
+    this moves a counter rather than tracking which individual revival was
+    paid for. Clamped to the number actually taken, so a double-click or a
+    stale page can't push the count past what is owed or below zero.
+    """
+    entry = Entry.query.get_or_404(entry_id)
+    used = entry.buy_backs_used or 0
+    paid = max(0, min(entry.buy_backs_paid or 0, used))
+    delta = 1 if request.form.get("delta") == "+1" else -1
+    entry.buy_backs_paid = max(0, min(used, paid + delta))
+    db.session.commit()
+    flash(
+        f"{entry.user.username} ({POOL_LABELS[entry.pool]}): "
+        f"{entry.buy_backs_paid} of {used} buy-back fee(s) marked paid.",
+        "success",
+    )
     return redirect(url_for("admin.payments"))
 
 

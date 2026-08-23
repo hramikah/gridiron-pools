@@ -90,7 +90,7 @@
                          for="dd_{{ entry.id }}_{{ g.id }}_{{ side }}"
                          {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ tname }}</label>
                   {% if used %}<div class="pick-note used">already used</div>
-                  {% elif tid in unpickable_team_ids %}<div class="pick-note">kickoff passed</div>{% endif %}
+                  {% elif tid in unpickable_team_ids %}<div class="pick-note">Locked - Kickoff too soon.</div>{% endif %}
                   {% else %}<span class="text-muted small">&mdash;</span>{% endif %}
                 </td>
                 {% endfor %}

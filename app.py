@@ -10,6 +10,7 @@ from flask_wtf.csrf import CSRFError
 
 from helpers import (
     RESULT_CLASS,
+    _testbed_clock,
     deadline_epoch_ms,
     get_setting,
     short_week_label,
@@ -66,6 +67,18 @@ def migrate_schema():
         db.session.execute(db.text(
             "UPDATE week SET buyback_open = 1 WHERE pool = 'dropdead' AND number <= 4"
         ))
+        db.session.commit()
+
+    cols = {row[1] for row in db.session.execute(db.text("PRAGMA table_info(entry)")).all()}
+    if "buy_backs_paid" not in cols:
+        # Buy-backs were recorded but never billed: the payments page only
+        # ever counted entry fees, so a revived entry showed nothing owed for
+        # the $30 (or $100) it had just cost. Existing buy-backs default to
+        # unpaid, which is the safe direction -- an admin can mark them paid,
+        # and the alternative silently forgives money already collected on
+        # paper but not in the app.
+        db.session.execute(db.text("ALTER TABLE entry ADD COLUMN buy_backs_paid INTEGER DEFAULT 0"))
+        db.session.execute(db.text("UPDATE entry SET buy_backs_paid = 0 WHERE buy_backs_paid IS NULL"))
         db.session.commit()
 
 
@@ -172,6 +185,10 @@ def create_app():
             "popup_announcement": popup_announcement,
             "unread_messages": unread_message_count(current_user),
             "is_local_test": is_local_test(),
+            # Set only while a testbed database has asked for a frozen
+            # clock, so the simulation banner in base.html appears and
+            # disappears with the demo rather than needing a code change.
+            "frozen_clock": _testbed_clock(),
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete

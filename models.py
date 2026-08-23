@@ -176,6 +176,11 @@ class Entry(db.Model):
     is_active = db.Column(db.Boolean, default=True)  # drop dead: still alive; gridiron: not benched for missing 5+ weeks
     eliminated_week = db.Column(db.Integer, nullable=True)
     buy_backs_used = db.Column(db.Integer, default=0)
+    # How many of those buy-backs the commissioners have actually been
+    # paid for. A count rather than a flag because an entry can be
+    # eliminated and buy back more than once in the weeks the rules
+    # allow it, and each one is its own fee.
+    buy_backs_paid = db.Column(db.Integer, default=0)
     # Drop Dead: the week number the entry last bought back in, if ever.
     # Gridiron: the last week voided by a buy-back -- every week up to and
     # including this one stops counting toward the entry's record. Entries are

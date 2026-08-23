@@ -190,14 +190,14 @@
 
 {# ---- Edit Game modal (all pools; fields prepopulated by the Edit button via JS) ---- #}
 <div class="modal fade" id="editGameModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <form method="post" id="editGameForm">
         <div class="modal-header">
           <h5 class="modal-title">Edit Game{% if pool == 'gridiron' %} &amp; Line{% endif %}</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
           <div class="row g-3">
           {% if pool == 'gridiron' %}
             <div class="col-md-3">
@@ -410,14 +410,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
 {# ---- Change-pick modal (shared; the Change button sets its target + preselection) ---- #}
 <div class="modal fade" id="changePickModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-scrollable">
+  {# modal-dialog-scrollable alone leaves the body's height to the flex
+     layout, and on a full week -- 16 NFL games plus 8 college, better than 80
+     options -- it resolved tall enough on some screens to push "Save pick"
+     off the bottom with nothing scrollable to reach it. The explicit
+     max-height below does not depend on that resolving: the option list
+     always scrolls inside the dialog and the footer is always on screen. #}
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
     <div class="modal-content">
       <form method="post" id="changePickForm">
         <div class="modal-header">
           <h5 class="modal-title">Change pick</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          <p class="text-muted small mb-2">Pick one option, then <strong>Save pick</strong> at the bottom. Scroll for the rest of the week's games.</p>
           {% if games %}
           {% for g in games %}
             <div class="fw-semibold mt-2">{{ g.away_team }} @ {{ g.home_team }} <span class="text-muted small">{{ g.sport }}</span></div>

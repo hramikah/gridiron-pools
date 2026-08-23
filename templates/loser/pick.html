@@ -87,7 +87,7 @@
                          {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>
                     {{ tname }}<br><span class="pick-points">{{ points_by_team.get(tid, '?') }} pts</span>
                   </label>
-                  {% if tid in unpickable_team_ids %}<div class="pick-note">kickoff passed</div>{% endif %}
+                  {% if tid in unpickable_team_ids %}<div class="pick-note">Locked - Kickoff too soon.</div>{% endif %}
                   {% else %}<span class="text-muted small">&mdash;</span>{% endif %}
                 </td>
                 {% endfor %}

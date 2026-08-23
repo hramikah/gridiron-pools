@@ -12,6 +12,16 @@
   <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 <body>
+  {# Simulation banner. Driven by helpers._testbed_clock() via the context
+     processor in app.py, so it shows only while the site is running on a
+     frozen-clock testbed database and vanishes on its own when the live
+     site goes back to instance/pools.db. #}
+  {% if frozen_clock %}
+  <div class="text-center fw-bold py-2 px-3"
+       style="background:#0d3b66;color:#fff;letter-spacing:.03em;line-height:1.35;">
+    ⏸ Site is frozen to simulate what it would look like at 7:30PM on a Thursday.
+  </div>
+  {% endif %}
   {% if is_local_test %}
   <div class="text-center fw-bold py-2" style="background:#ffc107;color:#000;letter-spacing:.05em;">
     ⚠️ LOCAL TEST COPY &mdash; not the live site. Nothing here affects real players.  </div>

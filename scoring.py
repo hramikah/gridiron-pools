@@ -35,6 +35,10 @@ GRIDIRON_MAKEUP_PENALTY_LOSSES = 2
 # GRIDIRON_BUYBACK_WEEK is defined in models.py, where default_buyback_open
 # needs it too, and re-exported here so callers have one place to import from.
 GRIDIRON_BUYBACK_FEE = 100
+# The Drop Dead buy-back, previously written as a bare $30 in the pick
+# page, the flash message and the season simulator. Named here so the
+# payments page bills the same number everything else quotes.
+DROPDEAD_BUYBACK_FEE = 30
 # A buy-back voids week 1, so the entry plays a double slate in week 2 --
 # the five games the fee erased plus the five that week is worth -- and
 # comes out level on games played with everyone who never missed.

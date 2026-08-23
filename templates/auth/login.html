@@ -1,6 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Login - Gridiron Pools{% endblock %}
 {% block content %}
+
+{# ------------------------------------------------------------------ #}
+{# Site notice, 2026-08-23. Replaces the 2026-08-22 outage notice.     #}
+{# Shown to signed-out visitors only, as a popup on load plus a banner #}
+{# that stays put after the popup is dismissed -- someone who          #}
+{# dismisses it still needs the new password in front of them at the   #}
+{# form. Remove this block (and the script at the bottom) once         #}
+{# everyone has signed in and set their own password.                  #}
+{# ------------------------------------------------------------------ #}
+{% if not current_user.is_authenticated %}
+{% set site_notice %}
+  <p class="mb-2"><strong>Your login info has changed.</strong> Sign in with your
+  username <em>or</em> your email address, and the password
+  <code>Password</code>. You will be able to set your own password before we
+  really start.</p>
+  <p class="mb-2">For example, if your email is <code>hunter@gmail.com</code>, then
+  you can log in with:</p>
+  <ul class="mb-2">
+    <li>Username or Email: <code>hunter@gmail.com</code></li>
+    <li>Password: <code>Password</code></li>
+  </ul>
+  <p class="mb-0">The site has been updated to show the changes we have made.
+  What you are looking at right now is a <strong>simulation</strong> &mdash; it is
+  set up to look the way the site would on <strong>Thursday at 7:30PM in week
+  3</strong>: weeks 1 and 2 are final, week 3 is open for picks, and the
+  Thursday night game kicks off in half an hour.</p>
+{% endset %}
+
+<div class="modal fade" id="siteNoticeModal" tabindex="-1" aria-labelledby="siteNoticeLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="siteNoticeLabel"><span class="pool-icon">📢</span>Site Notice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">{{ site_notice }}</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-gridiron" data-bs-dismiss="modal">Got it</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="alert alert-info" role="alert">{{ site_notice }}</div>
+  </div>
+</div>
+{% endif %}
+
 <div class="row justify-content-center">
   <div class="col-md-5">
     <h2 class="mb-4 text-center"><span class="pool-icon">🏈</span>Login</h2>
@@ -21,4 +71,16 @@
     </form>
   </div>
 </div>
+
+{% if not current_user.is_authenticated %}
+<script>
+  // base.html can render its own popup (#popupAnnouncementModal). Two modals
+  // opening at once fight over the backdrop, so stand down if that one exists.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (document.getElementById('popupAnnouncementModal')) return;
+    var el = document.getElementById('siteNoticeModal');
+    if (el && window.bootstrap) new bootstrap.Modal(el).show();
+  });
+</script>
+{% endif %}
 {% endblock %}

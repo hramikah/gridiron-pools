@@ -621,3 +621,200 @@ table.standings thead th,
 .locked-pick .locked-team {
   margin-bottom: .15rem;
 }
+
+
+/* ==========================================================================
+   PHONE LAYOUT  (<= 767.98px)
+   Added 2026-08-24. Desktop is untouched: every rule below lives inside the
+   media query.
+
+   The problem this solves: the pick tables are three columns wide (game,
+   spread, total). On a 390px phone that table is ~490px, so the right-hand
+   options were cut off at the screen edge -- on the Gridiron page the whole
+   Total Pick column was unreachable. Rather than ask a player to scroll
+   sideways to find half their choices, each row becomes a self-contained
+   card: matchup on top, then the option buttons full width beneath it.
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+
+  /* --- Pick tables become stacked cards ---------------------------------- */
+
+  .pick-table,
+  .pick-table tbody,
+  .pick-table tr,
+  .pick-table td {
+    display: block;
+    width: 100%;
+  }
+
+  /* Column headers mean nothing once the row is a card. */
+  .pick-table thead {
+    display: none;
+  }
+
+  .pick-table tbody tr {
+    border: 1px solid rgba(0, 0, 0, .12);
+    border-radius: .65rem;
+    background: #fff;
+    padding: .7rem .75rem .8rem;
+    margin-bottom: .7rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+  }
+
+  /* Hover tinting is a mouse idea; on a phone it sticks after a tap. */
+  .pick-table tbody tr:hover {
+    background-color: #fff;
+  }
+
+  .pick-table td {
+    border: 0;
+    padding: 0;
+  }
+
+  /* Space between the matchup block and the buttons, and between the
+     spread row and the total row. */
+  .pick-table td + td {
+    margin-top: .55rem;
+  }
+
+  /* This was holding the game column open at 11rem inside the old table. */
+  .pick-table td:first-child,
+  .pick-table th:first-child {
+    min-width: 0;
+  }
+
+  /* The sticky game column only made sense while the table scrolled
+     sideways. There is no sideways any more. */
+  .table-pick-sticky th:first-child,
+  .table-pick-sticky td:first-child {
+    position: static;
+    box-shadow: none;
+  }
+
+  /* The wrapper no longer has anything to scroll; letting it stay a scroll
+     container clips the card shadows. */
+  .table-responsive:has(.pick-table) {
+    overflow: visible;
+  }
+
+  /* --- Option buttons big enough to hit --------------------------------- */
+
+  .pick-choice-group {
+    gap: .5rem;
+  }
+
+  .pick-choice-group > .pick-option,
+  .pick-option {
+    min-height: 48px;            /* Apple and Google both ask for >=44px */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: .95rem;
+    padding: .5rem .4rem;
+  }
+
+  .pick-table .matchup {
+    font-size: 1.1rem;
+  }
+
+  /* --- Standings and other wide tables ---------------------------------- */
+
+  /* Several standings tables have no .table-responsive wrapper, so the page
+     itself was widening and the phone zoomed the whole thing out. Making the
+     table its own scroll container fixes it without touching the markup. */
+  table.standings,
+  .table-scroll-x {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Keep rank and name visible while the week columns scroll past them.
+     Most standings tables are "# | Player | ...", so both are pinned; the
+     one table that leads with Player carries .standings-name-first and
+     pins a single column instead. */
+  table.standings th:first-child,
+  table.standings td:first-child,
+  table.standings th:nth-child(2),
+  table.standings td:nth-child(2) {
+    position: sticky;
+    background: #fff;
+    z-index: 2;
+  }
+
+  table.standings th:first-child,
+  table.standings td:first-child {
+    left: 0;
+    width: 2.4rem;
+    min-width: 2.4rem;
+    padding-left: .4rem;
+    padding-right: .4rem;
+  }
+
+  table.standings th:nth-child(2),
+  table.standings td:nth-child(2) {
+    left: 2.4rem;
+    box-shadow: 2px 0 3px -2px rgba(0, 0, 0, .18);
+  }
+
+  /* Leads with Player -- pin that one column and nothing else. */
+  table.standings.standings-name-first th:nth-child(2),
+  table.standings.standings-name-first td:nth-child(2) {
+    position: static;
+    box-shadow: none;
+  }
+  table.standings.standings-name-first th:first-child,
+  table.standings.standings-name-first td:first-child {
+    width: auto;
+    min-width: 0;
+    box-shadow: 2px 0 3px -2px rgba(0, 0, 0, .18);
+  }
+
+  table.standings thead th:first-child,
+  table.standings thead th:nth-child(2) {
+    background: var(--field-green-dark, #14532d);
+  }
+
+  /* Striped rows leave the pinned cells transparent otherwise, so scrolled
+     content shows through them. */
+  table.standings tbody tr:nth-of-type(odd) > td:first-child,
+  table.standings tbody tr:nth-of-type(odd) > td:nth-child(2) {
+    background: #f2f2f2;
+  }
+
+  /* --- Touch targets and form fields ------------------------------------ */
+
+  /* iOS silently zooms the page in when a focused field is under 16px. */
+  .form-control,
+  .form-select,
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .navbar-nav .nav-link,
+  .dropdown-item {
+    padding-top: .6rem;
+    padding-bottom: .6rem;
+  }
+
+  .btn {
+    min-height: 40px;
+  }
+
+  .btn-sm {
+    min-height: 40px;
+  }
+
+  /* Nothing on a phone should push the page sideways. */
+  body {
+    overflow-x: hidden;
+  }
+}

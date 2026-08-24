@@ -189,7 +189,7 @@
     </table>
     <h5 class="mt-4">Week by week</h5>
     <div class="table-responsive mb-4">
-    <table class="table table-striped standings bg-white">
+    <table class="table table-striped standings bg-white standings-name-first">
       <thead>
         <tr>
           <th>Player</th>
@@ -248,7 +248,7 @@
     </table>
     <h5 class="mt-4">Week by week</h5>
     <div class="table-responsive mb-4">
-    <table class="table table-striped standings bg-white">
+    <table class="table table-striped standings bg-white standings-name-first">
       <thead>
         <tr>
           <th>Player</th>
@@ -295,7 +295,7 @@
 
     {% if history_data %}
     <h5><span class="pool-icon">💀</span>Drop Dead Pool &mdash; through Week {{ history_week }}</h5>
-    <table class="table table-striped standings bg-white mb-4">
+    <table class="table table-striped standings bg-white mb-4 standings-name-first">
       <thead><tr><th>Player</th><th>Status</th><th>Week {{ history_week }} Pick</th></tr></thead>
       <tbody>
       {% for row in history_data.dropdead %}
@@ -391,7 +391,7 @@
     </form>
 
     {% if player_history %}
-    <table class="table table-striped standings bg-white">
+    <table class="table table-striped standings bg-white standings-name-first">
       <thead><tr><th>Pool</th><th>Wk</th><th>Team / Selection</th><th>Result</th></tr></thead>
       <tbody>
       {% for row in player_history %}

@@ -818,3 +818,32 @@ table.standings thead th,
     overflow-x: hidden;
   }
 }
+
+
+/* Thin progress bar shown while a page navigation is in flight. See the
+   script at the foot of base.html -- it starts on link taps and form
+   submits, so a slow page (Master Standings, mainly) acknowledges the tap
+   immediately instead of looking dead. */
+#nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  z-index: 2000;
+  background: linear-gradient(90deg, var(--pick-accent, #e06700), #ffb703);
+  box-shadow: 0 0 8px rgba(224, 103, 0, .6);
+  opacity: 0;
+  transition: width .2s ease-out, opacity .2s ease-out;
+  pointer-events: none;
+}
+
+#nav-progress.is-loading {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #nav-progress {
+    transition: none;
+  }
+}

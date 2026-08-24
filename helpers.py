@@ -370,7 +370,38 @@ def send_async(fn, *args):
     threading.Thread(target=run, daemon=True).start()
 
 
+def _read_cache():
+    """Per-request memo, used only on read-only (GET/HEAD) requests.
+
+    Standings asks the same handful of questions thousands of times while
+    building the page -- the same entry's first missed week, the same week's
+    game list, the same Setting row. Nothing writes to the database during a
+    GET, so answering from a dict that lives for one request is safe and
+    cannot go stale. Outside a request (scripts, tests, the seeders) this
+    returns None and every caller falls through to a real query, so behaviour
+    there is exactly what it was.
+    """
+    try:
+        from flask import g, has_request_context, request
+        if not has_request_context() or request.method not in ("GET", "HEAD"):
+            return None
+        if not hasattr(g, "_gp_read_cache"):
+            g._gp_read_cache = {}
+        return g._gp_read_cache
+    except Exception:
+        return None
+
+
 def get_setting(key, default=None):
+    cache = _read_cache()
+    if cache is not None:
+        ck = ("setting", key)
+        if ck in cache:
+            row = cache[ck]
+            return row.value if row else default
+        row = db.session.get(Setting, key)
+        cache[ck] = row
+        return row.value if row else default
     row = db.session.get(Setting, key)
     return row.value if row else default
 

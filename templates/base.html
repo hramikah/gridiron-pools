@@ -200,5 +200,62 @@
       });
     })();
   </script>
+  <!-- Page-load feedback. Standings is the heavy page (150 players x every
+       unlocked week); on a phone over cellular the gap between tapping and
+       the page arriving is long enough to look broken. This bar starts the
+       moment a link is tapped, so the tap is visibly acknowledged. -->
+  <div id="nav-progress" aria-hidden="true"></div>
+  <script>
+  (function () {
+    var bar = document.getElementById('nav-progress');
+    if (!bar) return;
+    var timer = null;
+
+    function start() {
+      if (bar.classList.contains('is-loading')) return;
+      bar.classList.add('is-loading');
+      bar.style.width = '0%';
+      // Crawl toward 90% -- we cannot know real progress for a page
+      // navigation, only that it is still happening.
+      var pct = 0;
+      timer = setInterval(function () {
+        pct += (90 - pct) * 0.12;
+        bar.style.width = pct.toFixed(1) + '%';
+      }, 120);
+      requestAnimationFrame(function () { bar.style.width = '15%'; });
+    }
+
+    function stop() {
+      if (timer) { clearInterval(timer); timer = null; }
+      bar.classList.remove('is-loading');
+      bar.style.width = '0%';
+    }
+
+    document.addEventListener('click', function (e) {
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest ? e.target.closest('a') : null;
+      if (!a || !a.href) return;
+      if (a.target && a.target !== '_self') return;
+      if (a.hasAttribute('download') || a.dataset.bsToggle) return;
+      var url;
+      try { url = new URL(a.href, location.href); } catch (err) { return; }
+      if (url.origin !== location.origin) return;
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+      // Same page, different anchor -- no navigation to wait for.
+      if (url.pathname === location.pathname && url.search === location.search
+          && url.hash) return;
+      start();
+    }, true);
+
+    document.addEventListener('submit', function (e) {
+      if (!e.defaultPrevented) start();
+    }, true);
+
+    // Coming back via the bfcache re-shows the old page with the bar mid-crawl.
+    window.addEventListener('pageshow', stop);
+    window.addEventListener('pagehide', stop);
+  })();
+  </script>
 </body>
 </html>

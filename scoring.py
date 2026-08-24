@@ -2,6 +2,7 @@
 actions and any future batch/cron processing can share the same code."""
 
 from helpers import (
+    _read_cache,
     deadline_passed,
     gridiron_buyback_closed,
     gridiron_buyback_deadline,
@@ -335,6 +336,11 @@ def gridiron_first_miss_week(entry):
     fee: an entry that paid to erase a missed week 1 still has its one makeup
     allowance banked for the first week it misses afterwards.
     """
+    cache = _read_cache()
+    ck = ("first_miss", entry.id)
+    if cache is not None and ck in cache:
+        return cache[ck]
+
     first = (
         GridironMiss.query.join(Week, GridironMiss.week_id == Week.id)
         .filter(
@@ -346,7 +352,10 @@ def gridiron_first_miss_week(entry):
         .order_by(Week.number.asc())
         .first()
     )
-    return first.week.number if first else None
+    result = first.week.number if first else None
+    if cache is not None:
+        cache[ck] = result
+    return result
 
 
 def gridiron_makeup_week(entry):
@@ -649,8 +658,15 @@ def _gridiron_week_empty_losses(entry, week):
         return 0
     if not gridiron_week_counts(entry, week.number):
         return 0
-    games = Game.query.filter_by(week_id=week.id, pool="gridiron").all()
-    available = sum(1 + (1 if g.over_under is not None else 0) for g in games)
+    cache = _read_cache()
+    gk = ("wk_available", week.id)
+    if cache is not None and gk in cache:
+        available = cache[gk]
+    else:
+        games = Game.query.filter_by(week_id=week.id, pool="gridiron").all()
+        available = sum(1 + (1 if g.over_under is not None else 0) for g in games)
+        if cache is not None:
+            cache[gk] = available
     if available == 0:
         return 0
     made = sum(1 for p in entry.picks if p.week_id == week.id and p.pool == "gridiron")
@@ -671,10 +687,19 @@ def _gridiron_week_empty_losses(entry, week):
 
 def _gridiron_empty_losses(entry, through_week=None):
     """Total empty-slot losses across the entry's locked Gridiron weeks."""
-    q = Week.query.filter_by(season_year=entry.season_year, pool="gridiron")
+    cache = _read_cache()
+    ck = ("gridiron_weeks", entry.season_year)
+    if cache is not None and ck in cache:
+        weeks = cache[ck]
+    else:
+        weeks = Week.query.filter_by(
+            season_year=entry.season_year, pool="gridiron"
+        ).all()
+        if cache is not None:
+            cache[ck] = weeks
     if through_week is not None:
-        q = q.filter(Week.number <= through_week)
-    return sum(_gridiron_week_empty_losses(entry, w) for w in q.all())
+        weeks = [w for w in weeks if w.number <= through_week]
+    return sum(_gridiron_week_empty_losses(entry, w) for w in weeks)
 
 
 def _assign_ranks(items, key_func):

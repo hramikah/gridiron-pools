@@ -32,7 +32,7 @@ def index():
     if current_user.is_authenticated:
         for e in Entry.query.filter_by(user_id=current_user.id, season_year=season_year).all():
             my_entries.setdefault(e.pool, []).append(e)
-    return render_template("home.html", my_entries=my_entries)
+    return render_template("home.html", my_entries=my_entries, pool_count=len(POOLS))
 
 
 @bp.route("/help/<pool>")

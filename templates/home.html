@@ -64,7 +64,7 @@
   {% endif %}
 </div>
 
-{% if current_user.is_authenticated and my_entries %}
+{% if current_user.is_authenticated and my_entries and my_entries|length < pool_count %}
 <p class="text-muted mt-3">Want to join another pool? <a href="{{ url_for('auth.choose_pools') }}">Choose more pools</a>.</p>
 {% endif %}
 

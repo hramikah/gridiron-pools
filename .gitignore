@@ -8,3 +8,5 @@ logs/
 # Local test site: throwaway database, never committed.
 testbed/
 *.bak*
+.deploy/
+instance/nightly/

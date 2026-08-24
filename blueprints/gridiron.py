@@ -126,7 +126,18 @@ def pick():
     week = get_current_week(season_year, "gridiron")
     ensure_missed_processed(week)
     locked = deadline_passed(week)
-    all_games = Game.query.filter_by(week_id=week.id, pool="gridiron").all() if week else []
+    all_games = (
+        Game.query.filter_by(week_id=week.id, pool="gridiron")
+        .order_by(Game.kickoff.asc().nullslast())
+        .all()
+        if week
+        else []
+    )
+    # `games` is the still-pickable subset, used for the pick limit and for
+    # validating a submission. The page itself renders every game -- a game
+    # past its 1-hour cutoff is shown disabled rather than removed, matching
+    # Loser and Drop Dead. Silently dropping it left a player unable to tell
+    # a missed game from one that was never offered.
     games = [g for g in all_games if game_pickable(g)]
 
     if request.method == "POST":

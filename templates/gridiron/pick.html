@@ -134,11 +134,17 @@
         {% elif not games %}
         <p class="text-muted mb-0">No more games are available to pick right now &mdash; picks close 1 hour before each game's kickoff.</p>
         {% endif %}
-        {% set display_games = all_games if locked else games %}
+        {# Every game is rendered. One past its own 1-hour cutoff comes
+           through disabled with a note, the same as Loser and Drop Dead --
+           it used to vanish from the page entirely. #}
+        {% set display_games = all_games %}
     {% macro game_row(g, my_picks, locked, show_total, my_pick_ids) %}
           {% set spread_locked = my_picks.get((g.id,'spread')) %}
           {% set total_locked = my_picks.get((g.id,'total')) %}
           {% set removable = not locked and g.id in pickable_game_ids %}
+          {# This game's own cutoff, independent of the week's deadline. #}
+          {% set too_soon = not locked and g.id not in pickable_game_ids %}
+          {% set g_locked = locked or too_soon %}
           {# Always show the game; picked markets render as "Locked" rather than
              hiding the whole row (which made fully-picked games vanish). #}
           <tr>
@@ -152,6 +158,7 @@
                 {% if g.over_under %} &middot; O/U {{ g.over_under }}{% endif %}
                 {% if g.is_mnf %} <span class="badge bg-dark">MNF</span>{% endif %}
               </div>
+              {% if too_soon %}<div class="pick-note">Locked - Kickoff too soon.</div>{% endif %}
             </td>
             <td>
               {% if spread_locked %}
@@ -161,18 +168,18 @@
                 </div>
               {% else %}
               {% set away_btn %}
-                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if locked %}disabled{% endif %}>
+                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if g_locked %}disabled{% endif %}>
                 {% set ts = team_styles.get(g.away_team) %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_away" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
               {% set home_btn %}
-                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if locked %}disabled{% endif %}>
+                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if g_locked %}disabled{% endif %}>
                 {% set ts = team_styles.get(g.home_team) %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_home" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
               <div class="pick-choice-group" role="group">
                 {# favorite on the left, underdog on the right (plain away/home order for pick'em) #}
                 {% if g.favorite == 'home' %}{{ home_btn }}{{ away_btn }}{% else %}{{ away_btn }}{{ home_btn }}{% endif %}
 
-                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_none" value="" autocomplete="off" checked {% if locked %}disabled{% endif %}>
+                <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_none" value="" autocomplete="off" checked {% if g_locked %}disabled{% endif %}>
                 <label class="btn btn-outline-secondary btn-sm d-none" for="sp_{{ g.id }}_none"></label>
               </div>
               {% endif %}
@@ -187,13 +194,13 @@
                   </div>
                 {% else %}
                 <div class="pick-choice-group" role="group">
-                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_over" value="over" autocomplete="off" {% if locked %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_over" value="over" autocomplete="off" {% if g_locked %}disabled{% endif %}>
                   <label class="pick-option" for="ou_{{ g.id }}_over">Over {{ g.over_under }}</label>
 
-                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_under" value="under" autocomplete="off" {% if locked %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_under" value="under" autocomplete="off" {% if g_locked %}disabled{% endif %}>
                   <label class="pick-option" for="ou_{{ g.id }}_under">Under {{ g.over_under }}</label>
 
-                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_none" value="" autocomplete="off" checked {% if locked %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_none" value="" autocomplete="off" checked {% if g_locked %}disabled{% endif %}>
                   <label class="btn btn-outline-secondary btn-sm d-none" for="ou_{{ g.id }}_none"></label>
                 </div>
                 {% endif %}

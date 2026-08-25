@@ -1,5 +1,6 @@
 #!/bin/bash
-# Commit the 2026-08-23 work and push it to GitHub.
+# Commit whatever is currently changed and push it to GitHub.
+# The commit message is read from .commit-message.txt next to this file.
 # Skips the *.bak* safety copies. Double-click to run.
 cd "$(dirname "$0")" || exit 1
 echo "=== Committing Gridiron work ==="
@@ -25,11 +26,17 @@ echo "About to commit:"
 git diff --cached --name-status
 echo
 
-git commit -m "08-23 session: Thursday demo seeder with college games, site-wide
-simulation banner, rewritten login notice, buy-back billing on the Payments
-page, Change-pick modal scroll fix, 'Locked - Kickoff too soon.' wording,
-restart-site.command case fix, demo/real database switch scripts,
-publishweek pause and resume launchers. Ignore *.bak* safety copies." || {
+# The message lives in .commit-message.txt so each session commits something
+# that actually describes its work. Three commits in a row once shared one
+# stale hard-coded message because it did not.
+MSG=".commit-message.txt"
+if [ ! -s "$MSG" ]; then
+  echo "No .commit-message.txt found -- write one first, or tell Claude."
+  read -n1 -s -p "Press any key..."; echo; exit 1
+fi
+echo "Commit message:"; echo; sed 's/^/    /' "$MSG"; echo
+
+git commit -F "$MSG" || {
   echo "COMMIT FAILED."; read -n1 -s -p "Press any key..."; echo; exit 1; }
 
 echo

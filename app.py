@@ -326,6 +326,14 @@ def run_requested_testbed_seed(app):
 app = create_app()
 run_requested_testbed_seed(app)
 
+# On a testbed database only, recompile templates whenever they change on disk
+# so an edit shows up on the next browser refresh instead of needing the server
+# restarted. The live site never takes this branch -- its database path has no
+# "testbed" in it -- so it keeps the compiled-once behaviour and the speed.
+if TESTBED_MARKER in os.environ.get("GRIDIRON_DATABASE_URI", "").lower():
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+    app.jinja_env.auto_reload = True
+
 if __name__ == "__main__":
     # debug=False: the Werkzeug interactive debugger allows arbitrary code
     # execution if reachable by anyone else on the network -- never enable

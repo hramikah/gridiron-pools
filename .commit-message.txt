@@ -1,0 +1,18 @@
+Gridiron picks: working remove-pick X, and show the spread on locked picks
+
+The red X inside a game row emitted its own <form> nested inside the pick
+form, which every browser silently drops -- the button was orphaned and
+clicking it did nothing. The forms now render after the pick form closes and
+the buttons reach them with the HTML form="rmpick-<id>" attribute.
+
+Locked picks now read "Cowboys -1.5" instead of just "Cowboys", in both the
+game table and the "Locked in so far" list, from one shared spread_label
+macro so the two cannot drift apart. Sign is from the picked team's point of
+view; a pick'em game shows PK.
+
+app.py turns on template auto-reload when the database path is a testbed one,
+so local template edits appear on refresh. The live site is unaffected.
+
+Adds deploy-to-droplet.command: pull and restart the live droplet. It touches
+no database. (restart-site.command restarts the retired Mac server and no
+longer affects the live site.)

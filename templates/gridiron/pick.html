@@ -35,11 +35,32 @@
     {% set my_picks = picks_this_week.get(entry.id, {}) %}
     {% set my_pick_ids = picks_ids_this_week.get(entry.id, {}) %}
 
+    {# The X buttons inside the pick table used to carry their own <form>.
+       That form sat inside the main pick <form>, and a nested form is
+       silently dropped by every browser -- the button survived, orphaned,
+       and clicking it did nothing. The buttons now use the HTML `form`
+       attribute to point at a real form rendered outside the pick form
+       (see remove_pick_forms below), which works from anywhere on the page.
+       base.html stamps the csrf_token into every form on load. #}
     {% macro remove_pick_btn(pick_id) %}
-      <form method="post" action="{{ url_for('gridiron.remove_pick', pick_id=pick_id) }}" class="d-inline ms-1"
-            onsubmit="return confirm('Remove this pick? You can make a new selection afterward.');">
-        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Remove pick" aria-label="Remove pick">&times;</button>
-      </form>
+      <button type="submit" form="rmpick-{{ pick_id }}"
+              class="btn btn-sm btn-outline-danger py-0 px-1 ms-1"
+              title="Remove pick" aria-label="Remove pick">&times;</button>
+    {% endmacro %}
+
+    {# One place that renders "Cowboys -1.5" for a picked side, so the
+       summary list and the locked badge in the table always agree. The sign
+       is from the picked team's point of view, matching the pick buttons. #}
+    {% macro spread_label(g, side) %}{{ g.home_team if side == 'home' else g.away_team }}{% if not g.favorite %} PK{% elif g.favorite == side %} -{{ g.spread }}{% else %} +{{ g.spread }}{% endif %}{% endmacro %}
+
+    {% macro remove_pick_forms(pick_ids) %}
+      {% for pid in pick_ids %}
+        {% if pid %}
+        <form method="post" id="rmpick-{{ pid }}" class="d-none"
+              action="{{ url_for('gridiron.remove_pick', pick_id=pid) }}"
+              onsubmit="return confirm('Remove this pick? You can make a new selection afterward.');"></form>
+        {% endif %}
+      {% endfor %}
     {% endmacro %}
 
     {% if not entry.is_active %}
@@ -97,7 +118,7 @@
             {% set result = my_results.get((g.id,'spread')) %}
             <li class="mb-1 d-block text-start">
               <span class="badge {% if complete and result == 'win' %}pick-win{% elif complete and result == 'loss' %}pick-loss{% elif complete and result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
-                {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ g.home_team if my_picks[(g.id,'spread')] == 'home' else g.away_team }}</strong> (spread)
+                {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ spread_label(g, my_picks[(g.id,'spread')]) }}</strong>
               </span>
               {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'spread'))) }}{% endif %}
             </li>
@@ -163,7 +184,7 @@
             <td>
               {% if spread_locked %}
                 <div class="d-flex justify-content-center align-items-center gap-1 flex-wrap">
-                  <span class="badge bg-secondary">Locked: {{ g.home_team if spread_locked == 'home' else g.away_team }}</span>
+                  <span class="badge bg-secondary">Locked: {{ spread_label(g, spread_locked) }}</span>
                   {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'spread'))) }}{% endif %}
                 </div>
               {% else %}
@@ -261,6 +282,8 @@
       <span class="ms-2 gridiron-pick-count text-muted"></span>
       {% endif %}
     </form>
+    {# Outside the pick form on purpose -- see remove_pick_btn above. #}
+    {{ remove_pick_forms(my_pick_ids.values()) }}
     {% endif %}
       {% endif %}
     {% endif %}

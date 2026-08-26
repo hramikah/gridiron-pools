@@ -1234,20 +1234,62 @@ def invite():
             flash("No valid email addresses found.", "error")
             return redirect(url_for("admin.invite"))
 
+        # An address that already has an account is not invited again. A second
+        # invite would be a second registration link, and registering through it
+        # builds a WHOLE SECOND ACCOUNT on that address rather than signing the
+        # person in -- someone re-invited by mistake ends up with two teams they
+        # never asked for and two lines in the standings. Extra teams are what
+        # "Add Another Account" is for, from inside the account.
+        registered = {
+            (row[0] or "").strip().lower()
+            for row in db.session.query(User.email).all()
+        }
+        already = sorted(e for e in valid if e.lower() in registered)
+        valid = [e for e in valid if e.lower() not in registered]
+
+        # A live unused invite is reused rather than replaced, so a resend
+        # delivers the SAME link. Minting a second token left the first one
+        # working too, and every one of them was another way into a duplicate
+        # account.
+        existing = {
+            (row.email or "").strip().lower(): row
+            for row in Invite.query.filter(Invite.used_at.is_(None)).all()
+        }
+
+        if not valid:
+            msg = "Nobody new to invite."
+            if already:
+                msg += f" Already registered: {', '.join(already)}."
+            if invalid:
+                msg += f" Not a valid address: {', '.join(invalid)}."
+            flash(msg, "error")
+            return redirect(url_for("admin.invite"))
+
         site_url = get_setting("site_url", DEFAULT_SITE_URL) or DEFAULT_SITE_URL
         email_links = []
+        resent = []
         for email in valid:
-            invite_row = Invite(email=email, token=secrets.token_urlsafe(32))
-            db.session.add(invite_row)
-            db.session.flush()
+            invite_row = existing.get(email.lower())
+            if invite_row is not None:
+                resent.append(email)
+            else:
+                invite_row = Invite(email=email, token=secrets.token_urlsafe(32))
+                db.session.add(invite_row)
+                db.session.flush()
             email_links.append((email, f"{site_url}{url_for('auth.register', token=invite_row.token)}"))
         db.session.commit()
         send_async(send_invite_link_emails, email_links)
 
         msg = f"Invite sent to {len(valid)} address{'es' if len(valid) != 1 else ''}."
+        if resent:
+            msg += (f" {len(resent)} already had an unused invite, so the same link "
+                    f"was sent again: {', '.join(resent)}.")
+        if already:
+            msg += (f" Skipped {len(already)} that already " 
+                    f"{'has' if len(already) == 1 else 'have'} an account: {', '.join(already)}.")
         if invalid:
-            msg += f" Skipped {len(invalid)} invalid: {', '.join(invalid)}"
-        flash(msg, "success" if not invalid else "error")
+            msg += f" Skipped {len(invalid)} invalid: {', '.join(invalid)}."
+        flash(msg, "success" if not (invalid or already) else "error")
         return redirect(url_for("admin.invite"))
 
     return render_template("admin/invite.html")

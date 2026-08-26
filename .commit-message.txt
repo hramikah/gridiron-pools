@@ -493,3 +493,28 @@ set to 1 stayed at 1 across a restart.
 
 Also verified through the real route: five accounts created on one address, the
 sixth refused with the existing "reach out to the admins" 403.
+
+Invites: never re-invite someone who already has an account.
+
+The route minted a fresh Invite row and a fresh token on every submission,
+with no check for an existing account or an existing invite. Invite the same
+address three times and three links arrived, ALL of them live -- and
+registering through a second one builds a whole second account on that address
+rather than signing the person in. A member re-invited by mistake would have
+ended up with two teams they never asked for and two lines in the standings.
+Registration also does not enforce the per-email team cap that Add Another
+Account does, so duplicate invites were a way around it.
+
+- An address that already has an account is skipped, and named in the flash.
+- An address with a live unused invite gets that SAME link again rather than a
+  second token, so a resend is idempotent -- no new row, no extra way in.
+- The flash now separates sent / resent / already registered / invalid instead
+  of claiming everything was sent.
+- The invite page says all this, and points members wanting a second team at
+  Add Another Account.
+
+Verified: two new addresses create two rows; the same pair again creates none
+and resends the same links; an address with an account is refused; a mixed
+batch sends the one new address and names the other two; the reused token still
+registers, is then marked used, cannot be used twice, and that address can no
+longer be invited.

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Change Team Name - Gridiron Pools{% endblock %}
+{% block content %}
+{# Renaming a team. Free until the Week 1 deadline, fixed after it: past that
+   point the name is on a bill, on the standings and in the message board, so a
+   change has to go through a commissioner. #}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h2 class="mb-4 text-center"><span class="pool-icon">🏈</span>Change your team name</h2>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <p class="text-muted mb-1">Your team is currently called</p>
+        <p class="h4 mb-0">{{ current_user.username }}</p>
+      </div>
+    </div>
+
+    {% if open_now %}
+    <p class="text-muted">This is the name everyone else sees &mdash; on the
+    standings, on the weekly picks page and on the message board. It is also
+    what you sign in with.</p>
+
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">New team name</label>
+        <input type="text" class="form-control" name="new_name" maxlength="50"
+               value="{{ current_user.username }}" required autofocus>
+        <div class="form-text">Up to 50 characters. It has to be different from every other team.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Your password</label>
+        <input type="password" class="form-control" name="password" required autocomplete="current-password">
+        <div class="form-text">Confirms it is really you making the change.</div>
+      </div>
+      <button type="submit" class="btn btn-gridiron">Change team name</button>
+      <a href="{{ url_for('main.index') }}" class="btn btn-link">Cancel</a>
+    </form>
+
+    <div class="alert alert-warning mt-4">
+      <strong>Names lock at the Week 1 deadline{% if deadline %} &mdash;
+      {{ deadline.strftime('%A %b %d, %I:%M %p') }} Eastern{% endif %}.</strong>
+      After that your entries are billed and scored under this name, so it stays
+      put for the season. Fix any typo before then.
+    </div>
+
+    <p class="text-muted small">Running more than one team? Each has its own
+    name and its own password &mdash; switch to the other one from the menu at
+    the top right and change it there.</p>
+
+    {% else %}
+    <div class="alert alert-secondary">
+      🔒 <strong>Team names are locked for the season.</strong>
+      They were editable until the Week 1 deadline{% if deadline %}
+      ({{ deadline.strftime('%A %b %d, %Y') }}){% endif %}; after that every
+      entry is billed and scored under its name, so changing one is a
+      commissioner's job. Ask on the
+      <a href="{{ url_for('board.index') }}">Message Board</a> if yours is wrong.
+    </div>
+    <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark">Back to my pools</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

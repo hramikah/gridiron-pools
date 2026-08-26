@@ -540,3 +540,29 @@ Verified on a copy: two live invites for one address -- the first registers,
 the second is refused while signed in and creates nothing; an invite for an
 address that already has an account is refused signed out and offers sign-in
 and reset; a fresh address still registers normally.
+
+Team names: players can fix their own, until the Week 1 deadline.
+
+Several people typed the wrong name at registration and there was no way to
+change it short of an admin editing the database.
+
+- "Change Name" in the Hi menu -> /auth/change-name. Shows the current name, a
+  box for the new one, and asks for the password: the name is what everyone
+  else sees on the standings, so a borrowed browser should not be able to
+  change it.
+- Rejects an empty name, one over 50 characters, and one another team already
+  uses (case-insensitive, excluding this account -- so "hunter" can fix itself
+  to "Hunter"). Every change is written to the player activity log with the old
+  and new name.
+- LOCKS at the Week 1 deadline, in the page and in the route: after that every
+  entry is billed and scored under its name, so a change is a commissioner's
+  job and the page says to ask on the message board.
+
+Wording: "Username" is now "Team Name" on register, login ("Team name or
+email"), forgot-password and add-account, and in the messages those pages show
+-- "Another team is already using that name", "Invalid team name/email or
+password", "There is no team with that name or email address".
+
+Verified: wrong password, taken name and empty name are all refused; a good one
+saves, logs, and shows under the new name; and with the Week 1 deadline moved
+into the past the form disappears and a direct POST is refused.

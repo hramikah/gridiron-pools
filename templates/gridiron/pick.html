@@ -245,11 +245,18 @@
       <span class="ms-2 gridiron-pick-count text-muted"></span>
       {% endif %}
     </form>
-    {# Outside the pick form on purpose -- see remove_pick_btn above. #}
-    {{ remove_pick_forms(my_pick_ids.values()) }}
     {% endif %}
       {% endif %}
     {% endif %}
+    {# Outside the pick form on purpose -- see remove_pick_btn above -- and
+       outside every branch above it. The pick table is not rendered once an
+       entry has used all its picks ("All 5 picks are locked in"), but the
+       "Locked in so far" list at the top still shows its X buttons. When these
+       forms lived inside that branch, those buttons pointed at a form that was
+       not on the page, so clicking one did nothing at all -- no confirm, no
+       request -- for exactly the players trying to swap a pick. Render them
+       once per entry, always. #}
+    {% if my_pick_ids %}{{ remove_pick_forms(my_pick_ids.values()) }}{% endif %}
   </div>
 </div>
 {% endfor %}

@@ -5,6 +5,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 
 from helpers import (
     any_pool_signups_open,
+    pool_signup_deadline,
     clear_login_attempts,
     get_setting,
     log_activity,
@@ -81,7 +82,7 @@ def register():
             flash("All fields are required.", "error")
             return render_template("auth/register.html", invite=invite_row)
         if User.query.filter(db.func.lower(User.username) == username.lower()).first():
-            flash("That username is taken.", "error")
+            flash("Another team is already using that name. Pick a different one.", "error")
             return render_template("auth/register.html", invite=invite_row)
         user = User(username=username, email=email)
         user.set_password(password)
@@ -135,7 +136,7 @@ def login():
         record_failed_login()
         log_activity("login_failed", f"Failed sign-in attempt for '{identifier}'",
                      user=user if user else None)
-        flash("Invalid username/email or password.", "error")
+        flash("Invalid team name/email or password.", "error")
     return render_template("auth/login.html")
 
 
@@ -172,7 +173,7 @@ def forgot_password():
         # the form now confirms whether an address is registered here.
         if not users:
             flash(
-                "There is no account with that username or email address. "
+                "There is no team with that name or email address. "
                 "Check the spelling, or ask a commissioner to send you an invite.",
                 "error",
             )
@@ -257,13 +258,13 @@ def add_account():
     if request.method == "POST":
         username = request.form["username"].strip()
         if not username:
-            flash("Pick a username for the new account.", "error")
+            flash("Pick a team name for the new account.", "error")
             return render_template("auth/add_account.html", email=email)
         if username.lower() == current_user.username.lower():
-            flash("The new account needs a different username than this one.", "error")
+            flash("The new team needs a different name from this one.", "error")
             return render_template("auth/add_account.html", email=email)
         if User.query.filter(db.func.lower(User.username) == username.lower()).first():
-            flash("That username is taken.", "error")
+            flash("Another team is already using that name. Pick a different one.", "error")
             return render_template("auth/add_account.html", email=email)
         user = User(username=username, email=email)
         # No password to choose: extra entries belong to the person already
@@ -324,6 +325,67 @@ def logout():
     session.clear()
     flash("Logged out.", "success")
     return redirect(url_for("main.index"))
+
+
+def _name_changes_open(season_year):
+    """Team names are editable until the Week 1 deadline, then fixed.
+
+    Once entries are locked the name is on a bill, on the standings and in the
+    message board, so a rename after that point has to go through a
+    commissioner. It uses the same cutoff as signups -- while any pool will
+    still take an entry, names are still free to change.
+    """
+    return any_pool_signups_open(season_year)
+
+
+@bp.route("/change-name", methods=["GET", "POST"])
+@login_required
+def change_name():
+    """Rename this team. Password required, because the name is what everyone
+    else sees on the standings and a borrowed browser should not be able to
+    change it."""
+    season_year = current_app.config["CURRENT_SEASON"]
+    deadline = pool_signup_deadline(season_year, "gridiron")
+    open_now = _name_changes_open(season_year)
+
+    if request.method == "POST":
+        if not open_now:
+            flash("Team names are locked for the season. Ask a commissioner on "
+                  "the message board if it needs changing.", "error")
+            return redirect(url_for("main.index"))
+
+        new_name = request.form.get("new_name", "").strip()
+        password = request.form.get("password", "")
+
+        if not current_user.check_password(password):
+            flash("That password is not right, so the name was not changed.", "error")
+            return render_template("auth/change_name.html", open_now=open_now, deadline=deadline)
+        if not new_name:
+            flash("Type the new team name.", "error")
+            return render_template("auth/change_name.html", open_now=open_now, deadline=deadline)
+        if len(new_name) > 50:
+            flash("That name is too long -- 50 characters at most.", "error")
+            return render_template("auth/change_name.html", open_now=open_now, deadline=deadline)
+        if new_name.lower() == current_user.username.lower() and new_name == current_user.username:
+            flash("That is already your team name.", "error")
+            return render_template("auth/change_name.html", open_now=open_now, deadline=deadline)
+        # Case-insensitive, and excluding this account -- so "hunter" can fix
+        # itself to "Hunter" without colliding with itself.
+        taken = User.query.filter(
+            db.func.lower(User.username) == new_name.lower(), User.id != current_user.id
+        ).first()
+        if taken:
+            flash("Another team is already using that name. Pick a different one.", "error")
+            return render_template("auth/change_name.html", open_now=open_now, deadline=deadline)
+
+        old_name = current_user.username
+        current_user.username = new_name
+        db.session.commit()
+        log_activity("name_change", f"Team name changed from '{old_name}' to '{new_name}'")
+        flash(f"Your team is now called {new_name}.", "success")
+        return redirect(url_for("main.index"))
+
+    return render_template("auth/change_name.html", open_now=open_now, deadline=deadline)
 
 
 @bp.route("/change-password", methods=["GET", "POST"])

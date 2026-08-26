@@ -115,7 +115,15 @@ def week_window(season_start, reference=None):
     return (number, *_window_for_thursday(week_thursday), False)
 
 
-def publish_week(app):
+def publish_week(app, reference=None):
+    """Publish the week that `reference` falls in (default: now).
+
+    The reference exists for one job: publishing a week a day early. The
+    window is Thursday-to-Wednesday, so running this on a Wednesday picks the
+    week that is about to END -- a week whose Saturday deadline has already
+    gone, which arrives locked. Passing tomorrow's date gets the week that is
+    about to start instead. The Thursday timer needs none of this.
+    """
     with app.app_context():
         api_key = get_setting("odds_api_key")
         season_start_str = get_setting("season_start_thursday")
@@ -127,7 +135,9 @@ def publish_week(app):
         season_start = datetime.fromisoformat(season_start_str).date()
         season_year = app.config["CURRENT_SEASON"]
 
-        number, window_start, window_end, pick_deadline, is_preseason = week_window(season_start)
+        number, window_start, window_end, pick_deadline, is_preseason = week_window(
+            season_start, reference=reference
+        )
 
         # Published lines (spreads/O-U) are Gridiron's; it's the only pool
         # with lines, so auto-publish targets the Gridiron week. Drop Dead and

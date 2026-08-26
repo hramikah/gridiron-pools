@@ -8,7 +8,9 @@
    redirects here. #}
 <div class="hero-band text-center">
   <div class="hero-football mb-2">🏈</div>
-  <h1 class="mb-2">Welcome to Gridiron Pools</h1>
+  {# Signed in, the greeting names the account -- which doubles as a check on
+     which team you are in, since picks save against whichever one that is. #}
+  <h1 class="mb-2">Welcome to Gridiron Pools{% if current_user.is_authenticated %}, {{ current_user.username }}!{% endif %}</h1>
   <p class="mb-0">Pick 'em pools for the {{ season_year }} NFL season. Join any or all three &mdash; each is its own entry.</p>
 </div>
 
@@ -28,7 +30,26 @@
 
         <div class="mt-auto">
           {% if joined %}
-            <div class="mb-2"><span class="badge badge-alive">&#10003; You're in</span></div>
+            {# "You're in", then where this entry stands. Drop Dead says alive
+               or out rather than a place: every surviving entry is joint first,
+               so a number would tell nobody anything. #}
+            <div class="mb-2">
+              <span class="badge badge-alive">&#10003; You're in</span>
+              {% for e in joined %}
+                {% set s = standing.get(e.id) %}
+                {% if s %}
+                  {% if s.place is defined %}
+                    <span class="badge bg-secondary">{{ ordinal(s.place) }} of {{ s.field }}</span>
+                  {% elif s.alive %}
+                    <span class="badge bg-secondary">Still alive &mdash; {{ s.left }} of {{ s.field }} left</span>
+                  {% elif s.buyback %}
+                    <span class="badge bg-danger">Eliminated: Buy back eligible</span>
+                  {% else %}
+                    <span class="badge bg-danger">Eliminated{% if s.eliminated_week %} &mdash; {{ week_label(s.eliminated_week) }}{% endif %}</span>
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+            </div>
             <a href="{{ url_for(pick_ep) }}" class="btn btn-{{ pool }} w-100">{{ pick_label }}</a>
           {% elif not current_user.is_authenticated %}
             <div class="fw-bold">${{ fees[pool] }} per entry</div>

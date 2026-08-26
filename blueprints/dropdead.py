@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, game_pickable, get_current_week, log_activity, pool_signup_deadline, pool_signups_open, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
 from models import DROPDEAD_BUYBACK_FEE, BuyBack, Entry, Game, Pick, Team, Week, db
-from scoring import dropdead_buyback_available, dropdead_eliminated_for_no_pick, ensure_missed_processed, standings_dropdead
+from scoring import dropdead_buyback_available, dropdead_eliminated_for_no_pick, process_due_weeks, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
 
@@ -51,7 +51,9 @@ def pick():
     season_year = current_app.config["CURRENT_SEASON"]
     entries = Entry.query.filter_by(user_id=current_user.id, pool="dropdead", season_year=season_year).all()
     week = get_current_week(season_year, "dropdead")
-    ensure_missed_processed(week)
+    # Catch up every past-deadline week, not just this one -- see
+    # scoring.due_weeks for why the current-week-only call missed some.
+    process_due_weeks(season_year, "dropdead")
     locked = deadline_passed(week)
 
     if request.method == "POST":

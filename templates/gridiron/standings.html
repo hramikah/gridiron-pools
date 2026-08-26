@@ -15,7 +15,7 @@
       <td>{{ ties }}</td>
       <td>
         {% if entry.is_active %}<span class="badge badge-alive">Active</span>
-        {% else %}<span class="badge badge-eliminated">Benched (Wk{{ entry.eliminated_week }})</span>{% endif %}
+        {% else %}<span class="badge badge-eliminated">Benched ({{ short_week_label(entry.eliminated_week) }})</span>{% endif %}
       </td>
     </tr>
   {% else %}

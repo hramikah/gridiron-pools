@@ -38,9 +38,11 @@
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Rules</a>
             <ul class="dropdown-menu dropdown-menu-dark">
-              <li><a class="dropdown-item" href="{{ url_for('dropdead.rules') }}">Drop Dead Pool</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('loser.rules') }}">Loser Pool</a></li>
+              {# Gridiron, Loser, Drop Dead -- the order the pools are listed
+                 in everywhere else on the site. #}
               <li><a class="dropdown-item" href="{{ url_for('gridiron.rules') }}">Gridiron Investments</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('loser.rules') }}">Loser Pool</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('dropdead.rules') }}">Drop Dead Pool</a></li>
             </ul>
           </li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('main.standings') }}">Master Standings</a></li>

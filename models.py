@@ -217,7 +217,15 @@ class Entry(db.Model):
     gridiron_misses = db.relationship("GridironMiss", backref="entry", lazy=True, cascade="all, delete-orphan")
 
     def used_team_ids(self):
-        return {p.team_id for p in self.picks if p.team_id is not None}
+        """Teams this Drop Dead entry has spent. Preseason picks do not spend
+        one: the trial weeks are free, so everyone starts Week 1 with all 32
+        still available and nobody is punished for practising with a good
+        team. (Kept as a plain is_preseason test rather than importing
+        scoring.counts_for_season -- models must not import upwards.)"""
+        return {
+            p.team_id for p in self.picks
+            if p.team_id is not None and not (p.week and p.week.is_preseason)
+        }
 
 
 class BuyBack(db.Model):

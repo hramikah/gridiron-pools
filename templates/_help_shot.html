@@ -20,6 +20,15 @@
     .help-shot img { max-width: none; width: 760px; }
     .help-swipe { display: inline; }
   }
+  /* The two shared shots (the Hi menu, the Add another account form) are
+     legible well below full width, and at natural size they swamped the text
+     around them. Capped, and allowed to shrink on a phone rather than scroll
+     sideways -- hence the override of the rule above. */
+  .help-shot-sm { max-width: 520px; }
+  .help-shot-sm img, .help-shot-sm:not(:root) img { max-width: 100%; width: auto; }
+  @media (max-width: 767px) {
+    .help-shot-sm img { max-width: 100%; width: auto; }
+  }
 </style>
 {% endmacro %}
 
@@ -32,6 +41,98 @@
       <span class="help-swipe text-muted">(swipe the image sideways to see all of it)</span>
     </figcaption>
   </figure>
+{% endmacro %}
+
+{% macro shared_figure(file, alt, caption) %}
+  {# Same as figure(), for the two screenshots that are not pool-specific and
+     live in static/help/shared/. #}
+  <figure class="figure d-block mb-4 w-100">
+    <div class="help-shot help-shot-sm">
+      <img src="{{ url_for('static', filename='help/shared/' ~ file) }}" alt="{{ alt }}">
+    </div>
+    <figcaption class="figure-caption mt-1" style="max-width: 520px;">{{ caption }}</figcaption>
+  </figure>
+{% endmacro %}
+
+{% macro multiple_teams() %}
+{# The "more than one team" explainer, shared by the Help hub and all three
+   How to Play pages, so the wording can never drift between them. Takes no
+   arguments -- it reads the same on every page.
+
+   Everything here is behaviour the site really has: add_account copies the
+   signed-in account's password hash, switch_account only accepts a sibling on
+   the same email, and /billing totals every account sharing that email. If any
+   of those change, change this. #}
+
+<p>Want more than one team? You can hold several entries &mdash; in a single
+pool, or spread across all three &mdash; and we have made them simple to set up
+and quick to move between.</p>
+
+<p>Each team is a separate entry with its own picks, its own record and its own
+line in the standings &mdash; and its own fee. On this site each one needs
+<strong>its own account</strong>, and they all sit under the same email address
+so you can hop between them without signing out.</p>
+
+<h5 class="mt-4">Creating another team</h5>
+
+<ol>
+  <li>Sign in to the account you already have.</li>
+  <li>Open the menu at the top right that reads <strong>&ldquo;Hi,
+      &lt;your name&gt;&rdquo;</strong> and choose
+      <strong>+ Add Another Account</strong>.</li>
+  <li>Pick a username for the new team &mdash; that is the name everyone sees
+      on the standings, so make it one you will recognise (plenty of people just
+      add a number to the end of the first one).</li>
+  <li>Press <strong>Create Account</strong>. There is <strong>no second password
+      to choose</strong>: the new account uses the one you just signed in with.</li>
+</ol>
+
+{{ shared_figure("add-account.png",
+   "The Add another account page, with a single username field and a Create Account button",
+   "All it asks for is a username. The new team uses the same email and the same password as the account that made it.") }}
+
+<p class="text-muted">Not seeing <strong>+ Add Another Account</strong> in the
+menu? The commissioners set how many teams each email may hold, and yours is at
+its limit. Ask on the <a href="{{ url_for('board.index') }}">Message Board</a>
+and they can raise it.</p>
+
+<p>You are signed into the new team as soon as it is created, on the join page,
+ready to join whichever pools that team is playing. Joining is per team, so a
+second team is not automatically in the same pools as your first &mdash; you
+choose again, and each entry is charged separately.</p>
+
+<div class="alert alert-warning">
+  <strong>Extra teams close when the pools do.</strong> Signups end at the
+  <strong>Week 1 deadline</strong>, and once they have passed the Add Another
+  Account option disappears, because a new team would have nothing to join. If
+  you want more than one team, set them all up before the season starts.
+</div>
+
+<h5 class="mt-4">Switching between your teams</h5>
+
+<p>You are only ever signed into one team at a time &mdash; that is how the site
+knows whose picks it is saving. To move between them, open that same
+<strong>&ldquo;Hi, &lt;your name&gt;&rdquo;</strong> menu at the top right. Your
+other teams are listed at the top under <em>Switch account</em>; click one and
+you are in it straight away, no password and no signing out.</p>
+
+{{ shared_figure("switch-accounts.png",
+   "The Hi menu open, listing the player's other accounts under Switch account, above the Add Another Account item",
+   "Your other teams sit at the top of the menu under Switch account. The name in the menu bar always tells you which team you are in.") }}
+
+<div class="alert alert-danger">
+  <strong>Check the name before you pick.</strong> The menu always shows which
+  team you are signed into. Picks are saved against <em>that</em> team, so the
+  usual mix-up is making two weeks of picks for the same team and none for the
+  other. Switch first, then pick.
+</div>
+
+<p class="mb-0">Money is the one thing that is not separate: your
+<a href="{{ url_for('main.billing') }}">Billing</a> page &mdash; also in that
+menu &mdash; shows everything owed across <strong>every team on your email</strong>,
+each entry listed separately with one combined total. It reads the same
+whichever team you open it from, so there is no hunting around to find what you
+owe.</p>
 {% endmacro %}
 
 {% macro faq(items) %}

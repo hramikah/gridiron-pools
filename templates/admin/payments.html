@@ -59,7 +59,7 @@
           <button type="submit"
                   class="badge border-0 {% if slot.paid %}badge-alive{% else %}bg-danger text-white{% endif %}"
                   style="cursor: pointer"
-                  title="{{ 'Mark this buy-back unpaid' if slot.paid else 'Mark this buy-back paid' }}{% if slot.week_number %} (week {{ slot.week_number }}){% endif %}"
+                  title="{{ 'Mark this buy-back unpaid' if slot.paid else 'Mark this buy-back paid' }}{% if slot.week_number %} ({{ week_label(slot.week_number)|lower }}){% endif %}"
                   onclick="return confirm({% if slot.paid %}'Mark {{ username }}\'s buy-back {{ loop.index }} of ${{ slot.fee }} as UNPAID? This says the money has not been received.'{% else %}'Would you like to confirm that {{ username }} has paid their Drop Dead buy-back of ${{ slot.fee }}?'{% endif %});">
             BB{{ loop.index }}
           </button>

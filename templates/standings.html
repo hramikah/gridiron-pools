@@ -3,7 +3,7 @@
 {% block container_class %}container-fluid px-4{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">🏆</span>Master Standings</h2></div>
-<p class="text-muted">One tab per pool: the table, then every unlocked week side by side.</p>
+<p class="text-muted">One tab per pool. Week-by-week detail for a past week is on the Week History tab.</p>
 
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item" role="presentation">
@@ -30,7 +30,7 @@
   <div class="tab-pane fade show active" id="gridiron-pane" role="tabpanel">
     <table class="table table-striped standings bg-white">
       <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th>
-        <th>{% if gridiron_last_week %}Week {{ gridiron_last_week }}{% else %}Last week{% endif %} W-L-T</th>
+        <th>{% if gridiron_last_week %}{{ week_label(gridiron_last_week) }}{% else %}Last week{% endif %} W-L-T</th>
         <th>Penalties</th></tr></thead>
       <tbody>
       {% for rank, entry, wins, losses, ties in gridiron_rows %}
@@ -49,7 +49,7 @@
                one that cost it the makeup allowance. Once only: a second
                miss adds nothing to read here. #}
             {% set miss = gridiron_first_miss.get(entry.id) %}
-            {% if miss %}Week {{ miss }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+            {% if miss %}{{ week_label(miss) }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
           </td>
         </tr>
       {% else %}
@@ -58,45 +58,6 @@
       </tbody>
     </table>
     <p class="text-muted small">A tie is a push against the spread. Missed weeks are scored 0-5 and unlock an 8-pick makeup week; missing more than 5 weeks benches the entry.</p>
-    <h5 class="mt-4">Week by week</h5>
-    <div class="table-responsive">
-    <table class="table table-striped standings bg-white">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Player</th>
-          {% for wn in unlocked_week_numbers %}<th>{{ short_week_label(wn) }}</th>{% endfor %}
-          <th>Season</th><th>Penalties</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for row in all_weeks_data.gridiron %}
-        <tr>
-          {# Placed on the season record, not on the latest week. #}
-          <td>{{ row.rank }}</td>
-          <td>{{ row.entry.user.username }}</td>
-          {% for wn in unlocked_week_numbers %}
-            {% set c = row.cells[wn] %}
-            <td>
-              {% if c %}
-              {{ c.wins }}-{{ c.losses }}-{{ c.ties }}
-              {% if c.missed %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">no picks</div>
-              {% elif c.free_miss %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">no picks &mdash; first miss</div>{% endif %}
-              {% if c.penalty %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">incl. {{ c.penalty }} penalty {{ 'loss' if c.penalty == 1 else 'losses' }}</div>{% endif %}
-              {% else %}<span class="text-muted">&mdash;</span>{% endif %}
-            </td>
-          {% endfor %}
-          <td><strong>{{ row.wins }}-{{ row.losses }}-{{ row.ties }}</strong></td>
-          <td>
-            {% if row.first_miss %}Week {{ row.first_miss }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr><td colspan="{{ unlocked_week_numbers|length + 4 }}" class="text-muted">No entries yet.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    </div>
   </div>
 
   <div class="tab-pane fade" id="awards-pane" role="tabpanel">
@@ -171,7 +132,7 @@
           <td>{{ e.user.username }}</td>
           <td>
             {% if e.is_active %}<span class="badge badge-alive">Alive</span>
-            {% else %}<span class="badge badge-eliminated">Out - Week {{ e.eliminated_week }}</span>{% endif %}
+            {% else %}<span class="badge badge-eliminated">Out - {{ week_label(e.eliminated_week) }}</span>{% endif %}
             {# buyback_week holds the week the entry was eliminated in, and a
                buy-back always returns them for the week after it -- so that is
                the week to name. Printing the stored number read as "bought
@@ -217,7 +178,7 @@
           {% endfor %}
           <td>
             {% if row.entry.is_active %}<span class="badge badge-alive">Alive</span>
-            {% else %}<span class="badge badge-eliminated">Out - Wk{{ row.entry.eliminated_week }}</span>{% endif %}
+            {% else %}<span class="badge badge-eliminated">Out - {{ short_week_label(row.entry.eliminated_week) }}</span>{% endif %}
           </td>
         </tr>
       {% else %}
@@ -243,38 +204,6 @@
       {% endfor %}
       </tbody>
     </table>
-    <h5 class="mt-4">Week by week</h5>
-    <div class="table-responsive mb-4">
-    <table class="table table-striped standings bg-white standings-name-first">
-      <thead>
-        <tr>
-          <th>Player</th>
-          {% for wn in unlocked_week_numbers %}<th>{{ short_week_label(wn) }}</th>{% endfor %}
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for row in all_weeks_data.loser %}
-        <tr>
-          <td>{{ row.entry.user.username }}</td>
-          {% for wn in unlocked_week_numbers %}
-            {% set p = row.cells[wn] %}
-            <td>
-              {% if p %}
-              <span class="badge {% if p.result == 'win' %}pick-win{% elif p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
-                {{ p.team.name if p.team else '?' }}{% if p.result in ('win', 'loss') %} ({{ p.points|int }}){% endif %}
-              </span>
-              {% else %}<span class="badge bg-secondary">No Pick</span>{% endif %}
-            </td>
-          {% endfor %}
-          <td><strong>{{ row.total }}</strong></td>
-        </tr>
-      {% else %}
-        <tr><td colspan="{{ unlocked_week_numbers|length + 2 }}" class="text-muted">No entries yet.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    </div>
   </div>
 
   <div class="tab-pane fade" id="history-pane" role="tabpanel">
@@ -291,16 +220,16 @@
     </div>
 
     {% if history_data %}
-    <h5><span class="pool-icon">💀</span>Drop Dead Pool &mdash; through Week {{ history_week }}</h5>
+    <h5><span class="pool-icon">💀</span>Drop Dead Pool &mdash; through {{ week_label(history_week) }}</h5>
     <table class="table table-striped standings bg-white mb-4 standings-name-first">
-      <thead><tr><th>Player</th><th>Status</th><th>Week {{ history_week }} Pick</th></tr></thead>
+      <thead><tr><th>Player</th><th>Status</th><th>{{ week_label(history_week) }} Pick</th></tr></thead>
       <tbody>
       {% for row in history_data.dropdead %}
         <tr>
           <td>{{ row.entry.user.username }}</td>
           <td>
             {% if row.is_active %}<span class="badge badge-alive">Alive</span>
-            {% else %}<span class="badge badge-eliminated">Out - Week {{ row.eliminated_week }}</span>{% endif %}
+            {% else %}<span class="badge badge-eliminated">Out - {{ week_label(row.eliminated_week) }}</span>{% endif %}
             {% if row.buyback_week %}<span class="badge bg-warning text-dark">Bought back into Wk {{ row.buyback_week + 1 }}</span>{% endif %}
           </td>
           <td>
@@ -317,9 +246,9 @@
       </tbody>
     </table>
 
-    <h5><span class="pool-icon">📉</span>Loser Pool &mdash; through Week {{ history_week }}</h5>
+    <h5><span class="pool-icon">📉</span>Loser Pool &mdash; through {{ week_label(history_week) }}</h5>
     <table class="table table-striped standings bg-white mb-4">
-      <thead><tr><th>#</th><th>Player</th><th>Points thru Wk{{ history_week }}</th><th>Week {{ history_week }} Pick</th></tr></thead>
+      <thead><tr><th>#</th><th>Player</th><th>Points thru {{ short_week_label(history_week) }}</th><th>{{ week_label(history_week) }} Pick</th></tr></thead>
       <tbody>
       {% for entry, total, week_pick in history_data.loser %}
         <tr>
@@ -340,9 +269,9 @@
       </tbody>
     </table>
 
-    <h5><span class="pool-icon">🏈</span>Gridiron Investments &mdash; through Week {{ history_week }}</h5>
+    <h5><span class="pool-icon">🏈</span>Gridiron Investments &mdash; through {{ week_label(history_week) }}</h5>
     <table class="table table-striped standings bg-white">
-      <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>Week {{ history_week }} Picks</th></tr></thead>
+      <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th><th>{{ week_label(history_week) }} Picks</th></tr></thead>
       <tbody>
       {% for entry, wins, losses, ties, week_picks in history_data.gridiron %}
         <tr>
@@ -365,7 +294,7 @@
       </tbody>
     </table>
     {% elif history_week %}
-    <p class="text-muted">Week {{ history_week }} isn't unlocked yet.</p>
+    <p class="text-muted">{{ week_label(history_week) }} isn't unlocked yet.</p>
     {% endif %}
   </div>
 

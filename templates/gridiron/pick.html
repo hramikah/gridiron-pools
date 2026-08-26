@@ -65,7 +65,7 @@
 
     {% if not entry.is_active %}
       <p class="text-muted mb-0">This entry has been benched for missing more than 5 weeks and can no longer submit picks.
-      Its record is final as of Week {{ entry.eliminated_week }}.</p>
+      Its record is final as of {{ week_label(entry.eliminated_week) }}.</p>
     {% else %}
       {% set penalty_slots = penalty_slots_by_entry.get(entry.id, 0) %}
       {% if my_picks or penalty_slots %}

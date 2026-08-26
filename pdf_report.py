@@ -106,7 +106,7 @@ def build_week_pdf(week):
     pool_labels = {"dropdead": "Drop Dead Pool", "loser": "Loser Pool", "gridiron": "Gridiron Investments"}
     story.append(
         Paragraph(
-            f"Gridiron Pools &mdash; {pool_labels.get(week.pool, '')} Week {week.number} Picks ({season_year})",
+            f"Gridiron Pools &mdash; {pool_labels.get(week.pool, '')} {week.label} Picks ({season_year})",
             title_style,
         )
     )

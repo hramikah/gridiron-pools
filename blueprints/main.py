@@ -1,21 +1,20 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 
-from helpers import pool_signup_deadline, pool_signups_open, week_unlocked
+from helpers import get_current_week, pool_signup_deadline, pool_signups_open, week_unlocked
 from models import ActivityLog, POOL_ENTRY_FEES, POOL_LABELS, POOLS, Entry, Game, User, Week, db
 from pdf_report import build_week_pdf
 from scoring import (
     DROPDEAD_BUYBACK_FEE,
     GRIDIRON_GRID_COLUMNS,
+    dropdead_buyback_available,
     dropdead_matrix,
     dropdead_status_through_week,
     gridiron_awards,
     gridiron_first_miss_week,
-    gridiron_matrix,
     gridiron_picks_grid,
     gridiron_record_through_week,
     gridiron_week_records,
-    loser_matrix,
     loser_totals_through_week,
     player_pick_history,
     standings_dropdead,
@@ -39,9 +38,49 @@ def index():
     if current_user.is_authenticated:
         for e in Entry.query.filter_by(user_id=current_user.id, season_year=season_year).all():
             my_entries.setdefault(e.pool, []).append(e)
+
+    # Where this player stands, keyed by entry id, for the badge on each card
+    # they are in. Built from the same standings functions the standings pages
+    # use, so a place here can never disagree with the place there. Only
+    # computed for the pools this player has actually joined.
+    standing = {}
+    if my_entries:
+        if "gridiron" in my_entries:
+            rows = standings_gridiron(season_year)
+            standing.update({
+                r[1].id: {"place": r[0], "field": len(rows)} for r in rows
+            })
+        if "loser" in my_entries:
+            rows = standings_loser(season_year)
+            standing.update({
+                r[1].id: {"place": r[0], "field": len(rows)} for r in rows
+            })
+        if "dropdead" in my_entries:
+            # Drop Dead is survivor, not a table: everyone still alive shares
+            # first place, so a place number would read the same for all of
+            # them and mean nothing. What matters is alive / out, and whether
+            # a buy-back is on the table right now.
+            dd_week = get_current_week(season_year, "dropdead")
+            alive = 0
+            total = 0
+            for rank, entry in standings_dropdead(season_year):
+                total += 1
+                if entry.is_active:
+                    alive += 1
+            for e in my_entries["dropdead"]:
+                if e.is_active:
+                    standing[e.id] = {"alive": True, "left": alive, "field": total}
+                else:
+                    standing[e.id] = {
+                        "alive": False,
+                        "eliminated_week": e.eliminated_week,
+                        "buyback": dropdead_buyback_available(e, dd_week),
+                    }
+
     return render_template(
         "home.html",
         my_entries=my_entries,
+        standing=standing,
         season_year=season_year,
         pool_count=len(POOLS),
         fees=POOL_ENTRY_FEES,
@@ -221,10 +260,12 @@ def standings():
         player_history = player_pick_history(season_year, selected_player_id)
 
     unlocked_week_numbers = union_numbers
+    # Only Drop Dead still shows a week-by-week grid on this page. The Gridiron
+    # and Loser grids were dropped (the per-pool standings pages and Week
+    # History cover the same ground), so their matrices are not built either --
+    # each one walked every pick of every entry for every unlocked week.
     all_weeks_data = {
         "dropdead": dropdead_matrix(season_year, unlocked_by_pool["dropdead"]),
-        "loser": loser_matrix(season_year, unlocked_by_pool["loser"]),
-        "gridiron": gridiron_matrix(season_year, unlocked_by_pool["gridiron"]),
     }
 
     # Last completed Gridiron week, for the "last week" column on the standings.

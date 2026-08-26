@@ -10,7 +10,7 @@
     <h5>Current Week <span class="text-muted small">(the week players make picks for)</span></h5>
     <p class="mb-2">
       {% if active_week %}
-        Pinned to <strong>Week {{ active_week }}</strong> for all pools.
+        Pinned to <strong>{{ week_label(active_week|int) }}</strong> for all pools.
       {% else %}
         <strong>Automatic</strong> &mdash; each pool advances on its own deadline (this is what pushed Gridiron to a later week when its deadline passed).
       {% endif %}
@@ -21,7 +21,7 @@
         <select name="active_week" class="form-select">
           <option value="auto" {% if not active_week %}selected{% endif %}>Automatic (by deadline)</option>
           {% for n in numbers %}
-          <option value="{{ n }}" {% if active_week and active_week|int == n %}selected{% endif %}>Week {{ n }}</option>
+          <option value="{{ n }}" {% if active_week and active_week|int == n %}selected{% endif %}>{{ week_label(n) }}</option>
           {% endfor %}
         </select>
       </div>
@@ -43,10 +43,21 @@
         <label class="form-label">Pick deadline (Eastern time)</label>
         <input type="datetime-local" name="pick_deadline" class="form-control" required>
       </div>
+      {# See pool_manager.html: without this the week is a real one whatever
+         number it carries. #}
+      <div class="col-auto">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_preseason" id="is_preseason_all" value="1">
+          <label class="form-check-label" for="is_preseason_all">Preseason week</label>
+        </div>
+      </div>
       <div class="col-auto">
         <button type="submit" class="btn btn-outline-primary">Create Week</button>
       </div>
     </form>
+    <p class="text-muted small mt-2 mb-0">A preseason week is a trial run: picks
+    are made and graded, but nothing counts &mdash; no standings points, no Drop
+    Dead elimination, no team used up, no penalty for forgetting.</p>
   </div>
 </div>
 
@@ -59,7 +70,7 @@
     <label class="form-label">Add games to week</label>
     <select name="week" class="form-select" onchange="this.form.submit()">
       {% for n in numbers %}
-      <option value="{{ n }}" {% if n == selected %}selected{% endif %}>Week {{ n }}</option>
+      <option value="{{ n }}" {% if n == selected %}selected{% endif %}>{{ week_label(n) }}</option>
       {% endfor %}
     </select>
   </div>
@@ -68,7 +79,7 @@
 
 <div class="card mb-4">
   <div class="card-body">
-    <h5 id="game_creator_add_title">Add an NFL Game to Week {{ selected }} &mdash; all pools</h5>
+    <h5 id="game_creator_add_title">Add an NFL Game to {{ week_label(selected) }} &mdash; all pools</h5>
     <form method="post" action="{{ url_for('admin.game_creator_add') }}" class="row g-2" id="game_creator_add_form">
       <input type="hidden" name="week" value="{{ selected }}">
 
@@ -158,8 +169,8 @@
           ? 'Gridiron line:'
           : 'Gridiron line (ignored by Drop Dead & Loser):';
         document.getElementById('game_creator_add_title').textContent = isCollege
-          ? 'Add a College Game to Week {{ selected }} — Gridiron only'
-          : 'Add an NFL Game to Week {{ selected }} — all pools';
+          ? 'Add a College Game to {{ week_label(selected) }} — Gridiron only'
+          : 'Add an NFL Game to {{ week_label(selected) }} — all pools';
         document.getElementById('gc_submit_btn').textContent = isCollege
           ? 'Add Game to Gridiron'
           : 'Add Game to All Pools';
@@ -168,7 +179,7 @@
   </div>
 </div>
 
-<h5>Week {{ selected }} games by pool</h5>
+<h5>{{ week_label(selected) }} games by pool</h5>
 <div class="row g-3">
   {% for pool in pools %}
   <div class="col-md-4">

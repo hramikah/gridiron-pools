@@ -21,7 +21,7 @@
   <div class="card-body">
     <h5 class="card-title">
       {% if entry.is_active %}<span class="badge badge-alive">Alive</span>
-      {% else %}<span class="badge badge-eliminated">Eliminated (Week {{ entry.eliminated_week }})</span>{% endif %}
+      {% else %}<span class="badge badge-eliminated">Eliminated ({{ week_label(entry.eliminated_week) }})</span>{% endif %}
     </h5>
 
     <p class="mb-1"><strong>Teams used:</strong>
@@ -112,7 +112,7 @@
         <button type="submit" class="btn btn-outline-danger btn-sm">Buy Back In ($30)</button>
       </form>
       <p class="text-muted small mb-0 mt-1">
-        Eliminated in Week {{ entry.eliminated_week }}. Buy back in to play {{ week.label }} &mdash; before this week's pick deadline.
+        Eliminated in {{ week_label(entry.eliminated_week) }}. Buy back in to play {{ week.label }} &mdash; before this week's pick deadline.
       </p>
     {% elif not entry.is_active and entry.id in no_pick_eliminations %}
       <p class="text-muted small mb-0">No buy-back available &mdash; the entry was eliminated for not turning in a pick.</p>

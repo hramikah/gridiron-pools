@@ -6,6 +6,8 @@
    Fees are quoted from the 2026-2027 sheets; if a sheet changes, change them
    here too. #}
 {% block content %}
+{% import "_help_shot.html" as h with context %}
+{{ h.styles() }}
 
 <div class="page-header"><h2><span class="pool-icon">❓</span>Help</h2></div>
 
@@ -61,6 +63,12 @@ deadlines, and the things that catch people out.</p>
   </div>
 
 </div>
+
+<hr class="my-4">
+
+<h3 id="teams">Controlling more than one team</h3>
+
+{{ h.multiple_teams() }}
 
 <hr class="my-4">
 

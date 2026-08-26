@@ -11,9 +11,11 @@ from flask_wtf.csrf import CSRFError
 from helpers import (
     RESULT_CLASS,
     _testbed_clock,
+    any_pool_signups_open,
     deadline_epoch_ms,
     get_setting,
     short_week_label,
+    week_label,
     unread_message_count,
     week_is_complete,
 )
@@ -209,7 +211,13 @@ def create_app():
             )
             same_email_accounts = other_accounts + [current_user]
             limit = max((u.max_teams for u in same_email_accounts), default=1)
-            can_add_account = len(same_email_accounts) < limit
+            # Hidden once every pool has closed to new entries: a fresh account
+            # could not join anything, so offering it is a dead end. The route
+            # itself refuses too, so a bookmarked link is no way around it.
+            can_add_account = (
+                len(same_email_accounts) < limit
+                and any_pool_signups_open(app.config["CURRENT_SEASON"])
+            )
 
         # The "Register" nav link is invite-only advertising: only show it to
         # a visitor who has actually arrived via a valid, unused invite link
@@ -250,9 +258,26 @@ def create_app():
     app.jinja_env.globals["week_is_complete"] = week_is_complete
     app.jinja_env.globals["deadline_epoch_ms"] = deadline_epoch_ms
     app.jinja_env.globals["short_week_label"] = short_week_label
+    # Bare week numbers are shown through this so a preseason week never
+    # surfaces as "Week 101" -- see helpers.week_label.
+    app.jinja_env.globals["week_label"] = week_label
     # Every view that colours a result as text reads this one map, so a
     # colour change can't reach some pages and miss others.
     app.jinja_env.globals["result_class"] = RESULT_CLASS
+
+    def ordinal(n):
+        """1 -> 1st, 2 -> 2nd, 11 -> 11th. Used for standings places."""
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            return n
+        if 10 <= n % 100 <= 20:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
+
+    app.jinja_env.globals["ordinal"] = ordinal
 
     # Site-wide login gate: nothing is visible to a logged-out visitor except
     # the login/register/password-reset pages themselves and static assets.

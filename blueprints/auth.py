@@ -4,6 +4,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from flask_login import current_user, login_required, login_user, logout_user
 
 from helpers import (
+    any_pool_signups_open,
     clear_login_attempts,
     get_setting,
     log_activity,
@@ -212,6 +213,19 @@ def reset_password(token):
 @login_required
 def add_account():
     email = current_user.email
+    season_year = current_app.config["CURRENT_SEASON"]
+    # An extra account is only ever worth having because it can hold an extra
+    # entry. Once every pool has passed its Week 1 deadline there is nothing
+    # left to join, so creating one would drop the player on a join page with
+    # no buttons and leave the commissioners an empty account to puzzle over.
+    if not any_pool_signups_open(season_year):
+        flash(
+            "Extra teams are closed for the season -- signups ended at the "
+            "Week 1 deadline. Ask a commissioner on the message board if you "
+            "think you should still be able to add one.",
+            "error",
+        )
+        return redirect(url_for("main.index"))
     existing_count = User.query.filter_by(email=email).count()
     limit = _team_limit_for_email(email)
     if existing_count >= limit:

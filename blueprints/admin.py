@@ -7,11 +7,11 @@ from datetime import datetime, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting
+from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting, week_label
 from mailer import send_invite_link_emails, send_password_reset_email, send_player_message_email
-from models import ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, now
+from models import ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, now
 from publisher import publish_week
-from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
+from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, process_due_weeks, gridiron_picks_grid, process_missed_picks, score_game
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -55,8 +55,8 @@ def pool_manager(pool):
         .order_by(Week.number)
         .all()
     )
-    for w in weeks:
-        ensure_missed_processed(w)  # apply penalties for any past-deadline week
+    # Apply penalties for every past-deadline week that still owes them.
+    process_due_weeks(season_year, pool)
     game_counts = {}
     for g in Game.query.join(Week).filter(Week.season_year == season_year, Game.pool == pool).all():
         game_counts[g.week_id] = game_counts.get(g.week_id, 0) + 1
@@ -232,6 +232,23 @@ def delete_player(user_id):
     return redirect(url_for("admin.players"))
 
 
+def preseason_number(number, is_preseason):
+    """Storage number for a week the admin is creating by hand.
+
+    Preseason weeks live at PRESEASON_OFFSET + N so they sort past the regular
+    season and cannot collide with it. The admin types the preseason week's own
+    number -- 1 for the first weekend -- and ticks the box; the offset is added
+    here. Idempotent, so a number already in preseason range is left alone.
+
+    Only the auto-publisher used to set is_preseason, so a week created by hand
+    was a regular-season week whatever number it carried: it scored for real,
+    eliminated Drop Dead entries for real, and rendered as "Week 101".
+    """
+    if not is_preseason:
+        return number
+    return number if number > PRESEASON_OFFSET else PRESEASON_OFFSET + number
+
+
 @bp.route("/pool/<pool>/weeks/new", methods=["POST"])
 def new_week(pool):
     if pool not in POOLS:
@@ -239,15 +256,18 @@ def new_week(pool):
         return redirect(url_for("admin.dashboard"))
     season_year = current_app.config["CURRENT_SEASON"]
     number = int(request.form["number"])
+    is_preseason = bool(request.form.get("is_preseason"))
+    number = preseason_number(number, is_preseason)
     deadline_str = request.form["pick_deadline"]
     deadline = datetime.fromisoformat(deadline_str)
     if Week.query.filter_by(season_year=season_year, number=number, pool=pool).first():
-        flash(f"Week {number} already exists for {POOL_LABELS[pool]}.", "error")
+        flash(f"{week_label(number)} already exists for {POOL_LABELS[pool]}.", "error")
         return redirect(url_for("admin.pool_manager", pool=pool))
     db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline,
-                        buyback_open=default_buyback_open(pool, number)))
+                        is_preseason=is_preseason,
+                        buyback_open=default_buyback_open(pool, number, is_preseason)))
     db.session.commit()
-    flash(f"Week {number} created for {POOL_LABELS[pool]}.", "success")
+    flash(f"{week_label(number)} created for {POOL_LABELS[pool]}.", "success")
     return redirect(url_for("admin.pool_manager", pool=pool))
 
 
@@ -322,7 +342,7 @@ def update_deadline(week_id):
         return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
     db.session.commit()
     flash(
-        f"Deadline for {POOL_LABELS[week.pool]} Week {week.number} updated to "
+        f"Deadline for {POOL_LABELS[week.pool]} {week.label} updated to "
         f"{week.pick_deadline.strftime('%a %b %d, %I:%M %p')} Eastern.",
         "success",
     )
@@ -472,17 +492,20 @@ def game_creator_new_week():
     except ValueError:
         flash("Enter a valid pick deadline.", "error")
         return redirect(url_for("admin.game_creator"))
+    is_preseason = bool(request.form.get("is_preseason"))
+    number = preseason_number(number, is_preseason)
     created = []
     for pool in POOLS:
         if not Week.query.filter_by(season_year=season_year, number=number, pool=pool).first():
             db.session.add(Week(season_year=season_year, number=number, pool=pool, pick_deadline=deadline,
-                                buyback_open=default_buyback_open(pool, number)))
+                                is_preseason=is_preseason,
+                                buyback_open=default_buyback_open(pool, number, is_preseason)))
             created.append(POOL_LABELS[pool])
     db.session.commit()
     if created:
-        flash(f"Week {number} created for: {', '.join(created)}. Adjust per-pool deadlines in Pick Manager if they differ.", "success")
+        flash(f"{week_label(number)} created for: {', '.join(created)}. Adjust per-pool deadlines in Pick Manager if they differ.", "success")
     else:
-        flash(f"Week {number} already exists in all pools.", "error")
+        flash(f"{week_label(number)} already exists in all pools.", "error")
     return redirect(url_for("admin.game_creator", week=number))
 
 
@@ -494,7 +517,7 @@ def set_current_week():
         flash("Current week is now automatic (based on each pool's deadline).", "success")
     else:
         set_setting("active_week", str(int(value)))
-        flash(f"Current week pinned to Week {int(value)} for all pools.", "success")
+        flash(f"Current week pinned to {week_label(int(value))} for all pools.", "success")
     return redirect(url_for("admin.game_creator"))
 
 

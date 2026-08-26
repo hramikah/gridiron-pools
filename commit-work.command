@@ -3,6 +3,13 @@
 # The commit message is read from .commit-message.txt next to this file.
 # Skips the *.bak* safety copies. Double-click to run.
 cd "$(dirname "$0")" || exit 1
+
+# Never hand output to less. The file list is long enough that git opened the
+# pager, the script sat at a ":" prompt waiting for a keypress, and the window
+# got closed before the commit ever ran.
+export GIT_PAGER=cat
+export PAGER=cat
+
 echo "=== Committing Gridiron work ==="
 echo
 
@@ -23,7 +30,7 @@ if git diff --cached --quiet; then
 fi
 
 echo "About to commit:"
-git diff --cached --name-status
+git --no-pager diff --cached --name-status
 echo
 
 # The message lives in .commit-message.txt so each session commits something

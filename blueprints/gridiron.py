@@ -15,7 +15,7 @@ from scoring import (
     GRIDIRON_MAKEUP_PENALTY_LOSSES,
     GRIDIRON_MAKEUP_PICKS,
     GRIDIRON_NORMAL_PICKS,
-    ensure_missed_processed,
+    process_due_weeks,
     gridiron_makeup_week,
     gridiron_penalty_slots,
     gridiron_pick_limit,
@@ -66,7 +66,9 @@ def pick():
     season_year = current_app.config["CURRENT_SEASON"]
     entries = Entry.query.filter_by(user_id=current_user.id, pool="gridiron", season_year=season_year).all()
     week = get_current_week(season_year, "gridiron")
-    ensure_missed_processed(week)
+    # Catch up every past-deadline week, not just this one -- see
+    # scoring.due_weeks for why the current-week-only call missed some.
+    process_due_weeks(season_year, "gridiron")
     locked = deadline_passed(week)
     all_games = (
         Game.query.filter_by(week_id=week.id, pool="gridiron")

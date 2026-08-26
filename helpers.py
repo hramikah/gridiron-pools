@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from flask import abort, current_app, request
 from flask_login import current_user
 
-from models import PRESEASON_OFFSET, ActivityLog, ContactMessage, Game, Setting, Week, db
+from models import POOLS, PRESEASON_OFFSET, ActivityLog, ContactMessage, Game, Setting, Week, db
 from testbed_guard import TESTBED_MARKER
 
 EASTERN = ZoneInfo("America/New_York")
@@ -155,9 +155,30 @@ def unread_message_count(user):
 
 def short_week_label(number):
     """Compact label for a bare week number, for standings-matrix headers and
-    anywhere else that only carries the number: 'Wk5', or 'PS2' for a
-    preseason week (stored offset past the regular-season numbers)."""
-    return f"PS{number - PRESEASON_OFFSET}" if number > PRESEASON_OFFSET else f"Wk{number}"
+    anywhere else that is too narrow for the full label: 'Wk5', or 'Pre 2' for
+    a preseason week (stored offset past the regular-season numbers)."""
+    if number is None:
+        return ""
+    return f"Pre {number - PRESEASON_OFFSET}" if number > PRESEASON_OFFSET else f"Wk{number}"
+
+
+def week_label(number):
+    """Full label for a bare week number: 'Week 5', or 'Preseason Week 2'.
+
+    Preseason weeks are stored as PRESEASON_OFFSET + N so they sort after the
+    regular season and never collide with it, but that number is an internal
+    detail -- a player should never be shown "Week 101". Week.label does this
+    when the row itself is to hand; this is for the many places that carry
+    only a number (entry.eliminated_week, the history-week picker, the admin
+    week dropdowns).
+    """
+    if number is None:
+        return ""
+    return (
+        f"Preseason Week {number - PRESEASON_OFFSET}"
+        if number > PRESEASON_OFFSET
+        else f"Week {number}"
+    )
 
 
 def deadline_epoch_ms(week):
@@ -258,10 +279,14 @@ def gridiron_signups_open(season_year):
     return pool_signups_open(season_year, "gridiron")
 
 
-def deadline_passed(week):
-    if week is None:
-        return True
-    return now_eastern() > week.pick_deadline
+def any_pool_signups_open(season_year):
+    """True while at least one pool will still take a new entry.
+
+    Once this is False there is nothing a brand-new account could join, so the
+    "Add another account" route refuses rather than creating an account that
+    lands on a join page with every button gone.
+    """
+    return any(pool_signups_open(season_year, p) for p in POOLS)
 
 
 def deadline_passed(week):

@@ -97,7 +97,7 @@
           <strong>{{ row.entry.picks|sum(attribute='points') or 0 }}</strong>
         {% else %}
           {% if row.entry.is_active %}<span class="badge badge-alive">Alive</span>
-          {% else %}<span class="badge badge-eliminated">Eliminated (Wk {{ row.entry.eliminated_week }})</span>{% endif %}
+          {% else %}<span class="badge badge-eliminated">Eliminated ({{ short_week_label(row.entry.eliminated_week) }})</span>{% endif %}
         {% endif %}
       </td>
     </tr>

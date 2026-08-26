@@ -8,6 +8,7 @@ from helpers import (
 )
 from models import (
     DROPDEAD_BUYBACK_FEE,
+    PRESEASON_OFFSET,
     Entry,
     Game,
     GridironMiss,
@@ -36,6 +37,22 @@ GRIDIRON_MAKEUP_PENALTY_LOSSES = 2
 # always imported it from scoring keep working.
 
 
+def counts_for_season(week):
+    """Whether a week's results feed the season proper.
+
+    Preseason weeks are a trial run: the picks are made, graded and shown, so
+    a player can see how the site works and what their record would have been,
+    but nothing about them survives into the season. Week.is_preseason has said
+    as much since it was added -- it just wasn't honoured anywhere until now.
+
+    Everything preseason-related keys off this one function, so there is a
+    single place to change if the commissioners ever decide otherwise.
+    """
+    if week is None:
+        return False
+    return not week.is_preseason
+
+
 def score_dropdead_pick(pick, game):
     if game.winner is None:
         return
@@ -44,7 +61,9 @@ def score_dropdead_pick(pick, game):
     )
     pick.result = "win" if team_won else "loss"
     pick.points = 1 if team_won else 0
-    if not team_won:
+    # A preseason pick is still graded -- the player sees whether they got it
+    # right -- but a wrong one cannot end their season before it starts.
+    if not team_won and counts_for_season(pick.week):
         entry = pick.entry
         if entry.is_active:
             entry.is_active = False
@@ -159,6 +178,12 @@ def process_missed_picks(week):
       week; an entry with more than 5 missed weeks is benched (is_active
       set to False).
     """
+    # Nothing is charged for a preseason week: no Drop Dead no-show
+    # elimination, no Gridiron 0-5 or makeup allowance, no Loser auto-pick.
+    # Forgetting to pick in a trial run costs nothing real.
+    if not counts_for_season(week):
+        return
+
     if week.pool == "dropdead":
         picked_dropdead_entry_ids = {
             p.entry_id
@@ -231,6 +256,14 @@ def ensure_missed_processed(week):
     Monday Night game is entered so the no-show auto-pick can be assigned."""
     if week is None or week.missed_processed or not deadline_passed(week):
         return
+    if not counts_for_season(week):
+        # Settle it so it stops showing as owed, but charge nothing. Marked
+        # before the Loser MNF check below, which would otherwise hold a
+        # preseason Loser week open forever waiting for a game that only
+        # matters for an auto-pick nobody is going to be charged for.
+        week.missed_processed = True
+        db.session.commit()
+        return
     if week.pool == "loser":
         mnf = (
             Game.query.filter_by(week_id=week.id, is_mnf=True)
@@ -243,6 +276,48 @@ def ensure_missed_processed(week):
     enforce_dropdead_no_tie(week)
     week.missed_processed = True
     db.session.commit()
+
+
+def due_weeks(season_year, pool=None):
+    """Every week whose deadline has passed and whose misses are still
+    unprocessed, oldest first.
+
+    ``ensure_missed_processed`` only looks at the week it is handed, and the
+    player routes only ever hand it the *current* week. So if the current week
+    moved on before anyone loaded a page after the previous week's deadline --
+    an admin pinning ``active_week`` forward, a quiet Tuesday, a site nobody
+    opened -- that week's misses were never written: no 0-5, no Gridiron
+    makeup, no Drop Dead no-show elimination. Nothing ever came back for it,
+    because every caller had already moved past it.
+
+    Oldest first matters: the Gridiron makeup week is the week straight after
+    the first miss, so week N has to be settled before week N+1 is judged.
+    """
+    weeks = (
+        Week.query.filter_by(season_year=season_year, missed_processed=False)
+        .order_by(Week.number, Week.pool)
+        .all()
+    )
+    if pool:
+        weeks = [w for w in weeks if w.pool == pool]
+    return [w for w in weeks if deadline_passed(w)]
+
+
+def process_due_weeks(season_year, pool=None):
+    """Catch up every week that is owed processing. Returns the weeks settled.
+
+    Cheap enough to call from a page load: one query over a table holding a
+    few dozen rows a season, and on the common path it finds nothing. A week
+    that cannot be settled yet -- a Loser week whose Monday night game has not
+    been entered -- is left alone, picked up on a later run, and does not block
+    the others.
+    """
+    settled = []
+    for week in due_weeks(season_year, pool):
+        ensure_missed_processed(week)
+        if week.missed_processed:
+            settled.append(week)
+    return settled
 
 
 def dropdead_eliminated_for_no_pick(entry):
@@ -296,10 +371,15 @@ def gridiron_frozen_after(entry):
 
 
 def gridiron_week_counts(entry, week_number):
-    """Whether a week contributes to this entry's record at all -- false only
-    for weeks after the entry was benched. Nothing voids a Gridiron week now
-    that the buy-back is gone."""
+    """Whether a week contributes to this entry's record at all -- false for
+    preseason weeks and for weeks after the entry was benched. Nothing else
+    voids a Gridiron week now that the buy-back is gone."""
     if week_number is None:
+        return False
+    # Preseason weeks are stored offset past the regular-season numbers, so
+    # the number alone identifies them -- no week row needed. They are graded
+    # and shown, but they never reach the season record.
+    if week_number > PRESEASON_OFFSET:
         return False
     frozen = gridiron_frozen_after(entry)
     return frozen is None or week_number <= frozen
@@ -610,6 +690,7 @@ def _gridiron_empty_losses(entry, through_week=None):
         ).all()
         if cache is not None:
             cache[ck] = weeks
+    weeks = [w for w in weeks if counts_for_season(w)]
     if through_week is not None:
         weeks = [w for w in weeks if w.number <= through_week]
     return sum(_gridiron_week_empty_losses(entry, w) for w in weeks)
@@ -641,7 +722,8 @@ def standings_loser(season_year):
     entries = Entry.query.filter_by(pool="loser", season_year=season_year).all()
     totals = []
     for e in entries:
-        total = sum(p.points or 0 for p in e.picks)
+        # Preseason points are shown on the pick page but never banked.
+        total = sum(p.points or 0 for p in e.picks if counts_for_season(p.week))
         totals.append((e, total))
     totals.sort(key=lambda t: -t[1])
     return _assign_ranks(totals, key_func=lambda t: t[1])
@@ -697,7 +779,10 @@ def loser_totals_through_week(season_year, week_number):
     entries = Entry.query.filter_by(pool="loser", season_year=season_year).all()
     rows = []
     for e in entries:
-        picks_through = [p for p in e.picks if p.week.number <= week_number]
+        picks_through = [
+            p for p in e.picks
+            if p.week.number <= week_number and counts_for_season(p.week)
+        ]
         total = sum(p.points or 0 for p in picks_through)
         week_pick = next((p for p in e.picks if p.week.number == week_number), None)
         rows.append((e, total, week_pick))

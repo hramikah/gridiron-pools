@@ -12,7 +12,7 @@
       <td>{{ e.user.username }}</td>
       <td>
         {% if e.is_active %}<span class="badge badge-alive">Alive</span>
-        {% else %}<span class="badge badge-eliminated">Out - Week {{ e.eliminated_week }}</span>{% endif %}
+        {% else %}<span class="badge badge-eliminated">Out - {{ week_label(e.eliminated_week) }}</span>{% endif %}
       </td>
       <td>
         {% for p in e.picks|sort(attribute='week.number') %}

@@ -3,30 +3,19 @@
 {% block content %}
 
 {# ------------------------------------------------------------------ #}
-{# Site notice, 2026-08-23. Replaces the 2026-08-22 outage notice.     #}
-{# Shown to signed-out visitors only, as a popup on load plus a banner #}
-{# that stays put after the popup is dismissed -- someone who          #}
-{# dismisses it still needs the new password in front of them at the   #}
-{# form. Remove this block (and the script at the bottom) once         #}
-{# everyone has signed in and set their own password.                  #}
+{# Site notice, 2026-08-26. Replaces the 2026-08-23 shared-password    #}
+{# notice, which described the demo simulation and a password every    #}
+{# account shared -- both gone now that the site runs on real data      #}
+{# with a roster that starts empty.                                     #}
+{# Shown to signed-out visitors only, as a popup on load plus a banner  #}
+{# that stays put after the popup is dismissed. Remove this block (and  #}
+{# the script at the bottom) once everyone has registered.              #}
 {# ------------------------------------------------------------------ #}
 {% if not current_user.is_authenticated %}
 {% set site_notice %}
-  <p class="mb-2"><strong>Your login info has changed.</strong> Sign in with your
-  username <em>or</em> your email address, and the password
-  <code>Password</code>. You will be able to set your own password before we
-  really start.</p>
-  <p class="mb-2">For example, if your email is <code>hunter@gmail.com</code>, then
-  you can log in with:</p>
-  <ul class="mb-2">
-    <li>Username or Email: <code>hunter@gmail.com</code></li>
-    <li>Password: <code>Password</code></li>
-  </ul>
-  <p class="mb-0">The site has been updated to show the changes we have made.
-  What you are looking at right now is a <strong>simulation</strong> &mdash; it is
-  set up to look the way the site would on <strong>Thursday at 7:30PM in week
-  3</strong>: weeks 1 and 2 are final, week 3 is open for picks, and the
-  Thursday night game kicks off in half an hour.</p>
+  <p class="mb-0"><strong>Welcome to Gridiron Investments 2026!</strong>
+  If you were with us for early testing before August 26th you will need to
+  create a new account.</p>
 {% endset %}
 
 <div class="modal fade" id="siteNoticeModal" tabindex="-1" aria-labelledby="siteNoticeLabel" aria-hidden="true">

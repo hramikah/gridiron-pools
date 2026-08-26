@@ -298,6 +298,18 @@ def create_app():
 
     app.jinja_env.globals["ordinal"] = ordinal
 
+    # Cache-buster for static files. style.css is served with a long cache
+    # life, so a CSS fix could sit invisible on a player's phone until they
+    # cleared their browser. Stamping the file's own mtime into the URL means
+    # a deploy changes the URL and the new file is fetched.
+    def asset_v(filename):
+        try:
+            return int(os.path.getmtime(os.path.join(app.static_folder, filename)))
+        except OSError:
+            return 0
+
+    app.jinja_env.globals["asset_v"] = asset_v
+
     # Site-wide login gate: nothing is visible to a logged-out visitor except
     # the login/register/password-reset pages themselves and static assets.
     PUBLIC_ENDPOINTS = {

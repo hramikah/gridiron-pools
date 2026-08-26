@@ -74,12 +74,12 @@
       <div class="p-3 mb-3 bg-light rounded border border-2" style="border-left: 5px solid var(--gridiron-accent) !important;">
       <p class="mb-1"><strong>Locked in so far ({{ my_picks|length }} / {{ limit }}){% if penalty_slots %},
         plus {{ penalty_slots }} penalty {{ 'loss' if penalty_slots == 1 else 'losses' }}{% endif %}:</strong></p>
-      <ul class="list-unstyled mb-0">
+      <ul class="list-unstyled mb-0 locked-pick-list">
         {% for g in all_games %}
           {% set removable = not locked and g.id in pickable_game_ids %}
           {% if my_picks.get((g.id,'spread')) %}
             {% set result = my_results.get((g.id,'spread')) %}
-            <li class="mb-1 d-block text-start">
+            <li class="mb-1 text-start">
               <span class="badge {% if complete and result == 'win' %}pick-win{% elif complete and result == 'loss' %}pick-loss{% elif complete and result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
                 {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ spread_label(g, my_picks[(g.id,'spread')]) }}</strong>
               </span>
@@ -88,7 +88,7 @@
           {% endif %}
           {% if my_picks.get((g.id,'total')) %}
             {% set result = my_results.get((g.id,'total')) %}
-            <li class="mb-1 d-block text-start">
+            <li class="mb-1 text-start">
               <span class="badge {% if complete and result == 'win' %}pick-win{% elif complete and result == 'loss' %}pick-loss{% elif complete and result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
                 {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ my_picks[(g.id,'total')]|capitalize }} {{ g.over_under }}</strong>
               </span>
@@ -99,7 +99,7 @@
         {# The makeup week is 8 of 10: the 2 slots you can't fill sit here as
            losses from the start, with nothing to select. #}
         {% for i in range(penalty_slots) %}
-          <li class="mb-1 d-block text-start">
+          <li class="mb-1 text-start">
             <span class="badge pick-loss"><strong>Penalty loss</strong></span>
             <span class="small text-muted ms-1">automatic &mdash; no selection needed</span>
           </li>

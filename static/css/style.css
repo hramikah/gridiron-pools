@@ -152,9 +152,31 @@ table.standings th, table.standings td {
   color: #6f42c1 !important;
 }
 
-/* Locked-in pick lists (gridiron pick page) use block-level badges with
-   long matchup text -- override Bootstrap's badge nowrap so they wrap
-   instead of overflowing the card on narrow screens. */
+/* Locked-in pick lists (gridiron pick page). The badge used to BE the <li>,
+   and `li.badge` below did the wrapping. Once the remove X moved out of the
+   badge the badge became a <span> inside the li, that selector stopped
+   matching anything, and Bootstrap's nowrap came back -- long matchup text
+   ("Jacksonville Jaguars @ Tampa Bay Buccaneers: Buccaneers -1.5") then ran
+   off the right edge of a phone. Each row is a flex line: the badge wraps and
+   shrinks, the X stays put beside it. `min-width: 0` is what actually lets a
+   flex item shrink below its content width. */
+.locked-pick-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: .25rem;
+}
+.locked-pick-list .badge {
+  white-space: normal;
+  text-align: left;
+  min-width: 0;
+  /* shrink, but never grow -- `1 1 auto` stretched the grey box across the
+     whole card on desktop instead of hugging its text. */
+  flex: 0 1 auto;
+}
+.locked-pick-list .btn {
+  flex: 0 0 auto;
+  align-self: center;
+}
 li.badge {
   white-space: normal;
   text-align: left;

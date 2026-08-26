@@ -7,6 +7,9 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
 
+# One e-mail address covers this many accounts (teams) by default.
+DEFAULT_MAX_TEAMS = 5
+
 PASSWORD_RESET_LIFETIME = timedelta(hours=1)
 
 POOLS = ("dropdead", "loser", "gridiron")
@@ -40,7 +43,12 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), nullable=False)  # not unique: one player may run several accounts (one per entry) sharing an email
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
-    max_teams = db.Column(db.Integer, default=1, nullable=False)  # admin-set cap on accounts sharing this email
+    # How many accounts one e-mail address may hold: the member's own team plus
+    # up to four more. Commissioner's decision 2026-08-26 -- the previous
+    # default of 1 meant nobody could add a second team without asking an
+    # admin first, which would have been 150 people's first support request.
+    # An admin can still raise or lower it per address on the Players page.
+    max_teams = db.Column(db.Integer, default=DEFAULT_MAX_TEAMS, nullable=False)
     created_at = db.Column(db.DateTime, default=now)
 
     entries = db.relationship("Entry", backref="user", lazy=True)
@@ -80,6 +88,13 @@ class LoserPoolPoints(db.Model):
 # Preseason weeks live in the same season/pool space as the regular season,
 # so their numbers are offset past any real week number (1-18) to keep the
 # (season, number, pool) uniqueness from colliding once Week 1 is published.
+# Where the site actually lives. Used to build absolute links in e-mails --
+# invitations, password resets, message-board notifications -- which are read
+# outside the browser session and so cannot use a relative path. The admin can
+# override it in Settings; this is the fallback, and it used to be a Tailscale
+# IP from an earlier deployment that no member could reach.
+DEFAULT_SITE_URL = "https://gridironinvestment.com"
+
 # Preseason week N is stored as PRESEASON_OFFSET + N.
 PRESEASON_OFFSET = 100
 

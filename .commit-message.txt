@@ -456,3 +456,40 @@ gone; the colour carries it.
 
 The Wk column also goes through short_week_label now, so a preseason row reads
 "Pre 4" rather than "104".
+
+App link: the fallback was a dead Tailscale IP.
+
+get_setting("site_url", ...) carried "http://100.71.232.56:8090" as its default
+in three places, and an empty string in two more. That default is an address
+from an earlier deployment that no member can reach, and the empty one produced
+a bare path -- fine in a browser, useless in an e-mail. Both matter because
+site_url is what builds the links in invitations, password resets and
+message-board notifications, which are read outside the browser session.
+
+The live database has no site_url row at all, so every one of those links would
+have pointed at the dead IP the first time a member used "Forgot password".
+
+- models.DEFAULT_SITE_URL = "https://gridironinvestment.com", one definition.
+- All five call sites use it, and treat a stored empty value as unset too.
+- The Settings field's help text no longer talks about Tailscale; it explains
+  that the address has to be the public one because an e-mail is read outside
+  the browser, and the placeholder shows the real domain.
+
+Still worth setting explicitly in Admin > Settings -- an explicit value always
+wins over the fallback.
+
+Five teams per e-mail address by default (a main team plus four).
+
+models.DEFAULT_MAX_TEAMS = 5, used by the User.max_teams column default, by
+auth._team_limit_for_email's fallback and by the admin setter. The old default
+was 1, which meant nobody could add a second team without asking a commissioner
+first -- 150 people's first support request.
+
+Existing rows keep whatever they were given, so migrate_schema raises anything
+below 5 ONCE, guarded by a 'max_teams_default5' marker setting: an admin who
+later drops somebody to 1 must not have it undone on the next boot. Verified
+both directions -- an account created at 3 came up as 5, and one an admin then
+set to 1 stayed at 1 across a restart.
+
+Also verified through the real route: five accounts created on one address, the
+sixth refused with the existing "reach out to the admins" 403.

@@ -9,7 +9,7 @@ from flask_login import current_user, login_required
 
 from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting, week_label
 from mailer import send_invite_link_emails, send_password_reset_email, send_player_message_email
-from models import ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, now
+from models import DEFAULT_MAX_TEAMS, DEFAULT_SITE_URL, ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, now
 from publisher import publish_week
 from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, process_due_weeks, gridiron_picks_grid, process_missed_picks, score_game
 
@@ -134,9 +134,9 @@ def players():
 def set_max_teams(user_id):
     user = User.query.get_or_404(user_id)
     try:
-        value = int(request.form.get("max_teams", 1))
+        value = int(request.form.get("max_teams", DEFAULT_MAX_TEAMS))
     except ValueError:
-        value = 1
+        value = DEFAULT_MAX_TEAMS
     value = max(1, min(10, value))
     user.max_teams = value
     db.session.commit()
@@ -1091,7 +1091,7 @@ def reply_message(user_id):
     # Let the player know there is an answer waiting, the same way the
     # commissioners are told a message arrived.
     if player.email:
-        site_url = get_setting("site_url", "")
+        site_url = get_setting("site_url", DEFAULT_SITE_URL) or DEFAULT_SITE_URL
         link = f"{site_url}{url_for('board.index')}"
         send_async(send_player_message_email, player, body, link)
         note = f" {player.username} was emailed."
@@ -1168,7 +1168,7 @@ def settings():
         "admin/settings.html",
         odds_api_key=get_setting("odds_api_key", ""),
         season_start_thursday=get_setting("season_start_thursday", ""),
-        site_url=get_setting("site_url", "http://100.71.232.56:8090"),
+        site_url=get_setting("site_url", DEFAULT_SITE_URL) or DEFAULT_SITE_URL,
         sendgrid_api_key=get_setting("sendgrid_api_key", ""),
         sendgrid_from_email=get_setting("sendgrid_from_email", ""),
     )
@@ -1234,7 +1234,7 @@ def invite():
             flash("No valid email addresses found.", "error")
             return redirect(url_for("admin.invite"))
 
-        site_url = get_setting("site_url", "http://100.71.232.56:8090")
+        site_url = get_setting("site_url", DEFAULT_SITE_URL) or DEFAULT_SITE_URL
         email_links = []
         for email in valid:
             invite_row = Invite(email=email, token=secrets.token_urlsafe(32))

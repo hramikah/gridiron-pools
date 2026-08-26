@@ -96,6 +96,25 @@ def migrate_schema():
         db.session.commit()
 
 
+    # Every address may hold 5 accounts now (a team plus four more), where the
+    # column default used to be 1. Existing rows keep whatever they were given,
+    # so they need raising once -- but only once: an admin who later drops
+    # someone to 1 must not have it undone on the next boot. The marker setting
+    # is what makes that "once" stick.
+    try:
+        done = db.session.execute(
+            db.text("SELECT value FROM setting WHERE key = 'max_teams_default5'")
+        ).scalar()
+    except Exception:
+        done = None
+    if not done:
+        db.session.execute(db.text("UPDATE user SET max_teams = 5 WHERE max_teams < 5"))
+        db.session.execute(db.text(
+            "INSERT INTO setting (key, value) VALUES ('max_teams_default5', 'done') "
+            "ON CONFLICT(key) DO UPDATE SET value = 'done'"
+        ))
+        db.session.commit()
+
     # Each Drop Dead buy-back becomes its own row, so the Payments page can
     # settle exactly the one that was paid instead of moving a count. The old
     # counters said only "3 taken, 1 paid", so the backfill marks the first

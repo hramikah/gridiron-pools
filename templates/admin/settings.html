@@ -18,8 +18,12 @@
       </div>
       <div class="mb-3">
         <label class="form-label">App link (used in invite emails)</label>
-        <input type="text" name="site_url" class="form-control" value="{{ site_url }}" placeholder="http://100.71.232.56:8090">
-        <div class="form-text">The URL players use to reach the app &mdash; update this if your Tailscale IP or domain changes.</div>
+        <input type="text" name="site_url" class="form-control" value="{{ site_url }}" placeholder="https://gridironinvestment.com">
+        <div class="form-text">The address players reach the site at, used to build the links in
+          e-mails &mdash; invitations, password resets, message-board notifications. It has to be
+          the public address (<code>https://gridironinvestment.com</code>), not a local or private
+          one: an e-mail is read outside the browser, often on a phone, so a link to
+          <code>127.0.0.1</code> or a private IP reaches nobody. No trailing slash.</div>
       </div>
       <hr>
       <h6 class="text-muted text-uppercase small">Email (SendGrid)</h6>

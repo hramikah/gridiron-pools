@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 
 from helpers import get_setting, log_activity, send_async
 from mailer import send_admin_message_email
-from models import Announcement, ContactMessage, User, db
+from models import DEFAULT_SITE_URL, Announcement, ContactMessage, User, db
 
 bp = Blueprint("board", __name__)
 
@@ -80,7 +80,7 @@ def contact():
         u.email for u in User.query.filter_by(is_admin=True).all() if u.email
     ]
     if admin_addresses:
-        site_url = get_setting("site_url", "")
+        site_url = get_setting("site_url", DEFAULT_SITE_URL) or DEFAULT_SITE_URL
         link = f"{site_url}{url_for('admin.message_thread', user_id=current_user.id)}"
         send_async(send_admin_message_email, admin_addresses, current_user.username, body, link)
 

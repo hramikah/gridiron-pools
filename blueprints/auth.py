@@ -16,7 +16,7 @@ from helpers import (
     send_async,
 )
 from mailer import send_password_reset_link_email
-from models import POOL_LABELS, POOLS, Entry, Invite, PasswordReset, User, db
+from models import DEFAULT_MAX_TEAMS, DEFAULT_SITE_URL, POOL_LABELS, POOLS, Entry, Invite, PasswordReset, User, db
 from models import now as _now
 
 bp = Blueprint("auth", __name__)
@@ -31,7 +31,7 @@ def _team_limit_for_email(email):
     """The effective account cap for an email group: the highest max_teams
     an admin has granted any account sharing that email."""
     accounts = User.query.filter_by(email=email).all()
-    return max((u.max_teams for u in accounts), default=1)
+    return max((u.max_teams for u in accounts), default=DEFAULT_MAX_TEAMS)
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -135,7 +135,7 @@ def forgot_password():
         # Same as invite links: build from the configured site_url, never
         # from the request's Host header (which the tunnel rewrites and a
         # caller can spoof).
-        site_url = get_setting("site_url", "http://100.71.232.56:8090")
+        site_url = get_setting("site_url", DEFAULT_SITE_URL) or DEFAULT_SITE_URL
         by_email = {}
         for user in users:
             if not user.email:

@@ -443,3 +443,16 @@ Gridiron pick page: college rows plain, over/unders on one line.
   different heights down the page. New .pick-option-total keeps both on one
   line, shrinking the digits (clamp) rather than wrapping. Measured on a full
   24-game slate: all 32 buttons come out 39px, none wrapped.
+
+Master Standings, By Player: every result is coloured text now.
+
+The team cell was a filled badge (white on solid green/red/purple) while the
+result cell beside it was plain black text with a tick or cross emoji, so the
+purple push was the only thing that read as coloured type. Both cells now take
+their class from helpers.RESULT_CLASS -- green win, red loss, purple push, grey
+while a week is still ungraded -- which is the same map every other page reads,
+so these colours cannot drift from the ones elsewhere. The tick/cross emoji are
+gone; the colour carries it.
+
+The Wk column also goes through short_week_label now, so a preseason row reads
+"Pre 4" rather than "104".

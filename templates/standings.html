@@ -327,14 +327,14 @@
             {% elif row.pool == 'loser' %}📉 Loser
             {% else %}🏈 Gridiron{% endif %}
           </td>
-          <td>{{ row.week }}</td>
-          <td>
-            <span class="badge {% if row.result == 'win' %}pick-win{% elif row.result == 'loss' %}pick-loss{% elif row.result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
-              {{ row.team }}
-            </span>
-          </td>
-          <td>
-            {% if row.result == 'win' %}✅ Win{% elif row.result == 'loss' %}❌ Loss{% elif row.result == 'push' %}Push{% else %}Pending{% endif %}
+          <td>{{ short_week_label(row.week) }}</td>
+          {# Both cells are coloured text rather than a filled badge: green for
+             a win, red for a loss, purple for a push, grey while a week is
+             still ungraded. result_class is the one map every page reads, so
+             the colours here cannot drift from the ones elsewhere. #}
+          <td class="{{ result_class.get(row.result, 'text-muted') }}">{{ row.team }}</td>
+          <td class="{{ result_class.get(row.result, 'text-muted') }}">
+            {% if row.result == 'win' %}Win{% elif row.result == 'loss' %}Loss{% elif row.result == 'push' %}Push{% else %}Pending{% endif %}
             {% if row.pool == 'loser' and row.result in ('win', 'loss') %} ({{ row.points|int }}){% endif %}
           </td>
         </tr>

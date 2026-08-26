@@ -362,6 +362,17 @@ li.badge {
   transform: none;
   box-shadow: none;
 }
+/* Over/Under buttons: "Under 44.5" is a couple of characters longer than
+   "Over 44.5", so at some column widths one wrapped to two lines and the
+   other did not, leaving rows different heights down the page. Both stay on
+   one line now, shrinking the digits instead of wrapping. */
+.pick-option-total {
+  white-space: nowrap;
+  font-size: clamp(.82rem, 2.4vw, 1.05rem);
+  padding-left: .35rem;
+  padding-right: .35rem;
+}
+
 .pick-option .pick-points {
   display: inline-block;
   font-size: .78rem;

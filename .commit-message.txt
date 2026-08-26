@@ -429,3 +429,17 @@ all-pools form creates 102 in all three; unticked still creates an ordinary
 Week 7; both pages render the box; the week dropdowns read "Preseason Week 1"
 and "Preseason Week 2". Then end to end on the week the form made: a losing
 Drop Dead pick graded as a loss, the entry stayed active and no team was spent.
+
+Gridiron pick page: college rows plain, over/unders on one line.
+
+- Team colouring is now NFL-only. The colour table holds the 32 NFL teams, so
+  a college slate got a tint on the handful of names that happened to collide
+  and nothing on the rest -- about 5% of them -- which read as a rendering bug
+  rather than a feature. blueprints/gridiron.py builds team_styles from
+  non-college games only, and the template also refuses a tint on a college row
+  outright, so a college team sharing a name with an NFL one stays plain too.
+- "Under 44.5" is a couple of characters longer than "Over 44.5", so at some
+  column widths one wrapped to two lines and the other did not, leaving rows
+  different heights down the page. New .pick-option-total keeps both on one
+  line, shrinking the digits (clamp) rather than wrapping. Measured on a full
+  24-game slate: all 32 buttons come out 39px, none wrapped.

@@ -153,11 +153,11 @@
               {% else %}
               {% set away_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if g_locked %}disabled{% endif %}>
-                {% set ts = team_styles.get(g.away_team) %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_away" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                {% set ts = team_styles.get(g.away_team) if g.sport != 'college' else none %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_away" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
               {% set home_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if g_locked %}disabled{% endif %}>
-                {% set ts = team_styles.get(g.home_team) %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_home" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                {% set ts = team_styles.get(g.home_team) if g.sport != 'college' else none %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_home" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
               {% endset %}
               <div class="pick-choice-group" role="group">
                 {# favorite on the left, underdog on the right (plain away/home order for pick'em) #}
@@ -179,10 +179,10 @@
                 {% else %}
                 <div class="pick-choice-group" role="group">
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_over" value="over" autocomplete="off" {% if g_locked %}disabled{% endif %}>
-                  <label class="pick-option" for="ou_{{ g.id }}_over">Over {{ g.over_under }}</label>
+                  <label class="pick-option pick-option-total" for="ou_{{ g.id }}_over">Over {{ g.over_under }}</label>
 
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_under" value="under" autocomplete="off" {% if g_locked %}disabled{% endif %}>
-                  <label class="pick-option" for="ou_{{ g.id }}_under">Under {{ g.over_under }}</label>
+                  <label class="pick-option pick-option-total" for="ou_{{ g.id }}_under">Under {{ g.over_under }}</label>
 
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_none" value="" autocomplete="off" checked {% if g_locked %}disabled{% endif %}>
                   <label class="btn btn-outline-secondary btn-sm d-none" for="ou_{{ g.id }}_none"></label>

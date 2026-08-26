@@ -199,8 +199,13 @@ def pick():
         normal_picks=GRIDIRON_NORMAL_PICKS,
         makeup_picks=GRIDIRON_MAKEUP_PICKS,
         makeup_penalty=GRIDIRON_MAKEUP_PENALTY_LOSSES,
+        # NFL only. The colour table is built from the 32 NFL teams, so a
+        # college slate got a tint on the handful of names that happened to
+        # collide and nothing on the rest -- an inconsistency that read as a
+        # bug. College rows are now plainly uncoloured, on purpose.
         team_styles=styles_for(
-            [g.away_team for g in all_games] + [g.home_team for g in all_games]
+            [g.away_team for g in all_games if g.sport != "college"]
+            + [g.home_team for g in all_games if g.sport != "college"]
         ),
     )
 

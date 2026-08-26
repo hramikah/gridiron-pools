@@ -1,7 +1,8 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import log_activity
+from helpers import get_setting, log_activity, send_async
+from mailer import send_admin_message_email
 from models import Announcement, ContactMessage, User, db
 
 bp = Blueprint("board", __name__)
@@ -69,7 +70,19 @@ def contact():
     message = ContactMessage(user_id=current_user.id, sender_id=current_user.id, body=body)
     db.session.add(message)
     db.session.commit()
-    log_activity("message_sent", f"Messaged the admin: {body[:120]}")
+    log_activity("message_sent", f"Messaged the commissioners: {body[:120]}")
 
-    flash("Your message was sent to the admin.", "success")
+    # Tell the commissioners. Nothing on the site nudges them otherwise, so a
+    # message could sit unread for days. Sent in the background so a slow mail
+    # API never holds up the post itself, and to every admin with an address --
+    # whoever picks it up first can answer.
+    admin_addresses = [
+        u.email for u in User.query.filter_by(is_admin=True).all() if u.email
+    ]
+    if admin_addresses:
+        site_url = get_setting("site_url", "")
+        link = f"{site_url}{url_for('admin.message_thread', user_id=current_user.id)}"
+        send_async(send_admin_message_email, admin_addresses, current_user.username, body, link)
+
+    flash("Your message was sent to the commissioners.", "success")
     return redirect(url_for("board.index"))

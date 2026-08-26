@@ -56,7 +56,9 @@ pool joins, buy-backs, password changes and messages. Newest first, most recent 
             'pick_saved': 'bg-primary', 'pick_removed': 'bg-warning text-dark',
             'pool_joined': 'bg-info text-dark', 'buyback': 'bg-danger',
             'password_change': 'bg-dark', 'message_sent': 'bg-info text-dark',
-            'makeup_choice': 'bg-warning text-dark', 'register': 'bg-success'
+            'makeup_choice': 'bg-warning text-dark', 'register': 'bg-success',
+            'payment': 'bg-warning text-dark',
+            'password_reset': 'bg-dark', 'password_reset_requested': 'bg-secondary'
           } %}
           <span class="badge {{ colours.get(e.action, 'bg-secondary') }}">{{ e.action.replace('_', ' ') }}</span>
         </td>

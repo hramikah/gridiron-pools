@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Billing{% endblock %}
+{# A player's own view of what they owe, across every account sharing their
+   email address. Every number comes from the same place the admin Payments
+   page bills from -- models.POOL_ENTRY_FEES, the buy-back fees in scoring.py,
+   and the paid flags the admin toggles -- so a change on the Payments page
+   shows up here on the next load with nothing to keep in sync. #}
+{% block content %}
+
+<div class="page-header"><h2><span class="pool-icon">🧾</span>Billing</h2></div>
+
+{% if not groups %}
+<div class="card">
+  <div class="card-body">
+    <p class="mb-0">You have no entries this season, so there is nothing to pay.
+    Join a pool from the <a href="{{ url_for('main.help_index') }}">Help</a> page
+    and your fees will appear here.</p>
+  </div>
+</div>
+{% else %}
+
+{% if multi_account %}
+<p class="text-muted">Covering all {{ account_count }} accounts on
+<strong>{{ current_user.email }}</strong> &mdash; one check can settle the lot.</p>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card h-100 {% if owed %}border-danger border-2{% else %}border-success border-2{% endif %}">
+      <div class="card-body text-center">
+        <div class="text-muted small text-uppercase">Currently owed</div>
+        <div class="display-6 fw-bold {% if owed %}text-danger{% else %}text-success{% endif %}">${{ owed }}</div>
+        <div class="small text-muted">{% if owed %}Not yet recorded as paid{% else %}You are all square{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small text-uppercase">Recorded as paid</div>
+        <div class="display-6 fw-bold">${{ settled_total }}</div>
+        <div class="small text-muted">Settled with the commissioners</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small text-uppercase">Season total</div>
+        <div class="display-6 fw-bold">${{ total }}</div>
+        <div class="small text-muted">{{ charge_count }} charge{{ 's' if charge_count != 1 }}{% if multi_account %} across {{ groups|length }} account{{ 's' if groups|length != 1 }}{% endif %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% for g in groups %}
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-2 mb-3">
+      <h5 class="card-title mb-0">
+        {% if multi_account %}{{ g.account.username }}
+          {% if g.is_current %}<span class="badge bg-secondary ms-1">signed in</span>{% endif %}
+        {% else %}Your charges{% endif %}
+      </h5>
+      {% if multi_account %}
+      <div class="small text-muted">
+        {% if g.owed %}<span class="fw-bold text-danger">${{ g.owed }} owed</span> &middot; {% endif %}${{ g.paid }} paid
+      </div>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Charge</th>
+            <th>Billed</th>
+            <th class="text-end">Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in g.charges %}
+          <tr>
+            <td>
+              <div class="fw-bold">{{ c.what }}</div>
+              <div class="small text-muted">{{ c.label }}</div>
+            </td>
+            <td class="small">
+              {% if c.billed_at %}{{ c.billed_at.strftime('%b %d, %Y') }}
+                <div class="text-muted">{{ c.billed_at.strftime('%I:%M %p') }} Eastern</div>
+              {% else %}<span class="text-muted">&mdash;</span>{% endif %}
+            </td>
+            <td class="text-end fw-bold">${{ c.amount }}</td>
+            <td>
+              {% if c.paid %}
+                <span class="badge bg-success">Paid</span>
+                <div class="small text-muted">
+                  {% if c.paid_at %}Recorded {{ c.paid_at.strftime('%b %d, %Y') }}
+                  {% else %}Date not recorded{% endif %}
+                </div>
+              {% else %}
+                <span class="badge bg-danger">Owed</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% if owed %}
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">How to pay the ${{ owed }}</h5>
+    <p class="mb-1">Make the check payable to:</p>
+    <p class="fw-bold mb-3">Cedric Hay</p>
+    <p class="mb-1">Mail it to:</p>
+    <address class="fw-bold mb-3">
+      12300 U.S. Highway 19<br>
+      Hudson, FL 34667
+    </address>
+    <p class="mb-0 text-muted">One check can cover everything above{% if multi_account %},
+    including the other accounts on your email{% endif %} &mdash; just note which
+    pools it is for. Entry fees must be postmarked on or before
+    <strong>September 14th, 2026</strong>.</p>
+  </div>
+</div>
+{% endif %}
+
+<div class="alert alert-info">
+  <strong>This page follows the commissioners' records.</strong> A charge moves
+  from <span class="badge bg-danger">Owed</span> to
+  <span class="badge bg-success">Paid</span> when a commissioner marks your
+  check received, so there may be a few days between posting it and seeing the
+  change here. If something looks wrong, message them on the
+  <a href="{{ url_for('board.index') }}">Message Board</a>.
+</div>
+
+{% endif %}
+
+<p class="mt-3"><a href="{{ url_for('main.help_index') }}">Help &amp; payment details</a>
+&middot; <a href="{{ url_for('main.index') }}">Back to pools</a></p>
+{% endblock %}

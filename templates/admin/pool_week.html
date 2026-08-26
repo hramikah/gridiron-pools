@@ -28,19 +28,6 @@
     Process Missed Picks
   </button>
 </form>
-
-<form method="post" action="{{ url_for('admin.email_picks', week_id=week.id) }}" class="mb-4 d-inline-block">
-  {% if week.picks_emailed %}
-  <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Picks Already Emailed</button>
-  {% elif not deadline_passed %}
-  <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Email Picks (available after deadline)</button>
-  {% else %}
-  <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Email {{ pool_label }} players their locked-in {{ week.label }} picks now?')">
-    Email Picks to Players
-  </button>
-  {% endif %}
-</form>
-
 <div class="card mb-4">
   <div class="card-body">
     <h5>Add a Game{% if pool == 'gridiron' %} &amp; Line{% endif %}</h5>
@@ -373,16 +360,9 @@ document.addEventListener('DOMContentLoaded', function () {
       <td>
         {{ row.entry.user.username }}
         {% if row.entry.label and row.entry.label != 'Entry 1' %}<span class="text-muted">({{ row.entry.label }})</span>{% endif %}
-        {% if row.voided %}
-        {# The $100 wiped this week for this entry. The cells stay editable --
-           a commissioner may still need to correct them -- but the row says
-           the week no longer counts. #}
-        <div class="text-muted" style="font-size:.72rem; line-height:1.1">bought back &mdash; week voided</div>
-        {% endif %}
         {% if row.admin_slot_rows|length > 1 %}
         <div class="text-muted" style="font-size:.72rem; line-height:1.1">
-          {% if row.allowance == 'buyback' %}buy-back &mdash; {{ row.limit }} picks
-          {%- elif row.allowance == 'makeup' %}makeup week &mdash; {{ row.limit }} picks{% if row.penalty %} + {{ row.penalty }} {{ 'loss' if row.penalty == 1 else 'losses' }}{% endif %}
+          {% if row.allowance == 'makeup' %}makeup week &mdash; {{ row.limit }} picks{% if row.penalty %} + {{ row.penalty }} {{ 'loss' if row.penalty == 1 else 'losses' }}{% endif %}
           {%- endif %}
         </div>
         {% endif %}

@@ -8,11 +8,10 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting
-from mailer import send_invite_link_emails, send_password_reset_email
-from models import ActivityLog, Announcement, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open
-from notifications import email_week_picks
+from mailer import send_invite_link_emails, send_password_reset_email, send_player_message_email
+from models import ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, now
 from publisher import publish_week
-from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
+from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, gridiron_picks_grid, process_missed_picks, score_game
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -194,6 +193,16 @@ def reset_password(user_id):
         emailed = f" It was also emailed to {user.email}."
     else:
         emailed = " They have no email on file, so it wasn't sent to them."
+    # Filed against the player whose password changed, with the admin named --
+    # somebody else taking control of an account is exactly the kind of thing
+    # you want to be able to find later. The temporary password itself is
+    # never written here.
+    log_activity(
+        "password_reset",
+        f"Password reset by {current_user.username}; temporary password "
+        + ("emailed to them" if user.email else "shown on screen only (no email on file)"),
+        user=user,
+    )
     flash(
         f"New temporary password for {user.username}: {temp_password} "
         "-- give this to them now, it won't be shown again. They should change it "
@@ -749,20 +758,6 @@ def process_missed(week_id):
     return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
 
 
-@bp.route("/weeks/<int:week_id>/email-picks", methods=["POST"])
-def email_picks(week_id):
-    week = Week.query.get_or_404(week_id)
-    if not deadline_passed(week):
-        flash("This week's deadline hasn't passed yet.", "error")
-        return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
-    if week.picks_emailed:
-        flash("Picks for this week were already emailed.", "error")
-        return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
-    count = email_week_picks(week)
-    flash(f"Picks recap emailed to {count} player(s) for {POOL_LABELS[week.pool]} Week {week.number}.", "success")
-    return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
-
-
 @bp.route("/reports")
 def reports():
     season_year = current_app.config["CURRENT_SEASON"]
@@ -860,31 +855,30 @@ def payments():
         .all()
     )
 
-    fees = {"dropdead": 20, "loser": 20, "gridiron": 100}
+    # models.POOL_ENTRY_FEES is the one definition; the member Billing page
+    # quotes the same table, so the two views can never drift apart.
+    fees = dict(POOL_ENTRY_FEES)
     # A buy-back is money owed just like an entry fee, and until now the page
     # never billed it: a revived Drop Dead entry showed "Paid" and $0 owed
     # while its $30 was outstanding. The Loser Pool has no buy-back.
-    buyback_fees = {
-        "dropdead": DROPDEAD_BUYBACK_FEE,
-        "gridiron": GRIDIRON_BUYBACK_FEE,
-        "loser": 0,
-    }
+    # Drop Dead is the only pool with a buy-back. Gridiron's was removed in
+    # August 2026; any legacy rows are billed at $0 and shown nowhere.
+    buyback_fees = {"dropdead": DROPDEAD_BUYBACK_FEE, "gridiron": 0, "loser": 0}
 
-    # One row per buy-back taken, so an entry that died and came back twice
-    # is billed twice. Buy-backs within an entry are interchangeable, so the
-    # first `buy_backs_paid` of them are the settled ones.
+    # One BuyBack row per buy-back taken, each with its own paid flag, so an
+    # entry that died and came back twice is billed twice and either fee can
+    # be settled on its own.
     buybacks = {}
     for e in entries:
-        used = e.buy_backs_used or 0
-        fee = buyback_fees[e.pool]
-        if not used or not fee:
-            buybacks[e.id] = {"used": 0, "paid": 0, "unpaid": 0, "fee": fee, "owed": 0}
-            continue
-        paid = max(0, min(e.buy_backs_paid or 0, used))
-        unpaid = used - paid
+        rows = sorted(e.buy_backs, key=lambda b: b.id) if buyback_fees[e.pool] else []
+        unpaid = [b for b in rows if not b.paid]
         buybacks[e.id] = {
-            "used": used, "paid": paid, "unpaid": unpaid,
-            "fee": fee, "owed": unpaid * fee,
+            "rows": rows,
+            "used": len(rows),
+            "paid": sum(1 for b in rows if b.paid),
+            "unpaid": len(unpaid),
+            "fee": buyback_fees[e.pool],
+            "owed": sum(b.fee for b in unpaid),
         }
 
     by_player = {}
@@ -894,6 +888,24 @@ def payments():
         if not e.paid:
             row["owed"] += fees[e.pool]
         row["owed"] += buybacks[e.id]["owed"]
+
+    # Drop Dead buy-backs get a column each (BB1-BB4, the weeks the printed
+    # rules allow one). Each slot is "paid", "unpaid", or None for a buy-back
+    # that was never taken. Buy-backs on an entry are interchangeable, so the
+    # first `paid` of them are the settled ones -- the same convention the
+    # rest of this page uses.
+    for row in by_player.values():
+        slots = [None, None, None, None]
+        filled = 0
+        for e in row["dropdead"]:
+            for row_bb in buybacks[e.id]["rows"]:
+                if filled > 3:
+                    break
+                # The row itself, so the badge posts to that exact buy-back.
+                slots[filled] = row_bb
+                filled += 1
+        row["bb_slots"] = slots
+
     player_rows = sorted(by_player.items())
 
     # The All Entries table lists a buy-back as its own line rather than as a
@@ -910,6 +922,18 @@ def payments():
     for e in entries:
         grouped.setdefault((e.user.username, e.pool), []).append(e)
 
+    # When each charge was committed to -- the moment the player took it on,
+    # not when it was paid. Joining a pool commits the entry fee, so that is
+    # the entry's created_at. Pressing a buy-back button commits that fee, and
+    # the only record of when is the activity row written at the time.
+    buyback_commits = {}
+    for row in (
+        ActivityLog.query.filter_by(action="buyback")
+        .order_by(ActivityLog.created_at)
+        .all()
+    ):
+        buyback_commits.setdefault((row.user_id, row.pool), []).append(row.created_at)
+
     entry_rows = []
     for (username, pool), group in grouped.items():
         number = 1
@@ -918,17 +942,18 @@ def payments():
                 "username": username, "pool": pool,
                 "label": f"Entry {number}", "fee": fees[pool],
                 "paid": bool(e.paid), "kind": "entry", "entry_id": e.id,
-                "order": number,
+                "order": number, "committed_at": e.created_at,
             })
             number += 1
         for e in group:
-            bb = buybacks[e.id]
-            for i in range(bb["used"]):
+            commits = list(buyback_commits.get((e.user_id, pool), []))
+            for i, b in enumerate(buybacks[e.id]["rows"]):
                 entry_rows.append({
                     "username": username, "pool": pool,
-                    "label": f"Entry {number}", "fee": bb["fee"],
-                    "paid": i < bb["paid"], "kind": "buyback", "entry_id": e.id,
-                    "order": number,
+                    "label": f"Entry {number}", "fee": b.fee,
+                    "paid": bool(b.paid), "kind": "buyback", "buyback_id": b.id,
+                    "entry_id": e.id, "order": number,
+                    "committed_at": b.created_at or (commits[i] if i < len(commits) else None),
                 })
                 number += 1
     entry_rows.sort(key=lambda r: (r["username"].lower(), r["pool"], r["order"]))
@@ -948,29 +973,51 @@ def payments():
 def toggle_paid(entry_id):
     entry = Entry.query.get_or_404(entry_id)
     entry.paid = not entry.paid
+    # Stamped so the player's Billing page can say when it was settled.
+    entry.paid_at = now() if entry.paid else None
     db.session.commit()
+    # Filed against the PLAYER, not the admin who clicked: this is money on
+    # that player's account, so it belongs in their activity, with the admin
+    # named in the detail so the trail still says who did it.
+    log_activity(
+        "payment",
+        f"{POOL_LABELS[entry.pool]} entry fee (${POOL_ENTRY_FEES.get(entry.pool, 0)}) "
+        f"marked {'PAID' if entry.paid else 'UNPAID'} by {current_user.username}",
+        pool=entry.pool,
+        user=entry.user,
+    )
     flash(f"{entry.user.username} ({POOL_LABELS[entry.pool]}, {entry.label}) marked {'paid' if entry.paid else 'unpaid'}.", "success")
     return redirect(url_for("admin.payments"))
 
 
-@bp.route("/entries/<int:entry_id>/buyback-paid", methods=["POST"])
-def toggle_buyback_paid(entry_id):
-    """Settle (or un-settle) one buy-back fee on an entry.
+@bp.route("/buybacks/<int:buyback_id>/paid", methods=["POST"])
+def toggle_buyback_paid(buyback_id):
+    """Settle (or un-settle) one specific buy-back fee.
 
-    Buy-backs on one entry are interchangeable -- same pool, same fee -- so
-    this moves a counter rather than tracking which individual revival was
-    paid for. Clamped to the number actually taken, so a double-click or a
-    stale page can't push the count past what is owed or below zero.
+    Each buy-back is its own row, so this marks exactly the one the admin
+    clicked. The counter on Entry is kept in step for the code that still
+    counts buy-backs off it.
     """
-    entry = Entry.query.get_or_404(entry_id)
-    used = entry.buy_backs_used or 0
-    paid = max(0, min(entry.buy_backs_paid or 0, used))
-    delta = 1 if request.form.get("delta") == "+1" else -1
-    entry.buy_backs_paid = max(0, min(used, paid + delta))
+    bb = BuyBack.query.get_or_404(buyback_id)
+    entry = bb.entry
+    bb.paid = not bb.paid
+    bb.paid_at = now() if bb.paid else None
+    settled = sum(1 for b in entry.buy_backs if b.paid)
+    entry.buy_backs_paid = settled
+    entry.buy_backs_paid_at = now() if settled else None
     db.session.commit()
+    log_activity(
+        "payment",
+        f"{POOL_LABELS[entry.pool]} buy-back (${bb.fee})"
+        + (f" from week {bb.week_number}" if bb.week_number else "")
+        + f" marked {'PAID' if bb.paid else 'UNPAID'} by {current_user.username}",
+        pool=entry.pool,
+        user=entry.user,
+    )
     flash(
-        f"{entry.user.username} ({POOL_LABELS[entry.pool]}): "
-        f"{entry.buy_backs_paid} of {used} buy-back fee(s) marked paid.",
+        f"{entry.user.username} ({POOL_LABELS[entry.pool]}): buy-back "
+        f"{'marked paid' if bb.paid else 'marked unpaid'} "
+        f"({settled} of {len(entry.buy_backs)} settled).",
         "success",
     )
     return redirect(url_for("admin.payments"))
@@ -1017,7 +1064,17 @@ def reply_message(user_id):
     message = ContactMessage(user_id=player.id, sender_id=current_user.id, body=body)
     db.session.add(message)
     db.session.commit()
-    flash(f"Reply sent to {player.username}.", "success")
+
+    # Let the player know there is an answer waiting, the same way the
+    # commissioners are told a message arrived.
+    if player.email:
+        site_url = get_setting("site_url", "")
+        link = f"{site_url}{url_for('board.index')}"
+        send_async(send_player_message_email, player, body, link)
+        note = f" {player.username} was emailed."
+    else:
+        note = f" {player.username} has no email on file, so they were not notified."
+    flash(f"Reply sent to {player.username}.{note}", "success")
     return redirect(url_for("admin.message_thread", user_id=user_id))
 
 

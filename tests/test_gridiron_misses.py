@@ -33,18 +33,18 @@ from datetime import datetime, timedelta
 import pytest
 
 import helpers
-from helpers import deadline_passed, gridiron_buyback_deadline
+from helpers import deadline_passed, gridiron_signup_deadline
 from models import GridironMiss, Pick, db
 from scoring import (
     GRIDIRON_BENCH_AFTER_MISSES,
-    GRIDIRON_BUYBACK_WEEK,
-    gridiron_buyback_available,
+    gridiron_counted_picks,
     gridiron_first_miss_week,
     gridiron_makeup_week,
     gridiron_matrix,
     gridiron_penalty_losses,
     gridiron_penalty_slots,
     gridiron_pick_limit,
+    gridiron_week_counts,
     gridiron_week_penalty_losses,
     gridiron_week_records,
     process_missed_picks,
@@ -199,238 +199,50 @@ def test_benched_entry_record_freezes(make_week, make_entry, submit, record):
 
 
 # --------------------------------------------------------------------------
-# The paid week-2 buy-back
+# Gridiron has no buy-back (removed August 2026)
 # --------------------------------------------------------------------------
 
 
-def _buy_back(entry, week):
-    """What blueprints.gridiron.buyback writes, without the HTTP layer."""
-    entry.buyback_week = week.number - 1
-    entry.buy_backs_used = (entry.buy_backs_used or 0) + 1
-    db.session.commit()
-
-
-def test_buyback_voids_week_one_after_a_miss(make_week, make_entry, submit, record):
-    # Week 2 is still open -- that's when the buy-back is offered.
-    weeks = {1: make_week(1), 2: make_week(2, future=True, buyback_open=True)}
-    entry = make_entry("forgot_week_one")
-    play_season({1: weeks[1]}, [(entry, {})], submit)
-    assert record(entry) == (0, 0, 0), "a first miss costs nothing to begin with"
-
-    assert gridiron_buyback_available(entry, weeks[2]) is True
-    _buy_back(entry, weeks[2])
-
-    # Week 1 stops counting outright, and the makeup allowance goes back in
-    # the bank rather than being spent on week 1.
-    assert gridiron_first_miss_week(entry) is None
-    assert gridiron_makeup_week(entry) is None
-    assert record(entry) == (0, 0, 0)
-    # A double slate in the week it was bought: the 5 games the fee erased
-    # plus the 5 this week is worth, so the entry ends week 2 level on games
-    # played with everyone who never missed.
-    assert gridiron_pick_limit(entry, weeks[2]) == 10
-    assert gridiron_penalty_losses(entry) == 0, "no makeup penalty -- it wasn't the makeup"
-
-
-def test_buyback_preserves_the_makeup_for_a_later_miss(make_week, make_entry, submit, record):
-    # Week 2 is the 10-pick catch-up slate, so these weeks need >8 games.
-    weeks = {n: make_week(n, games=12) for n in range(1, 6)}
-    entry = make_entry("forgot_twice")
-    play_season({1: weeks[1]}, [(entry, {})], submit)
-    _buy_back(entry, weeks[2])
-
-    # Plays weeks 2 and 3, then misses week 4.
-    play_season(
-        {n: weeks[n] for n in (2, 3, 4, 5)},
-        [(entry, {2: "limit", 3: "limit", 5: "limit"})],
-        submit,
-    )
-
-    assert gridiron_first_miss_week(entry) == 4, "week 1's miss was bought out"
-    assert gridiron_makeup_week(entry) == 5
-    assert gridiron_pick_limit(entry, weeks[5]) == 8, "the banked makeup is still there"
-
-
-def test_buyback_erases_a_bad_week_that_was_actually_played(
-    make_week, make_entry, submit, record
-):
-    """The other half of the fee's purpose: an entrant who did submit and
-    hated the result pays to wipe it."""
-    weeks = {1: make_week(1), 2: make_week(2, future=True, buyback_open=True)}
-    entry = make_entry("played_badly")
-    submit(entry, weeks[1], 5, result="loss")
+def test_gridiron_never_grants_more_than_the_makeup_allowance(make_week, make_entry, submit):
+    """Nothing can push a Gridiron week past 8 picks now that the 10-pick
+    buy-back catch-up week is gone."""
+    entry = make_entry("nobuyback")
+    weeks = {n: make_week(n, buyback_open=True, future=True) for n in (1, 2, 3)}
+    assert gridiron_pick_limit(entry, weeks[1]) == 5
+    assert gridiron_pick_limit(entry, weeks[2]) == 5
+    # A first miss still grants the 8-pick makeup, and nothing grants 10.
+    submit(entry, weeks[1], 0)
     process_missed_picks(weeks[1])
-    assert record(entry) == (0, 5, 0)
+    assert gridiron_pick_limit(entry, weeks[2]) == 8
+    assert gridiron_pick_limit(entry, weeks[3]) == 5
 
-    _buy_back(entry, weeks[2])
-    assert record(entry) == (0, 0, 0)
 
-    submit(entry, weeks[2], 5, result="win")
+def test_gridiron_weeks_are_never_voided(make_week, make_entry, submit, record):
+    """A week always counts. buyback_week is Drop Dead's column now; even if a
+    stale value is sitting on a Gridiron row, week 1 still counts."""
+    entry = make_entry("stalebuyback")
+    weeks = {1: make_week(1)}
+    submit(entry, weeks[1], 5)
+    entry.buyback_week = 1  # legacy data from before the buy-back was removed
+    db.session.commit()
+    assert gridiron_week_counts(entry, 1) is True
+    assert len(gridiron_counted_picks(entry)) == 5
     assert record(entry) == (5, 0, 0)
 
 
-def test_buyback_wipes_wins_too(make_week, make_entry, submit, record):
-    """The slate is clean, not cherry-picked -- a 3-2 week 1 loses its 3
-    wins along with its 2 losses."""
-    weeks = {1: make_week(1), 2: make_week(2, future=True, buyback_open=True)}
-    entry = make_entry("mixed")
-    submit(entry, weeks[1], 3, result="win")
-    process_missed_picks(weeks[1])
-    _buy_back(entry, weeks[2])
-
-    assert record(entry) == (0, 0, 0)
+def test_gridiron_signups_close_at_the_week_one_deadline(make_week, app):
+    """Entries used to close at week 2, back when a late entrant could buy
+    back into week 1. That window is gone."""
+    week1 = make_week(1)
+    make_week(2)
+    assert gridiron_signup_deadline(SEASON) == week1.pick_deadline
 
 
-def test_buyback_offer_window(make_week, make_entry):
-    entry = make_entry("shopper")
-    week1 = make_week(1, buyback_open=True, future=True)
-    week2 = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=True, future=True)
-    week3 = make_week(3, buyback_open=True, future=True)
-
-    assert gridiron_buyback_available(entry, week2) is True
-    assert gridiron_buyback_available(entry, week1) is False, "week 2 only"
-    assert gridiron_buyback_available(entry, week3) is False, "week 2 only"
-    assert gridiron_buyback_available(entry, None) is False
-
-
-def test_buyback_needs_the_admin_flag(make_week, make_entry):
-    entry = make_entry("shopper")
-    closed = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=False, future=True)
-    assert gridiron_buyback_available(entry, closed) is False
-
-
-def test_buyback_not_offered_in_preseason(make_week, make_entry):
-    entry = make_entry("shopper")
-    pre = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=True, future=True, is_preseason=True)
-    assert gridiron_buyback_available(entry, pre) is False
-
-
-def test_buyback_is_once_per_entry(make_week, make_entry):
-    entry = make_entry("repeat_shopper")
-    week2 = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=True, future=True)
-    assert gridiron_buyback_available(entry, week2) is True
-
-    _buy_back(entry, week2)
-    assert gridiron_buyback_available(entry, week2) is False
-
-
-def test_buyback_closes_at_the_deadline(make_week, make_entry):
-    entry = make_entry("late")
-    past_week2 = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=True)  # deadline long gone
-    assert gridiron_buyback_available(entry, past_week2) is False
-
-
-def test_buyback_week_is_worth_ten_games_played(make_week, make_entry, submit, record):
-    """The catch-up slate is real games, not bookkeeping: an entry that buys
-    back and wins all ten finishes week 2 on ten wins -- level with a player
-    who went 5-0 in each of the first two weeks and never paid a thing."""
-    # 12 games a week, so a 10-pick allowance has somewhere to land.
-    weeks = {1: make_week(1, games=12), 2: make_week(2, games=12)}
-    bought_back = make_entry("bought_back")
-    never_missed = make_entry("never_missed")
-
-    play_season(
-        {1: weeks[1]},
-        [(bought_back, {}), (never_missed, {1: "limit"})],
-        submit,
-    )
-    _buy_back(bought_back, weeks[2])
-    assert gridiron_pick_limit(bought_back, weeks[2]) == 10
-
-    play_season(
-        {2: weeks[2]},
-        [(bought_back, {2: "limit"}), (never_missed, {2: "limit"})],
-        submit,
-    )
-
-    assert record(bought_back) == (10, 0, 0)
-    assert record(never_missed) == (10, 0, 0)
-
-
-# --------------------------------------------------------------------------
-# The buy-back window: Thursday 7:00 PM Eastern, not the Saturday deadline
-# --------------------------------------------------------------------------
-
-
-def test_buyback_deadline_is_that_weeks_thursday_at_seven(make_week):
-    """A Saturday-noon pick deadline puts the buy-back cutoff on the Thursday
-    two days earlier, at 7pm -- before Thursday night kicks off."""
-    week2 = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=True, future=True)
-    week2.pick_deadline = datetime(2026, 9, 19, 12, 0)  # a Saturday
-    db.session.commit()
-
-    assert gridiron_buyback_deadline(week2) == datetime(2026, 9, 17, 19, 0)
-
-
-def test_buyback_closes_thursday_evening_not_saturday(make_week, make_entry, monkeypatch):
-    """The offer is gone on Thursday night even though picks for the week are
-    still open until Saturday noon."""
-    entry = make_entry("clockwatcher")
-    week2 = make_week(GRIDIRON_BUYBACK_WEEK, buyback_open=True, future=True)
-    week2.pick_deadline = datetime(2026, 9, 19, 12, 0)  # Saturday noon
-    db.session.commit()
-
-    monkeypatch.setattr(helpers, "now_eastern", lambda: datetime(2026, 9, 17, 18, 59))
-    assert gridiron_buyback_available(entry, week2) is True, "still Thursday afternoon"
-
-    monkeypatch.setattr(helpers, "now_eastern", lambda: datetime(2026, 9, 17, 19, 1))
-    assert gridiron_buyback_available(entry, week2) is False, "past 7pm Thursday"
-
-    # ...and the week itself is still open for ordinary picks.
-    assert deadline_passed(week2) is False
-
-
-def test_buyback_open_to_a_five_and_oh_entry(make_week, make_entry, submit):
-    """Any record qualifies -- the offer isn't limited to entries that
-    struggled or sat the week out."""
-    weeks = {1: make_week(1), 2: make_week(2, future=True, buyback_open=True)}
-    perfect = make_entry("five_and_oh")
-    submit(perfect, weeks[1], 5, result="win")
-    process_missed_picks(weeks[1])
-
-    assert gridiron_buyback_available(perfect, weeks[2]) is True
 
 
 # --------------------------------------------------------------------------
 # Buy back, then no-show the catch-up week
 # --------------------------------------------------------------------------
-
-
-def test_rebuy_then_no_show_costs_five_and_moves_the_makeup_to_week_three(
-    make_week, make_entry, submit, record
-):
-    """Hunter's scenario end to end: pay $100 in week 2, then don't pick.
-
-    The 10-slot allowance evaporates -- a sat-out week is a flat 0-5, never
-    0-10 -- and the one-time makeup lands on week 3: 8 picks plus the 2-game
-    penalty.
-    """
-    # Week 3 is still open at this point -- otherwise it would count as a
-    # second sat-out week and bill another 5 on top.
-    weeks = {1: make_week(1), 2: make_week(2), 3: make_week(3, future=True)}
-    entry = make_entry("paid_then_vanished")
-
-    submit(entry, weeks[1], 5, result="loss")
-    process_missed_picks(weeks[1])
-    _buy_back(entry, weeks[2])
-
-    # Week 2 comes and goes with nothing submitted.
-    process_missed_picks(weeks[2])
-
-    assert record(entry) == (0, 5, 0), "flat 0-5 for the week, not 0-10"
-    assert gridiron_first_miss_week(entry) == 2, "week 1 was bought out of the way"
-    assert gridiron_makeup_week(entry) == 3
-    assert gridiron_pick_limit(entry, weeks[3]) == 8
-    assert gridiron_penalty_slots(entry, weeks[3]) == 2, "shown while picks are open"
-
-    # Eight wins in week 3, and the 2 penalty losses ride along once it closes.
-    submit(entry, weeks[3], 8, result="win")
-    weeks[3].pick_deadline = LONG_PAST + timedelta(days=21)
-    db.session.commit()
-
-    assert gridiron_penalty_losses(entry) == 2
-    assert record(entry) == (8, 7, 0), "5 for the missed week + 2 penalty"
-    assert gridiron_week_records(SEASON, 3)[entry.id] == (8, 2, 0)
 
 
 # --------------------------------------------------------------------------
@@ -475,33 +287,6 @@ def test_no_penalty_slots_without_a_miss(make_week, make_entry):
     weeks = {1: make_week(1), 2: make_week(2, future=True)}
     entry = make_entry("clean")
     assert gridiron_penalty_slots(entry, weeks[2]) == 0
-
-
-def test_rebuy_no_show_is_five_but_blowing_the_makeup_after_it_is_ten(
-    make_week, make_entry, submit, record
-):
-    """The two rulings of 2026-08-21 side by side.
-
-    A buy-back week sat out is a flat 0-5 -- it is an ordinary week that the
-    fee bought the right to play, not a slate owed from a week already lost.
-    The makeup week it then unlocks is charged in full if that is sat out
-    too: 8 unused picks plus the 2-game penalty.
-    """
-    weeks = {1: make_week(1), 2: make_week(2), 3: make_week(3)}
-    entry = make_entry("paid_and_vanished_twice")
-
-    submit(entry, weeks[1], 5, result="loss")
-    process_missed_picks(weeks[1])
-    _buy_back(entry, weeks[2])
-
-    process_missed_picks(weeks[2])
-    assert gridiron_week_records(SEASON, 2)[entry.id] == (0, 5, 0), "buy-back week: flat 5"
-    assert gridiron_makeup_week(entry) == 3
-    assert gridiron_pick_limit(entry, weeks[3]) == 8
-
-    process_missed_picks(weeks[3])
-    assert gridiron_week_records(SEASON, 3)[entry.id] == (0, 10, 0), "makeup week: 8 + 2"
-    assert record(entry) == (0, 15, 0), "week 1 was bought out; 5 + 10 remain"
 
 
 # --------------------------------------------------------------------------

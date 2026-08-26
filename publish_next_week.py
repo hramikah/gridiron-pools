@@ -149,8 +149,7 @@ def run():
 
 def report(number, deadline, weeks, repaired):
     from models import Entry, User
-    from scoring import (gridiron_buyback_available, gridiron_makeup_week,
-                         gridiron_pick_limit)
+    from scoring import gridiron_makeup_week, gridiron_pick_limit
     try:
         from scoring import dropdead_buyback_available
     except ImportError:
@@ -177,15 +176,11 @@ def report(number, deadline, weeks, repaired):
     for entry in Entry.query.filter_by(pool="gridiron", season_year=SEASON).join(User).order_by(User.username).all():
         limit = gridiron_pick_limit(entry, weeks["gridiron"])
         makeup = gridiron_makeup_week(entry) == number
-        buyback = gridiron_buyback_available(entry, weeks["gridiron"])
-        key = (limit, makeup, buyback)
-        seen.setdefault(key, []).append(entry.user.username)
-    for (limit, makeup, buyback), names in sorted(seen.items()):
+        seen.setdefault((limit, makeup), []).append(entry.user.username)
+    for (limit, makeup), names in sorted(seen.items()):
         note = []
         if makeup:
             note.append("makeup week (2-game penalty)")
-        if buyback:
-            note.append("$100 buy-back offered")
         print(f"    {limit} picks{' -- ' + ', '.join(note) if note else ''}")
         print(f"      {', '.join(names)}")
 

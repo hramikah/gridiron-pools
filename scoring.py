@@ -4,12 +4,10 @@ actions and any future batch/cron processing can share the same code."""
 from helpers import (
     _read_cache,
     deadline_passed,
-    gridiron_buyback_closed,
-    gridiron_buyback_deadline,
     week_is_complete,
 )
 from models import (
-    GRIDIRON_BUYBACK_WEEK,
+    DROPDEAD_BUYBACK_FEE,
     Entry,
     Game,
     GridironMiss,
@@ -29,21 +27,13 @@ GRIDIRON_BENCH_AFTER_MISSES = 5
 # Rule 8: the makeup week is 8 picks out of 10 -- the 2 unpickable slots
 # are charged as losses from the start.
 GRIDIRON_MAKEUP_PENALTY_LOSSES = 2
-# Buy-back: $100 for a clean slate, offered in week 2 only, once per entry.
-# It voids week 1 outright and leaves the one-time makeup allowance unspent,
-# so a player who forgot to submit can pay rather than burn their makeup on
-# week 1 -- and a player who did submit can pay to erase a bad opening week.
-# GRIDIRON_BUYBACK_WEEK is defined in models.py, where default_buyback_open
-# needs it too, and re-exported here so callers have one place to import from.
-GRIDIRON_BUYBACK_FEE = 100
-# The Drop Dead buy-back, previously written as a bare $30 in the pick
-# page, the flash message and the season simulator. Named here so the
-# payments page bills the same number everything else quotes.
-DROPDEAD_BUYBACK_FEE = 30
-# A buy-back voids week 1, so the entry plays a double slate in week 2 --
-# the five games the fee erased plus the five that week is worth -- and
-# comes out level on games played with everyone who never missed.
-GRIDIRON_BUYBACK_PICKS = 10
+# Gridiron has no buy-back. A $100 week-2 clean slate that voided week 1
+# existed briefly and was removed in August 2026, together with the late
+# signup window it existed to rescue: entries now close at the week 1
+# deadline, so nobody can join late and need week 1 undone.
+# The Drop Dead buy-back fee is defined in models.py, where the BuyBack row
+# needs it as a column default, and re-exported here so the callers that have
+# always imported it from scoring keep working.
 
 
 def score_dropdead_pick(pick, game):
@@ -180,7 +170,13 @@ def process_missed_picks(week):
                 entry.eliminated_week = week.number
 
     elif week.pool == "loser":
-        mnf_game = Game.query.filter_by(week_id=week.id, is_mnf=True).first()
+        # "the visiting team on the last Monday Night Football game of the
+        # betting week" -- latest kickoff wins when a week flags more than one.
+        mnf_game = (
+            Game.query.filter_by(week_id=week.id, is_mnf=True)
+            .order_by(Game.kickoff.desc())
+            .first()
+        )
         if mnf_game and mnf_game.away_team_id:
             picked_loser_entry_ids = {
                 p.entry_id for p in Pick.query.filter_by(pool="loser", week_id=week.id).all()
@@ -236,7 +232,11 @@ def ensure_missed_processed(week):
     if week is None or week.missed_processed or not deadline_passed(week):
         return
     if week.pool == "loser":
-        mnf = Game.query.filter_by(week_id=week.id, is_mnf=True).first()
+        mnf = (
+            Game.query.filter_by(week_id=week.id, is_mnf=True)
+            .order_by(Game.kickoff.desc())
+            .first()
+        )
         if not (mnf and mnf.away_team_id):
             return  # retry on a later load, once the MNF game exists
     process_missed_picks(week)
@@ -284,21 +284,6 @@ def dropdead_buyback_available(entry, current_week):
     return bool(elim_week and elim_week.buyback_open)
 
 
-def gridiron_void_through(entry):
-    """Week number through which this entry's Gridiron record is void.
-
-    A buy-back wipes every week before the one it was bought in: that is what
-    the fee pays for, so those weeks' wins, losses, ties and missed-week
-    records all stop counting. 0 when no buy-back was taken. Reuses
-    Entry.buyback_week, which Drop Dead already uses for the same "this entry
-    paid to undo something" bookkeeping -- entries are per-pool, so the two
-    meanings never meet on one row, and it needs no schema change.
-    """
-    if entry.pool != "gridiron":
-        return 0
-    return entry.buyback_week or 0
-
-
 def gridiron_frozen_after(entry):
     """The last week that still counts for a benched entry, or None if live.
 
@@ -311,11 +296,10 @@ def gridiron_frozen_after(entry):
 
 
 def gridiron_week_counts(entry, week_number):
-    """Whether a week contributes to this entry's record at all -- false for
-    weeks voided by a buy-back, and for weeks after the entry was benched."""
+    """Whether a week contributes to this entry's record at all -- false only
+    for weeks after the entry was benched. Nothing voids a Gridiron week now
+    that the buy-back is gone."""
     if week_number is None:
-        return False
-    if week_number <= gridiron_void_through(entry):
         return False
     frozen = gridiron_frozen_after(entry)
     return frozen is None or week_number <= frozen
@@ -347,7 +331,6 @@ def gridiron_first_miss_week(entry):
             GridironMiss.entry_id == entry.id,
             Week.season_year == entry.season_year,
             Week.pool == "gridiron",
-            Week.number > gridiron_void_through(entry),
         )
         .order_by(Week.number.asc())
         .first()
@@ -369,63 +352,11 @@ def gridiron_makeup_week(entry):
     return first_miss + 1 if first_miss is not None else None
 
 
-def gridiron_buyback_available(entry, week):
-    """Whether this entry may pay for a clean slate right now.
-
-    Week 2 only and once per entry: the fee buys back the season's opening
-    week, not a mid-season reset. Gated on the admin's per-week buyback_open
-    flag for the same reason Drop Dead is -- preseason and test weeks don't
-    number the way the printed schedule assumes, so a week 2 that isn't the
-    real week 2 must not offer it.
-
-    Open to every entry regardless of how week 1 went -- 5-0, 0-5, or 0-5 for
-    never submitting. The fee buys the week back either way.
-
-    Closes at 7:00 PM Eastern on week 2's Thursday, not at that week's
-    Saturday-noon pick deadline: the decision has to be made before any of
-    the week's football is played. The pick deadline is still checked as
-    well, so a week whose deadline somehow falls before that Thursday closes
-    the offer on time too.
-    """
-    if entry.pool != "gridiron" or week is None:
-        return False
-    if week.number != GRIDIRON_BUYBACK_WEEK or week.is_preseason:
-        return False
-    if not week.buyback_open:
-        return False
-    if entry.buyback_week is not None or entry.buy_backs_used:
-        return False
-    if gridiron_buyback_closed(week):
-        return False
-    return entry.is_active and not deadline_passed(week)
-
-
-def gridiron_buyback_catchup_week(entry):
-    """The week a bought-back entry plays a double slate in, or None.
-
-    Buying back voids week 1, so the entry comes into week 2 with an empty
-    record while the rest of the field already has five games behind it. The
-    fee buys those games back rather than forfeiting them: the entry picks
-    both weeks' worth in week 2 and ends the week level on games played.
-    """
-    void = gridiron_void_through(entry)
-    return void + 1 if void else None
-
-
 def gridiron_pick_limit(entry, week):
-    """5 picks normally.
-
-    Two exceptions, which can never both apply to one entry -- a buy-back
-    voids the missed week that would otherwise have granted the makeup:
-    - the week a buy-back was taken in: 10 picks, a double slate replacing
-      the week the fee erased, with no penalty.
-    - the single makeup week after a first miss: 8 picks, with the 2-game
-      penalty charged alongside.
-    """
+    """5 picks normally, 8 in the single makeup week after a first miss --
+    with the 2-game penalty charged alongside, so the week is worth 10."""
     if week is None:
         return GRIDIRON_NORMAL_PICKS
-    if gridiron_buyback_catchup_week(entry) == week.number:
-        return GRIDIRON_BUYBACK_PICKS
     if gridiron_makeup_week(entry) != week.number:
         return GRIDIRON_NORMAL_PICKS
     return GRIDIRON_MAKEUP_PICKS
@@ -566,13 +497,8 @@ def gridiron_picks_grid(week):
         # The makeup week's 2 unpickable slots sit after the 8 real ones, so
         # the row shows all 10 games the week is worth.
         penalty = gridiron_penalty_slots(e, week)
-        # Why this entry's allowance is bigger than 5, for the caption. Read
-        # from the entry rather than inferred from the numbers: an entry that
-        # sat out its makeup week has the 8-pick limit with the penalty
-        # dropped, and calling that a buy-back would be plain wrong.
-        if gridiron_buyback_catchup_week(e) == week.number:
-            allowance = "buyback"
-        elif gridiron_makeup_week(e) == week.number:
+        # Why this entry's allowance is bigger than 5, for the caption.
+        if gridiron_makeup_week(e) == week.number:
             allowance = "makeup"
         else:
             allowance = None
@@ -604,11 +530,6 @@ def gridiron_picks_grid(week):
                 "penalty": penalty,
                 "allowance": allowance,
                 "no_pick_slots": no_pick_slots,
-                # A week the $100 wiped. The entry may still hold picks for it
-                # -- buying back is open to anyone, not just people who forgot
-                # -- and those picks are no longer worth anything, so the
-                # report has to say so rather than showing them scored.
-                "voided": week.number <= gridiron_void_through(e),
                 "free_miss": free_miss,
                 "slot_rows": _gridiron_grid_slots(
                     eps, limit, penalty, no_pick_slots, free_slots=free_slots
@@ -643,9 +564,6 @@ def _gridiron_week_empty_losses(entry, week):
       failure", not to the first.
     - the makeup week: the full 8-pick allowance, with the 2-game penalty
       charged alongside it, so a blown makeup week lands at 0-10.
-    - a buy-back catch-up week: the flat GRIDIRON_MISS_PENALTY_LOSSES even
-      when it is the entry's first miss. They paid $100 for the right to
-      play that week; skipping it is not a free first offence.
     - every other week: the flat GRIDIRON_MISS_PENALTY_LOSSES.
 
     Commissioner's rulings, 2026-08-21 and 2026-08-22:
@@ -672,13 +590,8 @@ def _gridiron_week_empty_losses(entry, week):
     made = sum(1 for p in entry.picks if p.week_id == week.id and p.pool == "gridiron")
     expected = min(gridiron_pick_limit(entry, week), available)
     if made == 0:
-        # Order matters. A buy-back catch-up week can also be the entry's
-        # first miss, and it is charged rather than forgiven; a makeup week
-        # never can, since it is by definition the week after one.
         if gridiron_makeup_week(entry) == week.number:
             return expected
-        if gridiron_buyback_catchup_week(entry) == week.number:
-            return min(GRIDIRON_MISS_PENALTY_LOSSES, available)
         if gridiron_first_miss_week(entry) == week.number:
             return 0
         return min(GRIDIRON_MISS_PENALTY_LOSSES, available)
@@ -943,11 +856,6 @@ def gridiron_matrix(season_year, week_numbers):
         for wn in week_numbers:
             week = weeks_by_num.get(wn)
             counts = gridiron_week_counts(e, wn)
-            # A week the $100 bought out of the way is not "no pick" -- say so,
-            # or the row reads like the entry simply never turned up.
-            if not counts and wn <= gridiron_void_through(e):
-                cells[wn] = {"voided": True}
-                continue
             week_picks = [p for p in e.picks if p.week.number == wn] if counts else []
             empty = _gridiron_week_empty_losses(e, week)
             # The makeup week's 2-game penalty belongs in that week's cell,
@@ -969,7 +877,6 @@ def gridiron_matrix(season_year, week_numbers):
                 "missed": not week_picks and empty > 0,
                 "free_miss": free_miss,
                 "penalty": penalty,
-                "catchup": gridiron_buyback_catchup_week(e) == wn,
             }
         picks = gridiron_counted_picks(e)
         wins = sum(1 for p in picks if p.result == "win")
@@ -1066,24 +973,11 @@ GRIDIRON_FIRST_HALF_WEEKS = (1, 9)
 GRIDIRON_SECOND_HALF_WEEKS = (10, 18)
 
 
-def gridiron_both_sides_weeks(entry):
-    """Weeks where this entry holds both sides of the same market.
-
-    Rule: "Entrants may not select both sides of the same game (both the
-    favorite and the underdog or the over and under)." The pick form refuses
-    a second pick on a game+market it already holds, so this can currently
-    only arise from an admin edit -- but the award rules turn on it, so it is
-    checked rather than assumed impossible.
-    """
-    seen, offending = {}, set()
-    for pick in entry.picks:
-        if pick.pool != "gridiron" or pick.game_id is None:
-            continue
-        key = (pick.week_id, pick.game_id, pick.market)
-        if key in seen and seen[key] != pick.side:
-            offending.add(pick.week.number)
-        seen[key] = pick.side
-    return offending
+# The 2026-2027 sheet dropped the old "may not select both sides of the same
+# game" rule (two losses plus a Last Place Award disqualification). Nothing
+# checks for it any more: two picks on opposite sides of one game are simply
+# two ordinary picks that cannot both win. If a future sheet brings it back,
+# it belongs here, keyed on (week, game, market).
 
 
 def gridiron_award_rows(season_year):
@@ -1096,7 +990,6 @@ def gridiron_award_rows(season_year):
     )
     rows = []
     for entry in entries:
-        both_sides = gridiron_both_sides_weeks(entry)
         missed = {
             m.week.number for m in GridironMiss.query.filter_by(entry_id=entry.id).all()
         }
@@ -1129,11 +1022,7 @@ def gridiron_award_rows(season_year):
 
             # "on any given penalized week an 0-5 record will not count toward
             # the entrant's 0-5 weeks for purposes of award qualification"
-            penalised = (
-                week.number in missed
-                or makeup == week.number
-                or week.number in both_sides
-            )
+            penalised = week.number in missed or makeup == week.number
             # 0-5 means 0-5: a winless week carrying a push is 0-4-1, and the
             # award is not named for those. Empty slots charged as losses do
             # count, since the week's record still reads 0-5.
@@ -1145,12 +1034,8 @@ def gridiron_award_rows(season_year):
 
         # "an entrant must have submitted picks for the entire season, with no
         # penalties". Three things end that:
-        #   - a missed week, which stands even if the fee later voided it: a
-        #     week bought back is still a week they did not submit;
-        #   - both sides of a game, which the rules disqualify outright;
-        #   - a buy-back at all, which erases a week rather than plays it, and
-        #     would otherwise park the buyer on 0-0-0 at the top of an award
-        #     for the fewest wins.
+        #   - a missed week. Gridiron has no buy-back, so that is the only
+        #     thing that ends it.
         rows.append({
             "entry": entry,
             "wins": totals["wins"],
@@ -1160,11 +1045,7 @@ def gridiron_award_rows(season_year):
             "second_half": halves["second"],
             "zero_five_weeks": zero_five_weeks,
             "missed_weeks": sorted(missed),
-            "both_sides_weeks": sorted(both_sides),
-            "bought_back": entry.buyback_week is not None,
-            "last_place_eligible": (
-                not missed and not both_sides and entry.buyback_week is None
-            ),
+            "last_place_eligible": not missed,
         })
     return rows
 

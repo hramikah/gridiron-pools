@@ -1,9 +1,9 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import deadline_passed, log_activity, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
+from helpers import deadline_passed, game_pickable, get_current_week, log_activity, pool_signup_deadline, pool_signups_open, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
-from models import Entry, Game, Pick, Team, Week, db
+from models import DROPDEAD_BUYBACK_FEE, BuyBack, Entry, Game, Pick, Team, Week, db
 from scoring import dropdead_buyback_available, dropdead_eliminated_for_no_pick, ensure_missed_processed, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
@@ -11,7 +11,12 @@ bp = Blueprint("dropdead", __name__)
 
 @bp.route("/rules")
 def rules():
-    return render_template("dropdead/rules.html")
+    season_year = current_app.config["CURRENT_SEASON"]
+    return render_template(
+        "dropdead/rules.html",
+        signups_open=pool_signups_open(season_year, "dropdead"),
+        signup_deadline=pool_signup_deadline(season_year, "dropdead"),
+    )
 
 
 @bp.route("/join", methods=["POST"])
@@ -22,11 +27,22 @@ def join():
     if existing:
         flash("You already have an entry in the Drop Dead Pool (one per person).", "error")
         return redirect(url_for("dropdead.pick"))
+    # Entries close at the Week 1 deadline, the same as every pool: joining
+    # afterwards would start the season a week down with no way to catch up.
+    if not pool_signups_open(season_year, "dropdead"):
+        cutoff = pool_signup_deadline(season_year, "dropdead")
+        flash(
+            "The Drop Dead Pool is closed to new entries -- signups ended at the Week 1 deadline"
+            + (f" ({cutoff.strftime('%a %b %d, %Y at %I:%M %p')} Eastern)." if cutoff else "."),
+            "error",
+        )
+        return redirect(url_for("dropdead.rules"))
     entry = Entry(user_id=current_user.id, pool="dropdead", season_year=season_year, label="Entry 1")
     db.session.add(entry)
     db.session.commit()
     flash("You're in the Drop Dead Pool. Good luck!", "success")
-    return redirect(url_for("dropdead.pick"))
+    return redirect(url_for("main.index") if request.form.get("from") == "home"
+                    else url_for("dropdead.pick"))
 
 
 @bp.route("/pick", methods=["GET", "POST"])
@@ -209,6 +225,13 @@ def buyback(entry_id):
     entry.is_active = True
     entry.buy_backs_used += 1
     entry.buyback_week = entry.eliminated_week
+    # One row per buy-back, so the Payments page can settle this fee on its
+    # own rather than moving a count that treats all of them as the same $30.
+    db.session.add(BuyBack(
+        entry_id=entry.id,
+        week_number=entry.eliminated_week,
+        fee=DROPDEAD_BUYBACK_FEE,
+    ))
     db.session.commit()
     log_activity(
         "buyback",

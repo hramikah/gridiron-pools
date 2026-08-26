@@ -2,21 +2,62 @@
 {% block title %}Add Another Account - Gridiron Pools{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-md-5">
+  <div class="col-md-6">
     <h2 class="mb-4 text-center"><span class="pool-icon">🏈</span>Add another account</h2>
-    <p class="text-muted">Creates a new login for another entry, linked to your same email (<strong>{{ email }}</strong>). Pick a different username and password &mdash; you'll be switched into the new account and asked which pools to join.</p>
-    <form method="post">
+
+    <p class="text-muted">Every entry you play needs its own account, so this
+      creates a second one under your same email
+      (<strong>{{ email }}</strong>). All it needs is a username &mdash; the name
+      everyone sees on the standings.</p>
+
+    <p class="text-muted">It uses the <strong>same password you just signed in
+      with</strong>, so there is nothing new to remember.</p>
+
+    <form method="post" class="mb-4">
       <div class="mb-3">
-        <label class="form-label">New username</label>
+        <label class="form-label">Username for the new account</label>
         <input type="text" class="form-control" name="username" required autofocus>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Password</label>
-        <input type="password" class="form-control" name="password" required minlength="6">
       </div>
       <button type="submit" class="btn btn-primary">Create Account</button>
       <a href="{{ url_for('main.index') }}" class="btn btn-link">Cancel</a>
     </form>
+
+    {# The two questions everyone asks straight after making a second entry:
+       how do I get back to the first one, and am I now paying twice over on
+       two separate bills. #}
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Switching between your entries</h5>
+        <p class="card-text mb-2">You are only ever signed into one entry at a
+          time &mdash; that is how the site knows whose picks it is saving. To
+          move between them, use the menu at the <strong>top right of every
+          page</strong>, the one that reads
+          <strong>&ldquo;Hi, {{ current_user.username }}&rdquo;</strong>.</p>
+        <p class="card-text mb-2">Open it and your other accounts are listed at
+          the top, under <em>Switch account</em>. Click one and you are in it
+          immediately &mdash; no password, no signing out. The name in that menu
+          always tells you which entry you are looking at, so check it before
+          making picks.</p>
+        <p class="card-text mb-0 text-muted">Each entry keeps its own picks,
+          its own record and its own standings position. They never share picks,
+          so you can back completely different teams in each one.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">One bill for all of them</h5>
+        <p class="card-text mb-2">Money is the exception: your
+          <a href="{{ url_for('main.billing') }}">Billing</a> page &mdash; also in
+          that same top-right menu &mdash; shows <strong>everything owed across
+          every account on your email</strong>, not just the one you are signed
+          into.</p>
+        <p class="card-text mb-0">Each entry is listed separately so you can see
+          what belongs to which, with one combined total at the top. It reads
+          the same whichever account you open it from.</p>
+      </div>
+    </div>
+
   </div>
 </div>
 {% endblock %}

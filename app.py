@@ -81,6 +81,53 @@ def migrate_schema():
         db.session.execute(db.text("UPDATE entry SET buy_backs_paid = 0 WHERE buy_backs_paid IS NULL"))
         db.session.commit()
 
+    # When each fee was settled. Players see this on their own Billing page, so
+    # the date has to be recorded rather than inferred. Rows settled before this
+    # existed keep NULL and are shown without a date rather than with a wrong
+    # one.
+    cols = {row[1] for row in db.session.execute(db.text("PRAGMA table_info(entry)")).all()}
+    if "paid_at" not in cols:
+        db.session.execute(db.text("ALTER TABLE entry ADD COLUMN paid_at DATETIME"))
+        db.session.commit()
+    if "buy_backs_paid_at" not in cols:
+        db.session.execute(db.text("ALTER TABLE entry ADD COLUMN buy_backs_paid_at DATETIME"))
+        db.session.commit()
+
+
+    # Each Drop Dead buy-back becomes its own row, so the Payments page can
+    # settle exactly the one that was paid instead of moving a count. The old
+    # counters said only "3 taken, 1 paid", so the backfill marks the first
+    # `buy_backs_paid` of each entry's buy-backs as the settled ones -- the
+    # same convention the counter itself implied.
+    tables = {
+        row[0]
+        for row in db.session.execute(
+            db.text("SELECT name FROM sqlite_master WHERE type='table'")
+        ).all()
+    }
+    if "buy_back" in tables:
+        already = db.session.execute(db.text("SELECT COUNT(*) FROM buy_back")).scalar()
+        if not already:
+            rows = db.session.execute(db.text(
+                "SELECT id, buy_backs_used, buy_backs_paid, buy_backs_paid_at, buyback_week "
+                "FROM entry WHERE pool = 'dropdead' AND buy_backs_used > 0"
+            )).all()
+            for entry_id, used, paid, paid_at, week_number in rows:
+                paid = max(0, min(paid or 0, used or 0))
+                for i in range(used or 0):
+                    db.session.execute(db.text(
+                        "INSERT INTO buy_back (entry_id, week_number, fee, paid, paid_at, created_at) "
+                        "VALUES (:e, :w, 30, :p, :pa, :ca)"
+                    ), {
+                        "e": entry_id,
+                        # Only the most recent buy-back's week was ever kept.
+                        "w": week_number if i == (used or 0) - 1 else None,
+                        "p": 1 if i < paid else 0,
+                        "pa": paid_at if i < paid else None,
+                        "ca": None,
+                    })
+            if rows:
+                db.session.commit()
 
 def create_app():
     app = Flask(__name__)
@@ -110,7 +157,16 @@ def create_app():
     # life to the session's is no weaker and far less confusing.
     app.config["WTF_CSRF_TIME_LIMIT"] = None
 
-    app.config["SESSION_COOKIE_SECURE"] = True
+    # Secure means the browser only ever sends the cookie over HTTPS, which is
+    # right for the live site (Cloudflare terminates TLS in front of it) and
+    # wrong for the local test site, which is plain http on 127.0.0.1. Chrome
+    # makes an exception for localhost; Safari and others do not, and there the
+    # cookie is silently dropped -- every form then posts a CSRF token with no
+    # session behind it and the sign-in "fails" with no useful explanation.
+    # Keyed on the database being a testbed one, the same marker the frozen
+    # clock and the seed guard use, so the live site can never take this branch.
+    is_testbed = TESTBED_MARKER in (app.config["SQLALCHEMY_DATABASE_URI"] or "").lower()
+    app.config["SESSION_COOKIE_SECURE"] = not is_testbed
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
@@ -259,8 +315,9 @@ def create_app():
         phone overnight, or a browser that dropped the session cookie --
         so say so in plain language on the page they were on instead of
         showing Flask's raw "400 Bad Request: The CSRF token is missing"."""
-        flash("That page had been sitting open too long, so the form was rejected. "
-              "Please try again.", "error")
+        flash("That form couldn't be submitted, usually because you signed out "
+              "(or the page was left open) in another tab. Please sign in and "
+              "try again.", "error")
         if current_user.is_authenticated:
             return redirect(url_for("main.index")), 302
         return redirect(url_for("auth.login")), 302

@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import deadline_passed, log_activity, game_pickable, get_current_week, team_game_this_week, team_matchups_for_week
+from helpers import deadline_passed, game_pickable, get_current_week, log_activity, pool_signup_deadline, pool_signups_open, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
 from models import Entry, Game, LoserPoolPoints, Pick, Team, db
 from scoring import ensure_missed_processed, standings_loser
@@ -18,7 +18,12 @@ def rules():
         .order_by(LoserPoolPoints.points)
         .all()
     )
-    return render_template("loser/rules.html", points=points)
+    return render_template(
+        "loser/rules.html",
+        points=points,
+        signups_open=pool_signups_open(season_year, "loser"),
+        signup_deadline=pool_signup_deadline(season_year, "loser"),
+    )
 
 
 @bp.route("/join", methods=["POST"])
@@ -29,11 +34,22 @@ def join():
     if existing:
         flash("You already have an entry in the Loser Pool (one per account). For another entry, register a separate account.", "error")
         return redirect(url_for("loser.pick"))
+    # Entries close at the Week 1 deadline, the same as every pool: joining
+    # afterwards would start the season a week down with no way to catch up.
+    if not pool_signups_open(season_year, "loser"):
+        cutoff = pool_signup_deadline(season_year, "loser")
+        flash(
+            "The Loser Pool is closed to new entries -- signups ended at the Week 1 deadline"
+            + (f" ({cutoff.strftime('%a %b %d, %Y at %I:%M %p')} Eastern)." if cutoff else "."),
+            "error",
+        )
+        return redirect(url_for("loser.rules"))
     entry = Entry(user_id=current_user.id, pool="loser", season_year=season_year, label="Entry 1")
     db.session.add(entry)
     db.session.commit()
     flash("You're in the Loser Pool. Pick your losers wisely.", "success")
-    return redirect(url_for("loser.pick"))
+    return redirect(url_for("main.index") if request.form.get("from") == "home"
+                    else url_for("loser.pick"))
 
 
 @bp.route("/pick", methods=["GET", "POST"])

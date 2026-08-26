@@ -847,3 +847,11 @@ table.standings thead th,
     transition: none;
   }
 }
+
+/* The Help tab made seven tabs, which wrapped each label onto two lines at
+   common laptop widths. The navbar now expands at xl rather than lg, so
+   992-1199px gets the hamburger instead of a squeezed row, and above that the
+   padding is tightened and labels are kept on one line. */
+@media (min-width: 1200px) {
+  .navbar-nav .nav-link { padding-left: .5rem; padding-right: .5rem; white-space: nowrap; }
+}

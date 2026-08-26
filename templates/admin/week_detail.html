@@ -28,18 +28,6 @@
         Process Missed Picks
       </button>
     </form>
-
-    <form method="post" action="{{ url_for('admin.email_picks', week_id=week.id) }}" class="mb-2 d-inline-block">
-      {% if week.picks_emailed %}
-      <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Picks Already Emailed</button>
-      {% elif not deadline_passed %}
-      <button type="button" class="btn btn-outline-secondary btn-sm" disabled>Email Picks (available after deadline)</button>
-      {% else %}
-      <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Email every player their locked-in {{ week.label }} picks now?')">
-        Email Picks to Players
-      </button>
-      {% endif %}
-    </form>
   </div>
 </div>
 {% endblock %}

@@ -78,14 +78,11 @@
           {% for wn in unlocked_week_numbers %}
             {% set c = row.cells[wn] %}
             <td>
-              {% if c and c.voided %}
-              VOID (Rebought $100)
-              {% elif c %}
+              {% if c %}
               {{ c.wins }}-{{ c.losses }}-{{ c.ties }}
               {% if c.missed %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">no picks</div>
               {% elif c.free_miss %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">no picks &mdash; first miss</div>{% endif %}
-              {% if c.penalty %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">incl. {{ c.penalty }} penalty {{ 'loss' if c.penalty == 1 else 'losses' }}</div>
-              {% elif c.catchup %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">buy-back: 10 picks</div>{% endif %}
+              {% if c.penalty %}<div class="text-muted" style="font-size:.7rem; line-height:1.1">incl. {{ c.penalty }} penalty {{ 'loss' if c.penalty == 1 else 'losses' }}</div>{% endif %}
               {% else %}<span class="text-muted">&mdash;</span>{% endif %}
             </td>
           {% endfor %}

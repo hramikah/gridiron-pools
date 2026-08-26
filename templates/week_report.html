@@ -15,15 +15,8 @@
 
 {# One slot: a pick, an empty slot being charged as a loss, an automatic
    penalty loss, or nothing at all. #}
-{% macro slot_cell(slot, voided=false) %}
-  {% if voided %}
-    {# The $100 wiped this week. Any picks it holds are shown underneath,
-       greyed, so the record of what was picked survives the void. #}
-    <div class="text-muted fw-bold">VOID (Rebought $100)</div>
-    {% if slot.kind == 'pick' %}
-    <div class="text-muted" style="font-size:.72rem; line-height:1.1; text-decoration:line-through">{{ pick_label(slot.pick) }}</div>
-    {% endif %}
-  {% elif slot.kind == 'pick' %}
+{% macro slot_cell(slot) %}
+  {% if slot.kind == 'pick' %}
     <div class="{{ result_class.get(slot.pick.result, '') }}">{{ pick_label(slot.pick) }}</div>
     <div class="text-muted" style="font-size:.72rem; line-height:1.1">{{ slot.pick.game.away_team }} @ {{ slot.pick.game.home_team }}</div>
   {% elif slot.kind == 'nopick' %}
@@ -55,13 +48,9 @@
       <td>
         {{ row.entry.user.username }}
         {% if row.entry.label and row.entry.label != 'Entry 1' %}<span class="text-muted">({{ row.entry.label }})</span>{% endif %}
-        {% if row.voided %}
-        <div class="text-muted" style="font-size:.72rem; line-height:1.1">bought back &mdash; week voided</div>
-        {% endif %}
         {% if row.slot_rows|length > 1 %}
         <div class="text-muted" style="font-size:.72rem; line-height:1.1">
-          {% if row.allowance == 'buyback' %}buy-back &mdash; {{ row.limit }} picks
-          {%- elif row.allowance == 'makeup' %}makeup week &mdash; {{ row.limit }} picks{% if row.penalty %} + {{ row.penalty }} {{ 'loss' if row.penalty == 1 else 'losses' }}{% endif %}
+          {% if row.allowance == 'makeup' %}makeup week &mdash; {{ row.limit }} picks{% if row.penalty %} + {{ row.penalty }} {{ 'loss' if row.penalty == 1 else 'losses' }}{% endif %}
           {%- endif %}
         </div>
         {% endif %}
@@ -74,7 +63,7 @@
               {% if not loop.first %}
               <div class="text-muted fw-bold text-uppercase" style="font-size:.65rem; letter-spacing:.04em">Pick {{ loop.index0 * columns + col + 1 }}</div>
               {% endif %}
-              {{ slot_cell(slot_row[col], row.voided) }}
+              {{ slot_cell(slot_row[col]) }}
             </div>
           {% endfor %}
         </td>

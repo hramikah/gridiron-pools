@@ -67,43 +67,6 @@
       <p class="text-muted mb-0">This entry has been benched for missing more than 5 weeks and can no longer submit picks.
       Its record is final as of Week {{ entry.eliminated_week }}.</p>
     {% else %}
-      {% if buyback_by_entry.get(entry.id) %}
-      {# Outside the pick form on purpose -- a nested <form> is dropped by every browser. #}
-      <div class="card border-warning mb-3">
-        <div class="card-body py-2">
-          <p class="small mb-2"><strong>Buy back in for ${{ buyback_fee }}?</strong>
-          Week {{ week.number - 1 }} stops counting entirely &mdash; wins, losses and ties all
-          wiped, as if it never happened &mdash; and you pick
-          <strong>{{ buyback_picks }} games this week instead of {{ normal_picks }}</strong>,
-          with no penalty. That's the {{ normal_picks }} the fee erased plus this week's
-          {{ normal_picks }}, so you finish the week level on games played with everyone
-          who didn't miss.
-          {% if makeup_by_entry.get(entry.id) %}Your one-time {{ makeup_picks }}-pick makeup stays
-          banked for the first week you miss from here on, instead of being spent on Week
-          {{ week.number - 1 }}.{% endif %}
-          Open to every entry however Week {{ week.number - 1 }} went &mdash; {{ normal_picks }}-0,
-          0-{{ normal_picks }}, or 0-{{ normal_picks }} for never submitting.
-          The ${{ buyback_fee }} is owed to the commissioners. One per entry, this week only.</p>
-          {% if buyback_deadline %}
-          <p class="small mb-2 text-danger"><strong>Closes {{ buyback_deadline.strftime('%A %b %d at %I:%M %p') }}
-          Eastern</strong> &mdash; before this week's first kickoff, not at the Saturday pick deadline.</p>
-          {% endif %}
-          <form method="post" action="{{ url_for('gridiron.buyback', entry_id=entry.id) }}">
-            <button type="submit" class="btn btn-sm btn-gridiron"
-                    onclick="return confirm('Buy back in for ${{ buyback_fee }}? Week {{ week.number - 1 }} will stop counting. This cannot be undone.');">
-              Buy back in (${{ buyback_fee }})
-            </button>
-          </form>
-        </div>
-      </div>
-      {% elif entry.buyback_week %}
-      <div class="alert alert-info py-2 small mb-3">
-        <strong>Bought back in.</strong> Week {{ entry.buyback_week }} no longer counts toward your record.
-        {% if pick_limits.get(entry.id) == buyback_picks %}You have
-        <strong>{{ buyback_picks }} picks</strong> this week to catch up.{% endif %}
-      </div>
-      {% endif %}
-
       {% set penalty_slots = penalty_slots_by_entry.get(entry.id, 0) %}
       {% if my_picks or penalty_slots %}
       {% set my_results = picks_results_this_week.get(entry.id, {}) %}

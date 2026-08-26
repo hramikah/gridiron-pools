@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Help{% endblock %}
+{# The Help tab. Three doors to the per-pool walkthroughs, plus the payment
+   details in one place -- members cannot see the Payments page, which is admin
+   only, so this is where "what do I owe and where do I send it" lives.
+   Fees are quoted from the 2026-2027 sheets; if a sheet changes, change them
+   here too. #}
+{% block content %}
+
+<div class="page-header"><h2><span class="pool-icon">❓</span>Help</h2></div>
+
+<p class="lead">New to a pool, or want to check how something works? Pick a pool
+below for a full walkthrough &mdash; how to join, how to make your picks, the
+deadlines, and the things that catch people out.</p>
+
+<div class="row g-4 mb-4">
+
+  <div class="col-md-4">
+    <div class="card pool-card pool-gridiron h-100 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h4 class="card-title"><span class="pool-icon">🏆</span>Gridiron Investments</h4>
+        <p class="card-text">Five picks a week against the spread, NFL or college,
+          plus optional NFL over/unders. Most correct picks over the season wins.</p>
+        <p class="card-text"><span class="badge bg-secondary">$100 per entry</span></p>
+        <div class="mt-auto">
+          <a href="{{ url_for('main.help_page', pool='gridiron') }}" class="btn btn-gridiron w-100 mb-2">How to Play</a>
+          <a href="{{ url_for('gridiron.rules') }}" class="btn btn-outline-dark btn-sm w-100">Official rules</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card pool-card pool-loser h-100 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h4 class="card-title"><span class="pool-icon">📉</span>Loser Pool</h4>
+        <p class="card-text">One pick a week &mdash; an NFL team you think will
+          lose. Correct picks earn that team's points; wrong picks cost them.</p>
+        <p class="card-text"><span class="badge bg-secondary">$20 per entry</span></p>
+        <div class="mt-auto">
+          <a href="{{ url_for('main.help_page', pool='loser') }}" class="btn btn-loser w-100 mb-2">How to Play</a>
+          <a href="{{ url_for('loser.rules') }}" class="btn btn-outline-dark btn-sm w-100">Official rules</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card pool-card pool-dropdead h-100 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h4 class="card-title"><span class="pool-icon">💀</span>Drop Dead Pool</h4>
+        <p class="card-text">Survivor pool. One team a week to win outright, each
+          team usable once. Lose or tie and you are out.</p>
+        <p class="card-text"><span class="badge bg-secondary">$20 per entry</span></p>
+        <div class="mt-auto">
+          <a href="{{ url_for('main.help_page', pool='dropdead') }}" class="btn btn-dropdead w-100 mb-2">How to Play</a>
+          <a href="{{ url_for('dropdead.rules') }}" class="btn btn-outline-dark btn-sm w-100">Official rules</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<hr class="my-4">
+
+<h3 id="paying">How to pay</h3>
+
+<p>All entry fees are paid by <strong>check</strong>. Nothing is paid through
+this site &mdash; the site tracks what you owe, the commissioners handle the
+money.</p>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Where to send it</h5>
+        <p class="mb-1">Make the check payable to:</p>
+        <p class="fw-bold mb-3">Cedric Hay</p>
+        <p class="mb-1">Mail it to:</p>
+        <address class="fw-bold mb-3">
+          12300 U.S. Highway 19<br>
+          Hudson, FL 34667
+        </address>
+        <div class="alert alert-warning mb-0">
+          <strong>Postmarked on or before September 14th, 2026.</strong> The
+          Gridiron rules say entry fees must be tendered in full by then or the
+          entry is stricken &mdash; no exceptions. One check can cover all your
+          entries; just note which pools it is for.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">What it costs</h5>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <tbody>
+              <tr>
+                <td>🏆 Gridiron Investments</td>
+                <td class="text-end fw-bold">$100</td>
+                <td class="text-muted small">per line</td>
+              </tr>
+              <tr>
+                <td>📉 Loser Pool</td>
+                <td class="text-end fw-bold">$20</td>
+                <td class="text-muted small">per entry</td>
+              </tr>
+              <tr>
+                <td>💀 Drop Dead Pool</td>
+                <td class="text-end fw-bold">$20</td>
+                <td class="text-muted small">per line</td>
+              </tr>
+              <tr class="border-top">
+                <td>💀 Drop Dead buy-back</td>
+                <td class="text-end fw-bold">$30</td>
+                <td class="text-muted small">each, weeks 1&ndash;4</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small text-muted mt-3 mb-0">You can play any or all three
+        pools &mdash; they are separate entries and separate fees. A second line
+        in a pool needs a second account and a second fee.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info mt-4">
+  <strong>Buy-backs are billed the same way.</strong> Pressing a buy-back button
+  on the site revives your entry straight away; the fee is then owed to the
+  commissioners along with everything else. No money changes hands on the site.
+</div>
+
+<hr class="my-4">
+
+<h3>Anything else</h3>
+<p>Questions about the rules, your entries, a scoring mistake, or a change to
+your details all go to the commissioners through the
+<a href="{{ url_for('board.index') }}">Message Board</a>. For anything binding
+&mdash; payouts, awards, penalties &mdash; each pool's official rules are the
+last word.</p>
+
+<p class="mt-3"><a href="{{ url_for('main.index') }}">&larr; Back to pools</a></p>
+{% endblock %}

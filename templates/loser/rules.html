@@ -2,20 +2,27 @@
 {% block title %}Loser Pool Rules{% endblock %}
 {% block content %}
 {# Rules text below is reproduced word for word from the 2026 "Can You Pick
-   Losers?" sheet. Do not paraphrase or condense. The point-value table is
-   rendered from the database (verified 2026-08-14 to match the sheet exactly,
-   10 Cards through 41 Rams) so scoring and the published rules can't drift. #}
+   Losers?" sheet as supplied 2026-08-25. Do not paraphrase or condense. The
+   point-value table is rendered from the database (verified 2026-08-14 to
+   match the sheet exactly, 10 Cards through 41 Rams) so scoring and the
+   published rules can't drift.
+
+   Changes from the previous sheet: picks are made in the Loser Pool account
+   rather than e-mailed; the forgot-to-pick default is now the VISITING team of
+   the LAST Monday night game of the betting week (it previously read "the team
+   on the first Monday Night Football game"); and the deducted amount for a
+   team that wins or ties is stated as its point value. #}
 <div class="page-header header-loser"><h2><span class="pool-icon">📉</span>Can You Pick Losers?</h2></div>
 
 <p class="fw-bold mb-1">NO POINT SPREADS . . . JUST PICK LOSERS!</p>
 <p class="fw-bold">Here's how it works . . .</p>
 
 <ul class="mb-4 rules-list">
-  <li>Pick one NFL team to LOSE each week of the 18 week regular NFL season. Any team may be selected any week.(NFL only please)</li>
+  <li>Pick one NFL team to LOSE each week of the 18 week regular NFL season. Any team may be selected any week. (NFL only please)</li>
 
   <li>For each correct LOSER you select, you will receive and accumulate points (points are determined by which team you select to LOSE -- see below).</li>
 
-  <li>If your team wins or ties, <span class="text-danger">[the team's point value]</span> will be deducted from your accumulated point total.</li>
+  <li>If your team wins or ties, its point value will be deducted from your accumulated point total.</li>
 
   <li>Highest number of points accumulated at the end of the season wins 1st place - 70% of take, 2nd - 20%, 3rd - 10%.</li>
 </ul>
@@ -31,15 +38,21 @@
 <p class="mt-4 mb-1"><strong>COST: $20.00 per entry - - good for the whole season.</strong><br>
 <strong>(More than one entry is permitted)</strong></p>
 
-<p class="mb-1"><strong>TO PLAY: Send $20 per entry To: Cedric Hay 12300 US Hwy 19 Hudson Fl 34667, then just e-mail your LOSER in each week. Our commissioners and technician will tabulate standings each week and will each receive 1 free entry for their labor.</strong><br>
-<strong>Send picks to gridironlines@yahoo.com AND Awardsltd@icloud.com</strong></p>
+<p class="mb-1"><strong>TO PLAY: Send $20 per entry To: Cedric Hay 12300 US Hwy 19 Hudson Fl 34667, then just select your LOSER in each week. Picks and Standings will be accessible using the tab at the top of your Gridiron Pools 2026 account. Your commissioners and technician will each receive 1 gratis entry for their labor.</strong></p>
 
-<p class="fw-bold">Picks must be in by Saturday at noon(EST).</p>
+<p class="mb-1"><strong>Picks must be submitted using your Gridiron Pools 2026 Loser Pool account.</strong></p>
 
-<p><strong>* If you forget to make your LOSER pick by Saturday at noon (EST), the team on the first Monday Night Football game of the betting week shall be your selection for that week.</strong></p>
+<p class="fw-bold">Picks must be in by Saturday at noon (EST) or at least one hour prior to posted kickoff for games played prior thereto.</p>
+
+<p><strong>* If you forget to make your LOSER pick by Saturday at noon (EST), the visiting team on the last Monday Night Football game of the betting week shall be your selection for that week.</strong></p>
 
 <div class="mt-4">
-{% if current_user.is_authenticated %}
+{% if not signups_open %}
+<div class="alert alert-secondary mb-0">
+  🔒 <strong>The Loser Pool is closed to new entries.</strong>
+  Signups ended at the Week 1 deadline{% if signup_deadline %} ({{ signup_deadline.strftime('%A %b %d, %Y at %I:%M %p') }} Eastern){% endif %}.
+</div>
+{% elif current_user.is_authenticated %}
 <form method="post" action="{{ url_for('loser.join') }}">
   <button type="submit" class="btn btn-loser">🏈 Join the Loser Pool</button>
 </form>

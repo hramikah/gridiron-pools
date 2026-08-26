@@ -10,3 +10,9 @@ testbed/
 *.bak*
 .deploy/
 instance/nightly/
+
+# Transfer staging area used by Claude sessions -- never part of the app.
+_scratch/
+
+# Files replaced by a newer version, kept until Hunter deletes the folder.
+_to_delete/

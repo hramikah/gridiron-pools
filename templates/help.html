@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Help - {{ pool_label }}{% endblock %}
 {% block content %}
-<div class="page-header"><h2><span class="pool-icon">❓</span>{{ pool_label }} &mdash; Help / Instructional Videos</h2></div>
+<div class="page-header"><h2><span class="pool-icon">❓</span>{{ pool_label }} &mdash; How to Play</h2></div>
 
 <div class="card">
   <div class="card-body">
-    <p class="mb-0">This is a placeholder page. In the future it will have video tutorials and FAQs to help users navigate {{ pool_label }}.</p>
+    <p class="mb-0">A full walkthrough for {{ pool_label }} is being written. In the meantime the <a href="{{ url_for(pool ~ '.rules') }}">official rules</a> cover how this pool is played, and the commissioners are on the <a href="{{ url_for('board.index') }}">Message Board</a> if you get stuck.</p>
   </div>
 </div>
 

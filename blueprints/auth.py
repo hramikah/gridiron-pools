@@ -14,7 +14,7 @@ from helpers import (
     reset_request_rate_limited,
     send_async,
 )
-from mailer import send_password_reset_link_email, send_welcome_email
+from mailer import send_password_reset_link_email
 from models import POOL_LABELS, POOLS, Entry, Invite, PasswordReset, User, db
 from models import now as _now
 
@@ -70,7 +70,6 @@ def register():
             invite_row.used_at = _now()
             session.pop("invite_token", None)
         db.session.commit()
-        send_welcome_email(user)
         login_user(user)
         log_activity("register", f"Account created ({email})", user=user)
         flash("Welcome! Your account has been created.", "success")
@@ -144,19 +143,36 @@ def forgot_password():
             db.session.add(PasswordReset(user_id=user.id, token=token))
             link = f"{site_url}{url_for('auth.reset_password', token=token)}"
             by_email.setdefault(user.email, []).append((user.username, link))
-        if by_email:
-            db.session.commit()
-            for email, username_links in by_email.items():
-                send_async(send_password_reset_link_email, email, username_links)
-            log_activity("password_reset_requested",
-                         f"Reset link sent for '{identifier}'", user=users[0])
+        # Hunter's call: tell people plainly when nothing matched. The generic
+        # "if that account exists" wording confused players who had simply
+        # mistyped their address, and this is a 150-person private pool behind
+        # invite-only registration, not a public signup. The trade-off is that
+        # the form now confirms whether an address is registered here.
+        if not users:
+            flash(
+                "There is no account with that username or email address. "
+                "Check the spelling, or ask a commissioner to send you an invite.",
+                "error",
+            )
+            return render_template("auth/forgot_password.html")
 
-        # Deliberately the same answer whether or not anything matched --
-        # otherwise this form tells a stranger which usernames and emails
-        # are real.
+        if not by_email:
+            flash(
+                "That account has no email address on file, so a reset link "
+                "cannot be sent. Message a commissioner and they can reset it "
+                "for you.",
+                "error",
+            )
+            return render_template("auth/forgot_password.html")
+
+        db.session.commit()
+        for email, username_links in by_email.items():
+            send_async(send_password_reset_link_email, email, username_links)
+        log_activity("password_reset_requested",
+                     f"Reset link sent for '{identifier}'", user=users[0])
         flash(
-            "If that username or email has an account, a reset link is on its way. "
-            "Check your inbox (and spam) -- the link expires in 1 hour.",
+            "A reset link is on its way. Check your inbox (and spam) -- the "
+            "link expires in 1 hour.",
             "success",
         )
         return redirect(url_for("auth.login"))
@@ -205,9 +221,8 @@ def add_account():
         )
     if request.method == "POST":
         username = request.form["username"].strip()
-        password = request.form["password"]
-        if not username or not password:
-            flash("Username and password are required.", "error")
+        if not username:
+            flash("Pick a username for the new account.", "error")
             return render_template("auth/add_account.html", email=email)
         if username.lower() == current_user.username.lower():
             flash("The new account needs a different username than this one.", "error")
@@ -216,12 +231,21 @@ def add_account():
             flash("That username is taken.", "error")
             return render_template("auth/add_account.html", email=email)
         user = User(username=username, email=email)
-        user.set_password(password)
+        # No password to choose: extra entries belong to the person already
+        # signed in, so the new account starts on the same password as the one
+        # that created it. Asking for a second password was pure friction --
+        # nothing ever required it to differ, and a forgotten one means a
+        # commissioner has to reset an account the player thinks of as theirs.
+        # The hash is copied rather than re-derived, so the password itself is
+        # never handled here. They stay independent afterwards: changing one
+        # account's password does not touch the others.
+        user.password_hash = current_user.password_hash
         db.session.add(user)
         db.session.commit()
-        send_welcome_email(user)
+        log_activity("account_added", f"Created another account '{username}' on {email}")
         login_user(user)
-        flash(f"New account '{username}' created and linked to {email}.", "success")
+        flash(f"New account '{username}' created, using the same password as "
+              f"{email}. You're signed into it now.", "success")
         return redirect(url_for("auth.choose_pools"))
     return render_template("auth/add_account.html", email=email)
 
@@ -244,47 +268,13 @@ def switch_account(user_id):
 @bp.route("/choose-pools", methods=["GET", "POST"])
 @login_required
 def choose_pools():
-    season_year = current_app.config["CURRENT_SEASON"]
-    existing_pools = {
-        e.pool for e in Entry.query.filter_by(user_id=current_user.id, season_year=season_year).all()
-    }
+    """Retired: the home page is the join page now.
 
-    gridiron_open = gridiron_signups_open(season_year)
-
-    if request.method == "POST":
-        selected = [p for p in request.form.getlist("pools") if p in POOLS]
-        joined = []
-        for pool in selected:
-            if pool in existing_pools:
-                continue
-            # Gridiron closes to new entries at the Week 2 deadline; enforced
-            # here too, not just on the rules page, since this form is the
-            # other way into a pool.
-            if pool == "gridiron" and not gridiron_open:
-                flash(
-                    "Gridiron Investments is closed to new entries -- signups ended at the Week 2 deadline.",
-                    "error",
-                )
-                continue
-            count = Entry.query.filter_by(user_id=current_user.id, pool=pool, season_year=season_year).count()
-            db.session.add(
-                Entry(user_id=current_user.id, pool=pool, season_year=season_year, label=f"Entry {count + 1}")
-            )
-            joined.append(POOL_LABELS[pool])
-        db.session.commit()
-        if joined:
-            log_activity("pool_joined", f"Joined {', '.join(joined)}")
-            flash(f"You're in: {', '.join(joined)}.", "success")
-        else:
-            flash("No pools joined. You can join any pool later from its rules page.", "success")
-        return redirect(url_for("main.index"))
-
-    return render_template(
-        "auth/choose_pools.html",
-        existing_pools=existing_pools,
-        gridiron_open=gridiron_open,
-        gridiron_deadline=gridiron_signup_deadline(season_year),
-    )
+    Kept as a redirect because register, add_account and switch_account all
+    send people here after creating or changing accounts, and an old bookmark
+    or a stale open tab would otherwise 404.
+    """
+    return redirect(url_for("main.index"))
 
 
 @bp.route("/logout")

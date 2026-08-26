@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}How to Play - Gridiron Investments{% endblock %}
+{# Player-facing walkthrough for Gridiron Investments. The authoritative rules
+   live in gridiron/rules.html and are reproduced there word for word; this
+   page explains how to actually do things on the site and links back to the
+   rules for anything binding. Screenshots are real captures of this site,
+   stored in static/help/gridiron/ -- reshoot them if the pick page changes. #}
+{% block content %}
+{% import "_help_shot.html" as h with context %}
+{{ h.styles() }}
+
+<div class="page-header header-gridiron">
+  <h2><span class="pool-icon">🏈</span>Gridiron Investments &mdash; How to Play</h2>
+</div>
+
+<p class="lead">Everything you need to know to get in, make your five picks each
+week, and keep track of where you stand. If you have played by e-mail in past
+years, the one change that matters is that <strong>picks are made here on the
+site now</strong>. The 2026-2027 rules put it plainly: your Gridiron
+Investments account is the only method for submitting picks, and e-mailed,
+faxed and telephoned picks are not accepted.</p>
+
+<div class="card border-2 mb-4" style="border-left: 5px solid var(--gridiron-accent) !important;">
+  <div class="card-body">
+    <h5 class="card-title mb-3">The short version</h5>
+    <div class="row g-3">
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">5 picks a week</div>
+        <div class="small text-muted">NFL or college, against the spread. NFL games may also be picked over/under.</div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">Saturday at noon Eastern</div>
+        <div class="small text-muted">The weekly deadline. Any individual game also locks 1 hour before its own kickoff.</div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">$100 per entry</div>
+        <div class="small text-muted">Check to the commissioners, postmarked by September 14th.</div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">90 picks, 18 weeks</div>
+        <div class="small text-muted">Most correct picks wins. Roughly the top 12% of entries get paid.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="mb-4">
+  <div class="fw-bold mb-2">Jump to:</div>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#joining">Joining &amp; paying</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#deadlines">Deadlines</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#picking">Making your picks</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#changing">Changing a pick</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#situations">Special situations</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#results">Results &amp; standings</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#faq">FAQ</a>
+</nav>
+
+<hr class="my-4">
+
+<h3 id="joining">1. Joining and paying</h3>
+
+<p>Gridiron Investments is invitation-only. A commissioner sends you an e-mail
+with a sign-up link; that link is what lets you create an account. If you have
+not received one, ask a commissioner to send you one &mdash; you cannot
+register without it.</p>
+
+<ol class="mb-3">
+  <li class="mb-2"><strong>Open the link in your invitation e-mail.</strong> It
+    takes you to the registration page with your e-mail address already filled
+    in. Choose a username and a password you will remember. Your username is
+    what everyone else sees on the standings.</li>
+  <li class="mb-2"><strong>Join the pool.</strong> Registering drops you on
+    the home page, where all three pools are listed. Press
+    <em>Join Gridiron Investments &mdash; $100</em> and confirm the price. Join
+    Drop Dead or Loser the same way, then or any time later.</li>
+  <li class="mb-2"><strong>Mail your entry fee.</strong> $100 per entry, check
+    payable to <strong>Cedric Hay</strong>, mailed to <strong>12300 U.S.
+    Highway 19, Hudson, FL 34667</strong>. It must be postmarked on or before
+    <strong>September 14th, 2026</strong> or the entry is stricken &mdash; the
+    rules say no exceptions, and they mean it.</li>
+</ol>
+
+<p>Everything happens on the <strong>home page</strong>. Every pool is listed there, and the ones you have not joined carry a Join button with the price on it:</p>
+
+{{ h.figure("gridiron", "join-home.jpg",
+   "The three pool cards on the home page, each with a Join button showing its price",
+   "The home page. Press Join Gridiron Investments — $100 and confirm; the card then shows &quot;You're in&quot; and a button to make your picks.") }}
+
+<p>Already have an account and want to add Gridiron later? Open the
+<a href="{{ url_for('gridiron.rules') }}">rules page</a> and press the join
+button at the bottom:</p>
+
+{{ h.figure("gridiron", "join-button.png",
+   "The Join Gridiron Investments button at the foot of the rules page",
+   "The one-press route for an existing account, with the signup deadline underneath it.") }}
+
+<div class="alert alert-warning">
+  <strong>Signups close at the Week 1 deadline &mdash; Saturday noon Eastern of
+  the opening week.</strong> After that the join button disappears for the rest
+  of the season, for everyone. There is no joining late and catching up, so if
+  you are thinking about playing, get in before the season starts.
+</div>
+
+<p class="text-muted">One entry per account. If you want a second line, register
+a second account with a different username &mdash; and remember each line is
+its own $100.</p>
+
+<hr class="my-4">
+
+<h3 id="deadlines">2. Deadlines &mdash; there are two of them</h3>
+
+<p>This trips up more people than anything else in the pool, so it is worth
+being clear:</p>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">The weekly deadline</h5>
+        <p class="card-text mb-0"><strong>Saturday at noon Eastern.</strong>
+        Once it passes, the week is closed &mdash; you cannot add, change or
+        remove anything, and whatever you had saved is what counts. The
+        countdown clock in your account is the official one.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Each game's own lock</h5>
+        <p class="card-text mb-0">Every game closes <strong>1 hour before its
+        kickoff</strong>, even if that is before Saturday noon. A Thursday
+        night game is gone by Thursday evening.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p>A game that has passed its own cutoff still appears on the pick page, greyed
+out, so you can see it was there and why you cannot pick it:</p>
+
+{{ h.figure("gridiron", "pick-locked-too-soon.png", "A game row greyed out with the note Locked - kickoff too soon", "A Thursday night game seen on Thursday evening — still listed, no longer selectable.") }}
+
+<p>A week runs Thursday through the following Wednesday, so the games you are
+picking on Saturday morning are that Sunday's and Monday's games plus any
+college games through Wednesday.</p>
+
+<hr class="my-4">
+
+<h3 id="picking">3. Making your picks</h3>
+
+<p>Sign in and press <strong>Make a Pick</strong> in the top menu, then find the
+Gridiron Investments section. Every game with a posted line for the week is
+listed. Here is one row:</p>
+
+{{ h.figure("gridiron", "pick-row-anatomy.png", "A single game row showing the matchup, kickoff time, line, and four buttons", "Left: the matchup, kickoff time in Eastern, the line, and the over/under. Right: the buttons you press.") }}
+
+<p>The four buttons are two separate choices:</p>
+
+<ul>
+  <li class="mb-2"><strong>Spread pick</strong> &mdash; the favourite is always
+    on the left with a minus number, the underdog on the right with a plus
+    number. <em>Seahawks -4.5</em> means the Seahawks must win by 5 or more for
+    that pick to be correct. <em>Ravens +4.5</em> means the Ravens must either
+    win outright or lose by 4 or fewer. A game with no favourite shows
+    <strong>PK</strong> (pick'em) &mdash; just win the game.</li>
+  <li class="mb-2"><strong>Total pick (over/under)</strong> &mdash; NFL games
+    only. <em>Over 45.5</em> means the two teams' scores added together must be
+    46 or more. <em>Under 45.5</em> means 45 or fewer.</li>
+</ul>
+
+<div class="alert alert-info">
+  You may take <strong>both</strong> the spread and the over/under on the same
+  NFL game &mdash; that is two of your five picks. The site will not let you
+  take the same one twice, and taking opposite sides of one game is simply two
+  picks that cannot both win, so it is a wasted slot rather than a foul.
+</div>
+
+<p>Press a button to select it; press <em>Clear Selection</em> if you change your
+mind before saving. Selected buttons fill in solid, in the team's colours:</p>
+
+{{ h.figure("gridiron", "pick-making-selections.jpg", "Several game rows with some picks selected and filled in", "Two spread picks and one over/under selected. The top game is already locked.") }}
+
+<p>When you are happy, scroll to the bottom and press <strong>Save
+Picks</strong>. Nothing is submitted until you do. Saved picks appear in the
+<em>Locked in so far</em> box at the top of the page, with the line you took
+recorded next to each one:</p>
+
+{{ h.figure("gridiron", "pick-locked-in-list.png", "The Locked in so far box listing three saved picks with the spread shown", "Three of five saved. The number in the heading is your running count for the week.") }}
+
+<p>You do not have to make all five at once. Come back as often as you like
+before the deadline and add the rest &mdash; the count in the heading tells you
+how many you still owe.</p>
+
+<hr class="my-4">
+
+<h3 id="changing">4. Changing or removing a pick</h3>
+
+<p>A saved pick can be taken back any time that game is still open, either from
+the <em>Locked in so far</em> box or from the game's own row, where it shows as
+a grey <em>Locked:</em> badge. Press the small red <strong>&times;</strong> next
+to it and confirm:</p>
+
+{{ h.figure("gridiron", "pick-locked-row.png", "A game row showing two locked picks each with a red X button", "Both the spread and the total are taken on this game. Either can be removed on its own.") }}
+
+<p>Removing a pick gives you the slot back, so you can select something else.
+Once the weekly deadline passes, or once that game is inside its 1-hour window,
+the &times; disappears and the pick is final.</p>
+
+<hr class="my-4">
+
+<h3 id="situations">5. Special situations</h3>
+
+<h5 class="mt-4">You miss a week</h5>
+<p>The first time you fail to get picks in by the deadline, you get one makeup:
+the following week you may pick <strong>8 games instead of 5, with a 2-game
+penalty</strong> charged against you from the start. The site does this
+automatically &mdash; your pick page simply shows 8 slots and the two penalty
+losses:</p>
+
+{{ h.figure("gridiron", "penalty-week.jpg", "A makeup week showing 8 of 8 picks plus two penalty losses", "A makeup week: eight picks made, two penalty losses already on the board.") }}
+
+<p>A <strong>second</strong> missed week &mdash; or missing the final week &mdash;
+is a straight loss of all five games for that week, with no makeup. Miss five
+weeks and the entry is benched for the season.</p>
+
+<h5 class="mt-4">Ties and pushes</h5>
+<p>If the result lands exactly on the number &mdash; a 3-point favourite that
+wins by exactly 3, or a total that lands exactly on 45 when the line was 45
+&mdash; the pick is a <strong>push</strong>. It counts as neither a win nor a
+loss. Pushes are tracked separately and there is a Most Ties Award for whoever
+collects the most of them.</p>
+
+<h5 class="mt-4">Cancelled or postponed games</h5>
+<p>If a game you picked is cancelled or postponed, you may pick a replacement,
+as long as you do it before that week's deadline. If the deadline has already
+gone by, you get the replacement pick the following week instead. Message the
+commissioners on the board so they know.</p>
+
+<hr class="my-4">
+
+<h3 id="results">6. Where results show up</h3>
+
+<ul>
+  <li class="mb-2"><strong>Master Standings</strong> &mdash; every entry in every
+    pool, all in one table.</li>
+  <li class="mb-2"><strong>Weekly Picks</strong> &mdash; who picked what, once a
+    week's deadline has passed.</li>
+  <li class="mb-2"><strong>Final Scores</strong> &mdash; the scores each week's
+    results were scored from.</li>
+  <li class="mb-2"><strong>Message Board</strong> &mdash; announcements from the
+    commissioners, and where you can send them a private message.</li>
+</ul>
+
+{{ h.figure("gridiron", "standings.jpg", "The Gridiron Investments standings table", "Gridiron standings. Place awards go by most correct picks; ties break on fewest losses.") }}
+
+<hr class="my-4">
+
+<h3 id="faq">7. Frequently asked questions</h3>
+
+{{ h.faq([
+    ("Do I still have to e-mail my picks to the commissioners?",
+     "No &mdash; and e-mailed picks are not accepted at all under the 2026-2027
+      rules. Your account is the only way to submit picks. It time-stamps
+      everything and shows you exactly what is saved."),
+    ("How do I know my picks went through?",
+     "They appear in the <em>Locked in so far</em> box at the top of the pick
+      page, with a running count (for example 3 / 5). If a pick is in that box,
+      it is saved. Nothing else is needed."),
+    ("Can I change a pick after I save it?",
+     "Yes, until that game locks or the weekly deadline passes &mdash; whichever
+      comes first. Press the red &times; next to the pick, confirm, and the slot
+      is yours again."),
+    ("What if I forget my password?",
+     "Use the <em>Forgot password</em> link on the sign-in page. It e-mails you a
+      reset link. If the address on your account is out of date, ask a
+      commissioner to fix it."),
+    ("Can I have more than one entry?",
+     "Yes, but each entry needs its own account and its own $100. One entry per
+      account keeps the standings and the picks straight."),
+    ("Can I pick college games?",
+     "Yes, any college game the commissioners have posted a line for that week,
+      bowl games included. Only NFL games have an over/under."),
+    ("Can I take the spread and the over/under on the same game?",
+     "Yes, and it is expressly allowed. That uses two of your five picks."),
+    ("What happens if I pick fewer than five games?",
+     "The slots you did not fill are scored as losses. There is no partial
+      credit, so it is always worth filling all five."),
+    ("Why has a game disappeared from my choices?",
+     "It has not &mdash; it is greyed out with the note &ldquo;Locked &mdash;
+      kickoff too soon.&rdquo; Games close an hour before their own kickoff."),
+    ("Who do I contact about a scoring mistake?",
+     "The commissioners, through the Message Board &mdash; that is where the
+      rules now send all questions. Exceptions, appeals and interpretations are
+      up to the Rules Committee."),
+]) }}
+
+<hr class="my-4">
+
+<h3>Still stuck?</h3>
+<p>Send the commissioners a message from the <a href="{{ url_for('board.index') }}">Message
+Board</a> &mdash; under the 2026-2027 rules that is where questions about the
+rules, the club, or your details go. For anything
+binding &mdash; payouts, awards, penalties &mdash; the
+<a href="{{ url_for('gridiron.rules') }}">official rules</a> are the last word;
+this page is only a walkthrough.</p>
+
+<p class="mt-4">
+  <a href="{{ url_for('gridiron.rules') }}" class="btn btn-gridiron">Read the official rules</a>
+  <a href="{{ url_for('gridiron.pick') }}" class="btn btn-outline-secondary ms-2">Go make my picks</a>
+</p>
+
+<p class="mt-3"><a href="{{ url_for('main.index') }}">&larr; Back to pools</a></p>
+{% endblock %}

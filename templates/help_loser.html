@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}How to Play - Loser Pool{% endblock %}
+{# Player-facing walkthrough for the Loser Pool. The authoritative rules live in
+   loser/rules.html, reproduced word for word from the 2026 sheet; this page
+   explains how to do things on the site. Screenshots are real captures stored
+   in static/help/loser/ -- reshoot them if the pick page changes. #}
+{% block content %}
+{% import "_help_shot.html" as h with context %}
+{{ h.styles() }}
+
+<div class="page-header header-loser">
+  <h2><span class="pool-icon">📉</span>Loser Pool &mdash; How to Play</h2>
+</div>
+
+<p class="lead">One pick a week, and you are looking for the team you think will
+<strong>lose</strong>. No point spreads, nothing to calculate &mdash; just pick a
+loser. Get it right and you bank that team's points; get it wrong and you lose
+them.</p>
+
+<div class="card border-2 mb-4" style="border-left: 5px solid var(--loser-accent, #b45309) !important;">
+  <div class="card-body">
+    <h5 class="card-title mb-3">The short version</h5>
+    <div class="row g-3">
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">1 pick a week</div>
+        <div class="small text-muted">An NFL team you expect to lose. Any team, any week &mdash; repeats allowed.</div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">Saturday at noon Eastern</div>
+        <div class="small text-muted">Each team also locks 1 hour before its own kickoff.</div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">$20 per entry</div>
+        <div class="small text-muted">Good for the whole season. More than one entry is permitted.</div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="fw-bold">Most points wins</div>
+        <div class="small text-muted">70% to first, 20% to second, 10% to third.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="mb-4">
+  <div class="fw-bold mb-2">Jump to:</div>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#joining">Joining &amp; paying</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#points">How scoring works</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#picking">Making your pick</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#deadlines">Deadlines</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#situations">Special situations</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#results">Results &amp; standings</a>
+  <a class="btn btn-outline-secondary btn-sm mb-1" href="#faq">FAQ</a>
+</nav>
+
+<hr class="my-4">
+
+<h3 id="joining">1. Joining and paying</h3>
+
+<p>If you already have a Gridiron Pools account, joining takes one press: open
+the <a href="{{ url_for('loser.rules') }}">Loser Pool rules page</a> and press
+<strong>Join the Loser Pool</strong>. If you are new to the site entirely, a
+commissioner sends you an invitation e-mail with a sign-up link, and you are
+offered all three pools right after you register.</p>
+
+{{ h.figure("loser", "join-button.png",
+   "The Join the Loser Pool button at the foot of the rules page",
+   "The one-press route: the join button at the bottom of the Loser Pool rules page.") }}
+
+<p>Everything happens on the <strong>home page</strong>. Every pool is listed there, and the ones you have not joined carry a Join button with the price on it:</p>
+
+{{ h.figure("loser", "join-home.jpg",
+   "The three pool cards on the home page, each with a Join button showing its price",
+   "The home page. Press Join Loser Pool — $20 and confirm; the card then shows &quot;You're in&quot; and a button to make your picks.") }}
+
+<p>The entry fee is <strong>$20 per entry</strong>, good for the whole season.
+Send a check to <strong>Cedric Hay, 12300 US Hwy 19, Hudson, FL 34667</strong>.
+More than one entry is permitted &mdash; each extra entry needs its own account
+and its own $20.</p>
+
+<div class="alert alert-warning">
+  <strong>Signups close at the Week 1 deadline &mdash; Saturday noon Eastern of
+  the opening week.</strong> After that the join button disappears for the rest
+  of the season, for everyone. All three pools work the same way, so if you are
+  thinking about playing, get in before the season starts.
+</div>
+
+<hr class="my-4">
+
+<h3 id="points">2. How scoring works</h3>
+
+<p>Every NFL team is worth a fixed number of points, set before the season and
+<strong>unchanged all year</strong>. Bad teams are worth few points; good teams
+are worth many. The full table is on the
+<a href="{{ url_for('loser.rules') }}">rules page</a>, and the number sits on
+every button when you pick.</p>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card h-100 border-success">
+      <div class="card-body">
+        <h5 class="card-title text-success">Your team loses</h5>
+        <p class="card-text mb-0">You were right. <strong>Add</strong> that
+        team's point value to your total. Picking a strong team to lose is worth
+        more precisely because it is harder to get right.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100 border-danger">
+      <div class="card-body">
+        <h5 class="card-title text-danger">Your team wins or ties</h5>
+        <p class="card-text mb-0">You were wrong. That same point value is
+        <strong>deducted</strong> from your total. A tie counts against you the
+        same as a win does.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p>Highest total at the end of the 18-week regular season takes first place.
+There is no elimination in this pool &mdash; a bad week costs you points, not
+your entry, and you can go negative and climb back.</p>
+
+<hr class="my-4">
+
+<h3 id="picking">3. Making your pick</h3>
+
+<p>Sign in, press <strong>Make a Pick</strong> in the top menu and find the Loser
+Pool section. Every game in the week is listed with both teams as buttons. The
+number on each button is what that team is worth:</p>
+
+{{ h.figure("loser", "pick-grid.jpg",
+   "The Loser Pool pick grid with each team shown as a button carrying its point value",
+   "Both sides of every game, each with its point value. Pick the one you think will lose.") }}
+
+<p>Press the team you expect to lose, then press <strong>Save Pick</strong>.
+Nothing counts until you save. Your saved pick then shows on its own, with the
+matchup underneath it:</p>
+
+{{ h.figure("loser", "locked-pick.png",
+   "A saved Loser Pool pick showing the team, its point value and a remove button",
+   "A saved pick. Press × Remove pick to take it back while the game is still open.") }}
+
+<p>One pick per week &mdash; there is no partial credit and nothing to fill in
+beyond the single team.</p>
+
+<h5 class="mt-4">Changing your mind</h5>
+<p>Press <strong>&times; Remove pick</strong>, confirm, and you are free to pick
+someone else. That works right up until the weekly deadline or that team's own
+kickoff window, whichever comes first. After that the button disappears and the
+pick is final.</p>
+
+<hr class="my-4">
+
+<h3 id="deadlines">4. Deadlines</h3>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">The weekly deadline</h5>
+        <p class="card-text mb-0"><strong>Saturday at noon Eastern.</strong> The
+        countdown clock at the top of the pick page is the official one.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Each team's own lock</h5>
+        <p class="card-text mb-0">A team closes <strong>1 hour before its game
+        kicks off</strong>. Thursday night teams are gone by Thursday
+        evening.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-warning">
+  <strong>Forget to pick and the site picks for you.</strong> If no pick is
+  saved by Saturday noon, the rules assign you the <strong>visiting team of the
+  last Monday night game</strong> of that betting week &mdash; and it is scored
+  like any other pick, for better or worse. Missing a week does not end your
+  entry, but it does hand your fate to a team you did not choose.
+</div>
+
+<hr class="my-4">
+
+<h3 id="situations">5. Special situations</h3>
+
+<h5 class="mt-4">A tie</h5>
+<p>A tied game counts as your team <em>not</em> losing, so the points come off
+your total, exactly as if they had won.</p>
+
+<h5 class="mt-4">Picking the same team twice</h5>
+<p>Perfectly legal here. Any team may be selected any week, as often as you
+like. (That is the Drop Dead Pool you are thinking of, where each team is
+usable once.)</p>
+
+<h5 class="mt-4">College games</h5>
+<p>NFL only in this pool, so college games never appear on the Loser pick page
+even in weeks when Gridiron Investments is full of them.</p>
+
+<h5 class="mt-4">A cancelled or postponed game</h5>
+<p>Message the commissioners on the board. They will tell you whether to
+re-pick, and they can clear a pick that can no longer be played.</p>
+
+<hr class="my-4">
+
+<h3 id="results">6. Results and standings</h3>
+
+<p>Your own history sits at the top of the pick page &mdash; every week you have
+played, the team you took, and what it earned or cost you. Green is a correct
+loser, red is a team that let you down:</p>
+
+{{ h.figure("loser", "history.png",
+   "A Loser Pool entry card showing running points and a week-by-week pick history",
+   "Running total on the left, then every pick made so far with its points.") }}
+
+<p>The <strong>Loser Pool standings</strong> rank everyone by total points, and
+<strong>Master Standings</strong> in the top menu shows all three pools at once:</p>
+
+{{ h.figure("loser", "standings.jpg",
+   "The Loser Pool standings table",
+   "Highest point total leads. 70% of the pot to first, 20% to second, 10% to third.") }}
+
+<hr class="my-4">
+
+<h3 id="faq">7. Frequently asked questions</h3>
+
+{{ h.faq([
+  ("Do I e-mail my pick to the commissioners?",
+   "No. The 2026 sheet says picks must be submitted using your Gridiron Pools
+    2026 Loser Pool account. This site is the only place your pick counts."),
+  ("Can I pick the same team more than once in a season?",
+   "Yes, as often as you like. Any team may be selected any week."),
+  ("What happens if I forget to pick?",
+   "You are assigned the visiting team of the last Monday night game of that
+    week, and it is scored normally. Your entry survives &mdash; there is no
+    elimination in this pool &mdash; but you had no say in the pick."),
+  ("Why are the point values different for each team?",
+   "They reflect how hard that team is to catch losing. The strongest teams are
+    worth the most. The values are set before the season and never change."),
+  ("Do I lose points if my team ties?",
+   "Yes. A tie is not a loss, so the team's point value is deducted just as it
+    would be for a win."),
+  ("Can I have more than one entry?",
+   "Yes &mdash; more than one entry is permitted. Each needs its own account and
+    its own $20."),
+  ("Can I change my pick after saving it?",
+   "Yes, until Saturday noon or until that team's game is within an hour of
+    kickoff, whichever comes first. Press &times; Remove pick and choose again."),
+  ("Can I go negative?",
+   "You can, and people do. There is no floor and no elimination, so a bad run
+    is recoverable."),
+  ("Who do I contact about a scoring mistake?",
+   "The commissioners, through the Message Board."),
+]) }}
+
+<hr class="my-4">
+
+<h3>Still stuck?</h3>
+<p>Send the commissioners a message from the
+<a href="{{ url_for('board.index') }}">Message Board</a>. For anything binding
+&mdash; scoring, payouts, disputes &mdash; the
+<a href="{{ url_for('loser.rules') }}">official rules</a> are the last word;
+this page is only a walkthrough.</p>
+
+<p class="mt-4">
+  <a href="{{ url_for('loser.rules') }}" class="btn btn-loser">Read the official rules</a>
+  <a href="{{ url_for('loser.pick') }}" class="btn btn-outline-secondary ms-2">Go make my pick</a>
+</p>
+
+<p class="mt-3"><a href="{{ url_for('main.index') }}">&larr; Back to pools</a></p>
+{% endblock %}

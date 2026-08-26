@@ -1,18 +1,244 @@
-Gridiron picks: working remove-pick X, and show the spread on locked picks
+2026-2027 rules sheets, How to Play pages for all three pools, both-sides rule dropped
 
-The red X inside a game row emitted its own <form> nested inside the pick
-form, which every browser silently drops -- the button was orphaned and
-clicking it did nothing. The forms now render after the pick form closes and
-the buttons reach them with the HTML form="rmpick-<id>" attribute.
+Rules pages now carry the sheets supplied 2026-08-25, word for word:
 
-Locked picks now read "Cowboys -1.5" instead of just "Cowboys", in both the
-game table and the "Locked in so far" list, from one shared spread_label
-macro so the two cannot drift apart. Sign is from the picked team's point of
-view; a pick'em game shows PK.
+- Gridiron: picks are made in the site account and e-mailed, faxed and phoned
+  picks are expressly not accepted (new rule 4), with the account's countdown
+  clock named as official. The old rules on nickname/ambiguous designations, on
+  invalid picks counting as a loss, and on selecting both sides of the same game
+  are gone. 2nd place is $1,500, not $1,550. Contact goes through the message
+  board rather than the commissioners' e-mail addresses. 15 rules became 14.
+- Drop Dead: picks made in the Drop Dead account; the buy-back moved to rule 4.
+- Loser: picks made in the Loser account; the forgot-to-pick default is now the
+  VISITING team of the LAST Monday night game of the betting week -- the page
+  previously said the first Monday night game.
 
-app.py turns on template auto-reload when the database path is a testbed one,
-so local template edits appear on refresh. The live site is unaffected.
+Code follows the sheets:
 
-Adds deploy-to-droplet.command: pull and restart the live droplet. It touches
-no database. (restart-site.command restarts the retired Mac server and no
-longer affects the live site.)
+- scoring.py no longer looks for both sides of a game. It cost two losses and
+  disqualified the entry from the Last Place Award; neither applies now, and
+  such a week is no longer treated as penalised for the 0-5 award.
+- The Loser missed-pick fallback takes the latest Monday night game by kickoff
+  rather than whichever row came back first. It already used the visiting team.
+
+Help pages, replacing the "instructional videos" placeholder:
+
+- /help/gridiron, /help/loser and /help/dropdead are full walkthroughs -- how to
+  join and pay, the two deadlines, how to read the pick page, saving and
+  removing picks, the situations that catch people out, and a FAQ each.
+- Drop Dead covers the one-team-once rule, elimination, and what the $30
+  buy-back does and does not restore -- including that it cannot revive an entry
+  eliminated for failing to pick.
+- Loser covers the point values, that a tie costs you points, and the
+  forgot-to-pick assignment.
+- Each page shows how to join: the Choose Pools screen with that pool ticked,
+  and the join button at the foot of its own rules page. The Gridiron page had
+  only a full-page shot of the registration-time screen; it now has both, cropped
+  to the part that matters.
+- 21 screenshots of the real site in static/help/<pool>/, captured from the
+  mid-week-3 testbed with its banners removed. Each sits in a box that scrolls
+  sideways on a phone rather than shrinking to nothing.
+- templates/_help_shot.html holds the shared figure/FAQ macros so the three
+  pages stay consistent.
+- main.help_page renders help_<pool>.html when one exists.
+
+Extra accounts no longer ask for a password
+
+Adding a second or third entry now needs only a username. The new account
+starts on the password of the account that created it -- the hash is copied, so
+the password itself is never handled -- and they stay independent afterwards:
+changing one does not change the others. Nothing ever required the passwords to
+differ; asking for a second one was friction, and a forgotten one means a
+commissioner has to reset an account the player thinks of as theirs. The page
+copy said "pick a different username and password", which was wrong on both
+counts, and now explains switching accounts from the top-right menu. Creating
+one writes an "account_added" row to the activity log.
+
+Local test site: session cookie no longer Secure-only
+
+SESSION_COOKIE_SECURE was unconditionally True, so on the test site -- plain
+http on 127.0.0.1 -- browsers that do not make a localhost exception (Safari
+among them) dropped the session cookie silently. Every form then posted a CSRF
+token with no session behind it and sign-in failed with a misleading "that page
+had been sitting open too long". It is now keyed on the database being a testbed
+one, the same marker the frozen clock and the seed guard use, so the live site
+is unaffected and still Secure-only.
+
+The CSRF error message no longer blames staleness: token expiry is already
+disabled (WTF_CSRF_TIME_LIMIT = None), so the real cause is always a missing or
+changed session -- usually signing out in another tab.
+
+Email changes:
+
+- Welcome email removed. Registering (and adding another account) no longer
+  mails anything -- the player is already looking at the site.
+- Weekly picks recap removed: send_picks_recap_email, notifications.py,
+  email_weekly_picks.py, the admin email-picks route and the "Email Picks to
+  Players" buttons on both week pages. Week.picks_emailed is left on the model;
+  dropping a column means rebuilding the table in SQLite and nothing reads it now.
+- Message board notifications, both directions. A player posting to the
+  commissioners emails every admin with an address on file (bulk send, so one
+  bad address does not stop the rest) with the message and a link to the thread.
+  An admin replying emails that player with the reply and a link to the board.
+  Both go out on a background thread, so a slow mail API never holds up the post.
+  The admin flash now says whether the player could be notified.
+- Forgot password now says "There is no account with that username or email
+  address" instead of the deliberately vague "if that account exists" wording,
+  and says so plainly when the account exists but has no address on file.
+  Hunter's call. Note the trade-off: the form now confirms to anyone who asks
+  whether a given address is registered here.
+
+Gridiron: buy-back removed, signups now close at the Week 1 deadline
+
+The $100 week-2 clean slate that voided week 1 is gone, and with it the reason
+late entries were allowed: signups ran to the Week 2 deadline so a latecomer
+could buy into week 1 and play 10 picks in week 2. Both are removed, so nobody
+can join after week 1 closes and nobody can undo a week.
+
+- helpers: gridiron_signup_deadline is the Week 1 deadline (falls back to the
+  season-start Thursday + 2 days at noon). gridiron_buyback_deadline,
+  gridiron_buyback_closed and GRIDIRON_BUYBACK_CUTOFF_HOUR deleted.
+- scoring: gridiron_buyback_available, gridiron_buyback_catchup_week,
+  gridiron_void_through, GRIDIRON_BUYBACK_FEE and GRIDIRON_BUYBACK_PICKS
+  deleted. gridiron_pick_limit is 5, or 8 in a makeup week -- never 10.
+  gridiron_week_counts no longer voids anything. The award rows drop
+  bought_back, and last_place_eligible turns on missed weeks alone.
+- models: default_buyback_open no longer opens Gridiron week 2;
+  GRIDIRON_BUYBACK_WEEK deleted. Entry.buyback_week stays for Drop Dead.
+- blueprints/gridiron: the /buyback route and every buy-back context value are
+  gone. The pick page loses the offer card and the "Bought back in" notice.
+- Payments and Billing bill no Gridiron buy-back, so the 34 legacy rows in the
+  demo database are quoted at $0 and produce no lines at all. The Help hub fee
+  table drops the row; the Gridiron How to Play drops the section and now says
+  signups close at the Week 1 deadline.
+- standings, week_report and the admin week page lose the VOID cells and the
+  "buy-back -- 10 picks" captions.
+- 15 buy-back tests removed, 3 added: the pick limit can never exceed 8, a week
+  is never voided even with a stale buyback_week on the row, and signups close
+  at week 1. 32 pass.
+
+Admin Payments page:
+
+- Top table reordered to Gridiron, Loser, Drop Dead, and the Drop Dead column
+  renamed "Drop Dead Initial" now that its buy-backs have columns of their own:
+  BB1-BB4, one per week the rules allow a buy-back. Green BB is paid, red BB is
+  unpaid, dash means that one was never taken.
+- Unpaid entry fees now read as a red outlined "Unpaid" badge rather than an
+  amber one, in all three pool columns, so what is outstanding reads at a glance.
+  The Gridiron week-2 buy-back has no column of its own and stays inline.
+- The Paid/Unpaid badges and the BB badges in the By Player table are now
+  buttons: clicking one flips it, behind a confirm that names the player, the
+  pool and the amount ("Would you like to confirm that Bofa has paid their
+  Loser Pool buy in of $20?"), with the reverse direction spelled out as
+  marking money NOT received. Buy-back fees are an interchangeable count per
+  entry, so clicking a badge settles exactly that fee.
+- Each Drop Dead buy-back is now its own BuyBack row (entry, week bought back,
+  fee, paid, paid_at, created_at) instead of a pair of counters on Entry that
+  treated the fees as interchangeable -- settling the third one used to turn the
+  first green. migrate_schema backfills a row per existing buy-back, marking the
+  first buy_backs_paid of each entry's as settled, which is what the counter
+  meant. Entry.buy_backs_used and buy_backs_paid are still written alongside,
+  since the pick page and the printed-rule checks count off them.
+- An admin resetting a player's password now writes a "password_reset" row to
+  the activity log, filed against that player with the admin named. Somebody
+  else taking control of an account is worth being able to find later; the
+  temporary password itself is never written to the log. (A player changing
+  their own password already logged.)
+- Marking anything paid or unpaid writes a "payment" row to the activity log,
+  filed against the PLAYER rather than the admin who clicked -- it is money on
+  that player's account -- with the admin named in the detail so the trail still
+  says who did it. Reads: "Loser Pool entry fee ($20) marked PAID by admin".
+- All Entries gains a "Committed" column: when the player took the charge on --
+  joining the pool for an entry fee, pressing the buy-back button for a buy-back
+  (read from the activity row written at the time). Not when it was paid.
+
+Billing page for players:
+
+- "Billing" in the account dropdown opens /billing: every charge on the account
+  -- entry fees and each buy-back as its own line -- with the date it was
+  incurred, the amount, and whether the commissioners have recorded it as paid,
+  plus owed / paid / season-total tiles and the check-mailing details when
+  anything is outstanding.
+- It reads the same flags the admin Payments page writes, so marking a fee paid
+  there shows up here on the next page load with nothing to keep in sync.
+- Billing covers every account sharing the player's email, grouped by account
+  with a combined total, since extra lines come out of one pocket and one check
+  usually settles them all. A single-account player sees no grouping.
+- entry.paid_at and entry.buy_backs_paid_at are new columns (added by
+  migrate_schema, idempotent) so the page can say WHEN something was settled;
+  the admin toggles stamp them. Rows settled before this existed read "Date not
+  recorded" rather than showing a made-up date.
+- Buy-back dates come from the activity log written when the button was pressed
+  -- the entry row keeps only a count and a week number.
+- Entry fees moved to models.POOL_ENTRY_FEES, quoted by both the admin Payments
+  page and Billing, so the two cannot drift.
+
+Join flow reworked: the home page is the join page
+
+The tick-box "choose your pools" screen is gone -- the one with JOIN SELECTED
+POOLS and Skip for now. Registering, adding an account or switching accounts
+now lands on the home page, where all three pools are always shown: one you are
+in carries its links plus a green "You're in" and its Make Picks button; one you
+are not carries a full-width Join button with the price on it, behind a confirm
+that names the amount and says you will owe it to the commissioners. Logged-out
+visitors see the price as text, no button.
+
+- auth.choose_pools is now a one-line redirect to main.index, kept because
+  register / add_account / switch_account all send people there.
+  templates/auth/choose_pools.html is retired (parked in _to_delete/).
+- The three /join routes take a hidden from=home and return to the home page in
+  that case, so the remaining Join buttons are in front of the player. Joining
+  from a pool's Rules page still lands on its picks, unchanged.
+- Gridiron's card shows a closed badge naming the Week 1 deadline once signups
+  have shut; the route enforces it regardless.
+- All three How to Play pages showed a screenshot of the retired screen. They
+  now show the home page cards instead (static/help/<pool>/join-home.jpg) and
+  the Gridiron page's "tick your pools" step is rewritten.
+
+This is the rework built in the Windows session's cloud clone and never
+re-applied; it is now in the repo for the first time. Verified on a blank
+account: registration lands on /, three Join buttons with the right prices, the
+confirm text is exact, joining returns to / with "You're in" and one fewer
+button, and JOIN SELECTED POOLS / Skip for now / Choose your pools appear
+nowhere. No horizontal overflow at 390px. 32 tests pass.
+
+New Help tab:
+
+- A Help tab in the top nav opens /help: three cards, one per pool, each with a
+  How to Play button and a link to that pool's official rules.
+- The same page carries the payment details, which were nowhere a member could
+  see them -- the Payments page is admin only. Who to make the check out to,
+  where to mail it, the September 14th postmark, and a table of every fee
+  including both buy-backs.
+- Seven tabs no longer fit at 992-1199px, so the navbar expands at xl instead of
+  lg (that range gets the hamburger) and link padding is tightened above it.
+  Checked from 390px to 1920px: one row, no wrapped labels, no overflow.
+
+Also adds restart-testbed.command: stop and restart the local test site after a
+Python change, since only templates reload on their own.
+
+44 tests pass; all three pages checked at 1280px and 390px with no overflow,
+no broken images and no console errors.
+
+Week 1 signup cutoff now applies to all three pools:
+
+- helpers.py gains pool_signup_deadline(season_year, pool) and
+  pool_signups_open(season_year, pool). Both prefer that pool's real Week 1 row
+  (so moving the Week 1 deadline moves the cutoff with it) and fall back to
+  deriving Saturday noon from season_start_thursday. gridiron_signup_deadline /
+  gridiron_signups_open stay as thin wrappers so the templates, the Gridiron
+  join route and the tests keep working.
+- loser.join() and dropdead.join() now refuse a late entry at the route, not
+  just in the UI -- a direct POST past the deadline flashes "closed to new
+  entries" and creates nothing. Verified by posting to all three join routes
+  with the demo clock at 2026-08-20, past the 08-08 Week 1 deadline: zero
+  entries created.
+- Both rules pages show the closed notice with the deadline date in place of
+  the join button, matching the Gridiron page.
+- The home page empty state no longer tells a member to "press a Join button
+  above" when every pool is closed and there is no button to press.
+- Help copy corrected: help_loser said the Loser Pool had no signup cut-off,
+  which is now wrong; help_dropdead had no cutoff note at all and now says the
+  $30 buy-back is a separate thing that still runs through Week 4.
+
+32 tests pass.

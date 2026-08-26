@@ -17,6 +17,17 @@ POOL_LABELS = {
 }
 
 
+# What each pool costs, in one place: the admin Payments page bills from this
+# and the member Billing page quotes it, so the two can never disagree.
+# The Drop Dead buy-back fee lives in scoring.py (DROPDEAD_BUYBACK_FEE) next
+# to the rule that grants it. No other pool has one.
+POOL_ENTRY_FEES = {
+    "dropdead": 20,
+    "loser": 20,
+    "gridiron": 100,
+}
+
+
 def now():
     # Naive Eastern time throughout the app -- the pool rules peg every
     # deadline to Eastern time explicitly ("Saturday at noon EST").
@@ -73,24 +84,26 @@ class LoserPoolPoints(db.Model):
 PRESEASON_OFFSET = 100
 
 
-# Which weeks each pool's buy-back covers. Defined here rather than in
-# scoring.py so default_buyback_open can use them without importing upwards.
+# Which weeks a buy-back covers. Defined here rather than in scoring.py so
+# default_buyback_open can use it without importing upwards.
+#
+# Drop Dead is the only pool with a buy-back. Gridiron briefly had a $100
+# week-2 clean slate that voided week 1; it was removed in August 2026 along
+# with the late-signup window that made it necessary.
 DROPDEAD_BUYBACK_LAST_WEEK = 4  # printed rules: eliminations in weeks 1-4
-GRIDIRON_BUYBACK_WEEK = 2  # the $100 week-2 clean slate, week 2 only
+DROPDEAD_BUYBACK_FEE = 30  # printed rules: $30 per revival
 
 
 def default_buyback_open(pool, number, is_preseason=False):
     """What a freshly created week's buy-back window should start as, so a
-    normal season needs no admin action: Drop Dead weeks 1-4 and Gridiron
-    week 2, matching the printed rules. Preseason and test weeks start closed
-    and are opened by hand from the Pool Manager, because their numbers don't
-    line up with the printed schedule."""
+    normal season needs no admin action: Drop Dead weeks 1-4, matching the
+    printed rules. Preseason and test weeks start closed and are opened by
+    hand from the Pool Manager, because their numbers don't line up with the
+    printed schedule."""
     if is_preseason:
         return False
     if pool == "dropdead":
         return number <= DROPDEAD_BUYBACK_LAST_WEEK
-    if pool == "gridiron":
-        return number == GRIDIRON_BUYBACK_WEEK
     return False
 
 
@@ -181,17 +194,22 @@ class Entry(db.Model):
     # eliminated and buy back more than once in the weeks the rules
     # allow it, and each one is its own fee.
     buy_backs_paid = db.Column(db.Integer, default=0)
-    # Drop Dead: the week number the entry last bought back in, if ever.
-    # Gridiron: the last week voided by a buy-back -- every week up to and
-    # including this one stops counting toward the entry's record. Entries are
-    # per-pool, so the two meanings never share a row.
+    # Drop Dead only: the week number the entry last bought back in, if ever.
+    # Gridiron used this for the week its buy-back voided; that buy-back was
+    # removed in August 2026 and nothing writes it for Gridiron any more.
     buyback_week = db.Column(db.Integer, nullable=True)
     # Retired: held the Gridiron "startover" election, from before the makeup
     # week became a single fixed allowance and the week-2 reset became a paid
     # buy-back. Left in place because dropping a column means rebuilding the
     # table in SQLite. Nothing reads it.
     makeup_choice = db.Column(db.String(10), nullable=True)
-    paid = db.Column(db.Boolean, default=False)  # entry-fee paid, admin-only visibility
+    paid = db.Column(db.Boolean, default=False)  # entry fee settled with the commissioners
+    # When an admin marked the entry fee paid, and when the buy-back count was
+    # last changed on the Payments page. Players see these on their own Billing
+    # page, so "you still owe $20" always comes with a date attached. NULL means
+    # it was settled before the site started recording the date.
+    paid_at = db.Column(db.DateTime, nullable=True)
+    buy_backs_paid_at = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, default=now)
 
@@ -200,6 +218,35 @@ class Entry(db.Model):
 
     def used_team_ids(self):
         return {p.team_id for p in self.picks if p.team_id is not None}
+
+
+class BuyBack(db.Model):
+    """One Drop Dead buy-back: the week it revived, the fee, and whether the
+    commissioners have been paid for *that one*.
+
+    Replaces the pair of counters on Entry (buy_backs_used / buy_backs_paid),
+    which treated the fees as interchangeable -- settling the third one made
+    the first turn green, because all the counter knew was "how many". A row
+    per buy-back lets the Payments page mark exactly the one that was paid.
+
+    Entry.buy_backs_used is still written alongside these rows: the pick page
+    and the printed-rule checks count buy-backs off it, and keeping the two in
+    step is cheaper than rewriting every caller.
+    """
+
+    id = db.Column(db.Integer, primary_key=True)
+    entry_id = db.Column(db.Integer, db.ForeignKey("entry.id"), nullable=False)
+    # The week the entry was eliminated in -- the one the fee bought back.
+    # Nullable because buy-backs recorded before this table existed were only
+    # ever counted, so their week cannot always be recovered.
+    week_number = db.Column(db.Integer, nullable=True)
+    fee = db.Column(db.Integer, nullable=False, default=DROPDEAD_BUYBACK_FEE)
+    paid = db.Column(db.Boolean, default=False, nullable=False)
+    paid_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=now)
+
+    entry = db.relationship("Entry", backref=db.backref("buy_backs", lazy=True,
+                                                        cascade="all, delete-orphan"))
 
 
 class GridironMiss(db.Model):

@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Drop Dead Pool Rules{% endblock %}
 {% block content %}
-{# Rules text below is reproduced word for word from the signed 2026 Drop Dead
-   Pool Rules sheet. Do not paraphrase, shorten, or "clean up" this wording --
-   an earlier condensed version silently dropped the buy-back exception and the
-   one-hour-before-kickoff provision. #}
+{# Rules text below is reproduced word for word from the 2026 DROP DEAD POOL
+   RULES sheet as supplied 2026-08-25. Do not paraphrase, shorten, or "clean
+   up" this wording.
+
+   Changes from the previous sheet: rule 7 now says picks are made in the Drop
+   Dead Pool account rather than e-mailed to the commissioners, and the rule
+   order changed -- the buy-back is now rule 4, ahead of the "competition
+   ceases" and playoff-tiebreak rules. #}
 <div class="page-header header-dropdead"><h2><span class="pool-icon">💀</span>2026 Drop Dead Pool Rules</h2></div>
 
 <p>The object is to be the last guy or gal standing. $20 entry fee per line: 70% to first place, 20% to second and 10% to third.</p>
@@ -14,20 +18,25 @@
 <ol class="mb-4 rules-list">
   <li>For each week of the NFL regular season, one NFL team is selected to win straight up with NO point spread.</li>
 
-  <li>Each of the 32 NFL teams may be selected ONLY ONCE during the 18 week season</li>
+  <li>Each of the 32 NFL teams may be selected ONLY ONCE during the 18 week season.</li>
 
   <li>If your selected team loses or ties, or if you fail to turn in a pick by Saturday at noon (EST), you&rsquo;re done, unless you buy back in as provided below.</li>
+
+  <li>There shall be a &quot;buy-back&quot; opportunity for any entrant who otherwise would be eliminated in any of the first four (4) weeks of the season, with the exception of an entrant who failed to turn in a pick. An entrant who is eliminated for failure to submit a pick may not revive their entry through a &ldquo;buy-back&rdquo;. Accordingly, if an entrant otherwise would be eliminated during this period, he or she may revive the entry upon submission of a thirty dollar ($30.00) buy-back fee for each buy-back. Buy-backs, if desired, must be obtained for each week that a participant otherwise would have been eliminated in order for the entry to remain eligible. In addition, the teams that the entry has selected so far shall remain the same for purposes of non availability of use going forward.</li>
 
   <li>The competition ceases when there remains only one player standing or, when there are fewer than 5 players remaining, all players lose after the conclusion of all games to be played for the applicable NFL week (Thursday through Wednesday). If there are 5 or more players remaining and all lose, the competition will continue. When a winner (or co-winners) emerges, and/or in the event there is a tie between the next tier of players, the remaining positions will be paid and distributed on a pro-rata basis.</li>
 
   <li>In the event a tie remains at the conclusion of the regular 18 week season, the &ldquo;alive&rdquo; contenders will continue the contest during the playoff period, with the 12 playoff teams becoming the viable choices, each of which may be used ONLY ONCE during the playoffs. In the highly unlikely event of a tie after the Super Bowl, the pool will be equally divided between (among) the tied contenders.</li>
 
-  <li>There shall be a &quot;buy-back&quot; opportunity for any entrant who otherwise would be eliminated in any of the first four (4) weeks of the season, with the exception of an entrant who failed to turn in a pick. An entrant who is eliminated for failure to submit a pick may not revive their entry through a &quot;buy-back&quot;. Accordingly, if an entrant otherwise would be eliminated during this period, he or she may revive the entry upon submission of a thirty dollar ($30.00) buy-back fee for each buy-back. Buy-backs, if desired, must be obtained for each week that a participant otherwise would have been eliminated in order for the entry to remain eligible. In addition, the teams that the entry has selected so far shall remain the same for purposes of non availability of use going forward.</li>
-
-  <li>Selections must be made at least one (1) hour prior to posted time of kickoff for any games which are played prior to Saturday (noon EST). Otherwise, Saturday (noon EST) is the deadline for submission of picks. Picks shall be sent to: gridironlines@yahoo.com AND awardsltd@icloud.com. These commissioners and our technician each receive one (1) gratis entry for handling administrative duties.</li>
+  <li>Selections must be locked in at least one (1) hour prior to posted time of kickoff for any games which are played prior to Saturday (noon EST). Otherwise, Saturday (noon EST) is the deadline for submission of picks. Picks must be made using your Gridiron Pools 2026 Drop Dead Pool account. Your Commissioners and technician each receive one (1) gratis entry for handling administrative duties.</li>
 </ol>
 
-{% if current_user.is_authenticated %}
+{% if not signups_open %}
+<div class="alert alert-secondary mb-0">
+  🔒 <strong>The Drop Dead Pool is closed to new entries.</strong>
+  Signups ended at the Week 1 deadline{% if signup_deadline %} ({{ signup_deadline.strftime('%A %b %d, %Y at %I:%M %p') }} Eastern){% endif %}.
+</div>
+{% elif current_user.is_authenticated %}
 <form method="post" action="{{ url_for('dropdead.join') }}">
   <button type="submit" class="btn btn-dropdead">🏈 Join the Drop Dead Pool</button>
 </form>

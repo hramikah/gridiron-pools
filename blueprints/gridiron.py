@@ -6,20 +6,16 @@ from helpers import (
     log_activity,
     game_pickable,
     get_current_week,
-    gridiron_buyback_deadline,
     gridiron_signup_deadline,
     gridiron_signups_open,
 )
 from team_colors import styles_for
 from models import Entry, Game, Pick, db
 from scoring import (
-    GRIDIRON_BUYBACK_FEE,
     GRIDIRON_MAKEUP_PENALTY_LOSSES,
-    GRIDIRON_BUYBACK_PICKS,
     GRIDIRON_MAKEUP_PICKS,
     GRIDIRON_NORMAL_PICKS,
     ensure_missed_processed,
-    gridiron_buyback_available,
     gridiron_makeup_week,
     gridiron_penalty_slots,
     gridiron_pick_limit,
@@ -60,62 +56,8 @@ def join():
     db.session.add(entry)
     db.session.commit()
     flash("You're in Gridiron Investments.", "success")
-    return redirect(url_for("gridiron.pick"))
-
-
-@bp.route("/buyback/<int:entry_id>", methods=["POST"])
-@login_required
-def buyback(entry_id):
-    """Pay for a clean slate in week 2: week 1 stops counting entirely.
-
-    Open to anyone, for either reason the fee exists -- an entrant who forgot
-    to submit week 1 and would rather pay than burn their one-time makeup
-    allowance on it, and an entrant who did submit and wants a bad opening
-    week erased. Week 1's rows are left in place and simply stop counting, so
-    the activity log and the week-1 report still show what actually happened.
-
-    No money changes hands here, the same as the Drop Dead buy-back: the fee
-    is owed to the commissioners and the flash message says so.
-    """
-    season_year = current_app.config["CURRENT_SEASON"]
-    entry = Entry.query.get_or_404(entry_id)
-    if entry.user_id != current_user.id or entry.pool != "gridiron":
-        abort(403)
-
-    week = get_current_week(season_year, "gridiron")
-    if not gridiron_buyback_available(entry, week):
-        flash("A buy-back isn't available for this entry.", "error")
-        return redirect(url_for("gridiron.pick"))
-    # Picks already saved this week are left alone rather than silently
-    # re-based onto the new allowance: the entry has to clear them first, so
-    # it's explicit that the 2-game makeup penalty is going away with them.
-    if Pick.query.filter_by(entry_id=entry.id, week_id=week.id, pool="gridiron").first():
-        flash(
-            f"You've already saved picks this week. Remove them first if you want to "
-            f"buy back in -- doing so moves you to {GRIDIRON_BUYBACK_PICKS} picks for the week.",
-            "error",
-        )
-        return redirect(url_for("gridiron.pick"))
-
-    voided = week.number - 1
-    entry.buyback_week = voided
-    entry.buy_backs_used = (entry.buy_backs_used or 0) + 1
-    db.session.commit()
-    log_activity(
-        "buyback",
-        f"Bought back in (${GRIDIRON_BUYBACK_FEE}) -- week {voided} record voided, "
-        f"{GRIDIRON_BUYBACK_PICKS} picks granted for week {week.number}, "
-        f"{GRIDIRON_MAKEUP_PICKS}-pick makeup allowance retained",
-        pool="gridiron",
-    )
-    flash(
-        f"Clean slate. Week {voided} no longer counts, and you have "
-        f"{GRIDIRON_BUYBACK_PICKS} picks this week to catch up. Your one-time {GRIDIRON_MAKEUP_PICKS}-pick "
-        f"makeup is still banked for the first week you miss from here on. "
-        f"(${GRIDIRON_BUYBACK_FEE} buy-back fee due to the commissioners.)",
-        "success",
-    )
-    return redirect(url_for("gridiron.pick"))
+    return redirect(url_for("main.index") if request.form.get("from") == "home"
+                    else url_for("gridiron.pick"))
 
 
 @bp.route("/pick", methods=["GET", "POST"])
@@ -216,7 +158,6 @@ def pick():
     remaining_by_entry = {}
     makeup_by_entry = {}
     penalty_slots_by_entry = {}
-    buyback_by_entry = {}
     if week:
         for e in entries:
             existing_picks = Pick.query.filter_by(entry_id=e.id, week_id=week.id, pool="gridiron").all()
@@ -232,7 +173,6 @@ def pick():
             # ...and show those 2 losses as slots in the pick list, so the
             # week reads as 10 games from the start.
             penalty_slots_by_entry[e.id] = gridiron_penalty_slots(e, week)
-            buyback_by_entry[e.id] = gridiron_buyback_available(e, week)
 
     # A game whose kickoff is more than an hour out is still in `games`
     # (the pickable set); use that same set to decide which locked-in picks
@@ -254,10 +194,6 @@ def pick():
         pickable_game_ids=pickable_game_ids,
         makeup_by_entry=makeup_by_entry,
         penalty_slots_by_entry=penalty_slots_by_entry,
-        buyback_by_entry=buyback_by_entry,
-        buyback_deadline=gridiron_buyback_deadline(week),
-        buyback_fee=GRIDIRON_BUYBACK_FEE,
-        buyback_picks=GRIDIRON_BUYBACK_PICKS,
         normal_picks=GRIDIRON_NORMAL_PICKS,
         makeup_picks=GRIDIRON_MAKEUP_PICKS,
         makeup_penalty=GRIDIRON_MAKEUP_PENALTY_LOSSES,

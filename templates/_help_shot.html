@@ -1,0 +1,51 @@
+{# Shared furniture for the per-pool "How to Play" pages.
+
+   Screenshots are wider than a phone. Rather than shrinking them to
+   illegibility, each one scrolls sideways inside its own box on small screens
+   and sits at natural size on a desktop.
+
+   Usage:
+     {% import "_help_shot.html" as h with context %}
+     {{ h.styles() }}
+     {{ h.figure("loser", "pick-grid.jpg", "alt text", "caption") }}
+#}
+
+{% macro styles() %}
+<style>
+  .help-shot { overflow-x: auto; -webkit-overflow-scrolling: touch;
+               border: 1px solid #dee2e6; border-radius: .5rem; background: #fff; }
+  .help-shot img { display: block; max-width: 100%; }
+  .help-swipe { display: none; }
+  @media (max-width: 767px) {
+    .help-shot img { max-width: none; width: 760px; }
+    .help-swipe { display: inline; }
+  }
+</style>
+{% endmacro %}
+
+{% macro figure(pool, file, alt, caption) %}
+  <figure class="figure d-block mb-4 w-100">
+    <div class="help-shot">
+      <img src="{{ url_for('static', filename='help/' ~ pool ~ '/' ~ file) }}" alt="{{ alt }}">
+    </div>
+    <figcaption class="figure-caption mt-1">{{ caption }}
+      <span class="help-swipe text-muted">(swipe the image sideways to see all of it)</span>
+    </figcaption>
+  </figure>
+{% endmacro %}
+
+{% macro faq(items) %}
+<div class="accordion mb-4" id="faqAccordion">
+  {% for q, a in items %}
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              data-bs-target="#faq{{ loop.index }}" aria-expanded="false">{{ q }}</button>
+    </h2>
+    <div id="faq{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+      <div class="accordion-body">{{ a|safe }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}

@@ -2,30 +2,45 @@
 {% block title %}Payments - Admin{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">💵</span>Payments</h2></div>
-<p class="text-muted">Entry-fee and buy-back tracking, admin-only &mdash; players never see this. Drop Dead and Loser Pool are $20/entry; Gridiron Investments is $100/entry. A buy-back is billed as another entry: $30 in Drop Dead, $100 in Gridiron.</p>
+<p class="text-muted">Entry-fee and buy-back tracking, admin-only &mdash; players never see this. Drop Dead and Loser Pool are $20/entry; Gridiron Investments is $100/entry. A Drop Dead buy-back is billed as another entry at $30. Gridiron has no buy-back.</p>
 
 <h5 class="mt-2">By Player &mdash; Who Owes What</h5>
 <div class="table-responsive mb-4">
+{# Column order runs biggest fee first: Gridiron, Loser, then Drop Dead with
+   its four buy-back slots beside it. BB1-BB4 are the weeks the printed rules
+   allow a Drop Dead buy-back; an empty cell means that one was never taken. #}
 <table class="table table-striped standings bg-white">
-  <thead><tr><th>Player</th><th>Drop Dead</th><th>Loser</th><th>Gridiron</th><th>Total Owed</th></tr></thead>
+  <thead><tr>
+    <th>Player</th>
+    <th>Gridiron</th>
+    <th>Loser</th>
+    <th>Drop Dead Initial</th>
+    <th class="text-center">BB1</th>
+    <th class="text-center">BB2</th>
+    <th class="text-center">BB3</th>
+    <th class="text-center">BB4</th>
+    <th>Total Owed</th>
+  </tr></thead>
   <tbody>
   {% for username, row in player_rows %}
     <tr>
       <td>{{ username }}</td>
-      {% for pool in ['dropdead', 'loser', 'gridiron'] %}
+      {% for pool in ['gridiron', 'loser', 'dropdead'] %}
       <td>
         {% if row[pool] %}
           {% for e in row[pool] %}
-            {% if e.paid %}<span class="badge badge-alive">Paid</span>{% else %}<span class="badge bg-warning text-dark">Unpaid ${{ fees[pool] }}</span>{% endif %}
-            {%- set bb = buybacks[e.id] %}
-            {%- if bb.used %}
-              {%- if bb.unpaid %}
-              <span class="badge bg-danger">Buy-back &times;{{ bb.unpaid }} unpaid ${{ bb.owed }}</span>
-              {%- endif %}
-              {%- if bb.paid %}
-              <span class="badge badge-alive">Buy-back &times;{{ bb.paid }} paid</span>
-              {%- endif %}
-            {%- endif %}
+            {# The badge is the button. Clicking it flips the entry fee, after
+               a confirm that names the player, the pool and the amount, so a
+               mis-click on a 150-row table can't quietly rewrite the books. #}
+            <form method="post" action="{{ url_for('admin.toggle_paid', entry_id=e.id) }}" class="d-inline">
+              <button type="submit"
+                      class="badge {% if e.paid %}badge-alive border-0{% else %}bg-transparent border border-danger text-danger{% endif %}"
+                      style="cursor: pointer"
+                      title="{{ 'Mark unpaid' if e.paid else 'Mark paid' }}"
+                      onclick="return confirm({% if e.paid %}'Mark {{ username }}\'s {{ pool_labels[pool] }} buy in of ${{ fees[pool] }} as UNPAID? This says the money has not been received.'{% else %}'Would you like to confirm that {{ username }} has paid their {{ pool_labels[pool] }} buy in of ${{ fees[pool] }}?'{% endif %});">
+                {% if e.paid %}Paid{% else %}Unpaid{% endif %}
+              </button>
+            </form>
             {% if not loop.last %}<br>{% endif %}
           {% endfor %}
         {% else %}
@@ -33,10 +48,29 @@
         {% endif %}
       </td>
       {% endfor %}
+      {# The badge repeats its own column number -- BB1 in BB1, BB2 in BB2 --
+         so a screenshot or a printed page still says which buy-back it is.
+         Each buy-back is its own row with its own paid flag, so clicking a
+         badge settles exactly that fee. #}
+      {% for slot in row.bb_slots %}
+      <td class="text-center">
+        {% if slot %}
+        <form method="post" action="{{ url_for('admin.toggle_buyback_paid', buyback_id=slot.id) }}" class="d-inline">
+          <button type="submit"
+                  class="badge border-0 {% if slot.paid %}badge-alive{% else %}bg-danger text-white{% endif %}"
+                  style="cursor: pointer"
+                  title="{{ 'Mark this buy-back unpaid' if slot.paid else 'Mark this buy-back paid' }}{% if slot.week_number %} (week {{ slot.week_number }}){% endif %}"
+                  onclick="return confirm({% if slot.paid %}'Mark {{ username }}\'s buy-back {{ loop.index }} of ${{ slot.fee }} as UNPAID? This says the money has not been received.'{% else %}'Would you like to confirm that {{ username }} has paid their Drop Dead buy-back of ${{ slot.fee }}?'{% endif %});">
+            BB{{ loop.index }}
+          </button>
+        </form>
+        {% else %}<span class="text-muted">&mdash;</span>{% endif %}
+      </td>
+      {% endfor %}
       <td>{% if row.owed %}<strong>${{ row.owed }}</strong>{% else %}<span class="text-muted">$0</span>{% endif %}</td>
     </tr>
   {% else %}
-    <tr><td colspan="5" class="text-muted">No entries yet.</td></tr>
+    <tr><td colspan="9" class="text-muted">No entries yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>
@@ -45,7 +79,7 @@
 <h5>All Entries</h5>
 <div class="table-responsive">
 <table class="table table-striped standings bg-white">
-  <thead><tr><th>Player</th><th>Pool</th><th>Entry</th><th>Fee</th><th>Status</th><th></th></tr></thead>
+  <thead><tr><th>Player</th><th>Pool</th><th>Entry</th><th>Fee</th><th>Committed</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {# A buy-back is its own line here: same player, same pool, the next entry
      number, its own fee and its own paid status. Buy-backs on one entry are
@@ -57,14 +91,20 @@
       <td>{{ pool_labels[r.pool] }}</td>
       <td>{{ r.label }}</td>
       <td>${{ r.fee }}</td>
+      {# When the player took this charge on: joining the pool, or pressing a
+         buy-back button. Not when it was paid. #}
+      <td class="small">
+        {% if r.committed_at %}{{ r.committed_at.strftime('%b %d, %Y') }}
+          <div class="text-muted">{{ r.committed_at.strftime('%I:%M %p') }} Eastern</div>
+        {% else %}<span class="text-muted">&mdash;</span>{% endif %}
+      </td>
       <td>
         {% if r.paid %}<span class="badge badge-alive">Paid</span>
-        {% else %}<span class="badge bg-warning text-dark">Unpaid</span>{% endif %}
+        {% else %}<span class="badge bg-transparent border border-danger text-danger">Unpaid</span>{% endif %}
       </td>
       <td>
         {% if r.kind == 'buyback' %}
-        <form method="post" action="{{ url_for('admin.toggle_buyback_paid', entry_id=r.entry_id) }}">
-          <input type="hidden" name="delta" value="{{ '-1' if r.paid else '+1' }}">
+        <form method="post" action="{{ url_for('admin.toggle_buyback_paid', buyback_id=r.buyback_id) }}">
           <button type="submit" class="btn btn-sm {% if r.paid %}btn-outline-secondary{% else %}btn-gridiron{% endif %}">
             {% if r.paid %}Mark Unpaid{% else %}Mark Paid{% endif %}
           </button>
@@ -79,7 +119,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
+    <tr><td colspan="7" class="text-muted">No entries yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

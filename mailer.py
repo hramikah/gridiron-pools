@@ -90,18 +90,6 @@ def _send_bulk(recipient_addresses, subject, body):
 
 
 
-def send_welcome_email(user):
-    subject = "Welcome to Gridiron Pools!"
-    body = (
-        f"Hi {user.username},\n\n"
-        "You're all set up on Gridiron Pools. Log in any time to join the "
-        "Drop Dead Pool, Loser Pool, or Gridiron Investments and start "
-        "making your picks.\n\n"
-        "-- Gridiron Pools"
-    )
-    _send(user.email, subject, body)
-
-
 def send_password_reset_email(user, temp_password):
     subject = "Your Gridiron Pools password was reset"
     body = (
@@ -140,12 +128,6 @@ def send_password_reset_link_email(email, username_links):
     _send(email, subject, body)
 
 
-def send_picks_recap_email(user, week, recap_body):
-    subject = f"Your Week {week.number} Picks - Gridiron Pools"
-    body = f"Hi {user.username},\n\nHere's a recap of your locked-in picks for Week {week.number}:\n\n{recap_body}\n\n-- Gridiron Pools"
-    _send(user.email, subject, body)
-
-
 def send_invite_link_emails(email_links):
     """email_links: list of (email, registration_url) pairs, one unique
     single-use invite link per recipient -- registration is only possible
@@ -164,3 +146,33 @@ def send_invite_link_emails(email_links):
         _send(email, subject, body)
 
 
+
+
+def send_admin_message_email(admin_addresses, player_username, body, link):
+    """Tell the commissioners a player has written to them.
+
+    One message can reach several admins, so this goes through _send_bulk:
+    a bad address for one commissioner must not stop the others hearing
+    about it.
+    """
+    subject = f"New message from {player_username} - Gridiron Pools"
+    text = (
+        f"{player_username} sent the commissioners a message:\n\n"
+        f"{body}\n\n"
+        f"Reply here: {link}\n\n"
+        "-- Gridiron Pools"
+    )
+    _send_bulk(admin_addresses, subject, text)
+
+
+def send_player_message_email(user, body, link):
+    """Tell a player the commissioners have replied to them."""
+    subject = "The commissioners replied - Gridiron Pools"
+    text = (
+        f"Hi {user.username},\n\n"
+        "The commissioners have replied to your message:\n\n"
+        f"{body}\n\n"
+        f"Read it and reply here: {link}\n\n"
+        "-- Gridiron Pools"
+    )
+    _send(user.email, subject, text)

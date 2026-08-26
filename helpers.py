@@ -211,17 +211,24 @@ def get_current_week(season_year, pool):
     return Week.query.filter_by(season_year=season_year, pool=pool).order_by(Week.number.desc()).first()
 
 
-def gridiron_signup_deadline(season_year):
-    """When Gridiron Investments closes to new entries: the Week 2 pick
-    deadline (Saturday noon Eastern of regular-season week 2).
+def pool_signup_deadline(season_year, pool):
+    """When a pool closes to new entries: its **Week 1** pick deadline
+    (Saturday noon Eastern of regular-season week 1).
 
-    Prefers the real Week 2 row so an admin who moves that deadline moves the
-    signup cutoff with it. Falls back to deriving it from the configured season
-    start, so the cutoff is well-defined even before Week 2 has been published.
-    Returns None only if neither is available, which leaves signups open."""
-    week2 = Week.query.filter_by(season_year=season_year, number=2, pool="gridiron").first()
-    if week2:
-        return week2.pick_deadline
+    Every pool works the same way. An entry created after week 1 has closed
+    starts the season a week down with no way to make it up -- Gridiron lost
+    the buy-back that used to rescue that, and Drop Dead and Loser never had
+    one, so nobody may join once the first week is locked.
+
+    Prefers the pool's real Week 1 row, so an admin who moves that deadline
+    moves the signup cutoff with it. Falls back to deriving it from the
+    configured season start, so the cutoff is well-defined before Week 1 has
+    been published. Returns None only if neither is available, which leaves
+    signups open.
+    """
+    week1 = Week.query.filter_by(season_year=season_year, number=1, pool=pool).first()
+    if week1:
+        return week1.pick_deadline
 
     season_start_str = get_setting("season_start_thursday")
     if not season_start_str:
@@ -230,16 +237,25 @@ def gridiron_signup_deadline(season_year):
         season_start = datetime.fromisoformat(season_start_str).date()
     except ValueError:
         return None
-    # Week 2's Thursday is a week after Week 1's; its deadline is that
-    # Saturday at noon.
-    week2_saturday = season_start + timedelta(weeks=1, days=2)
-    return datetime.combine(week2_saturday, datetime.min.time()) + timedelta(hours=12)
+    # Week 1's deadline is the Saturday after the season-start Thursday.
+    week1_saturday = season_start + timedelta(days=2)
+    return datetime.combine(week1_saturday, datetime.min.time()) + timedelta(hours=12)
+
+
+def pool_signups_open(season_year, pool):
+    """True while new entries in this pool are still allowed."""
+    cutoff = pool_signup_deadline(season_year, pool)
+    return cutoff is None or now_eastern() <= cutoff
+
+
+# Gridiron-specific names kept because the templates, the join route and the
+# tests have always used them.
+def gridiron_signup_deadline(season_year):
+    return pool_signup_deadline(season_year, "gridiron")
 
 
 def gridiron_signups_open(season_year):
-    """True while new Gridiron entries are still allowed."""
-    cutoff = gridiron_signup_deadline(season_year)
-    return cutoff is None or now_eastern() <= cutoff
+    return pool_signups_open(season_year, "gridiron")
 
 
 def deadline_passed(week):
@@ -248,38 +264,10 @@ def deadline_passed(week):
     return now_eastern() > week.pick_deadline
 
 
-# The Gridiron buy-back closes earlier than the week it is taken in: 7:00 PM
-# Eastern on that week's Thursday, before Thursday night kicks off (~8:20).
-# The week's own pick deadline is Saturday noon, which would leave the offer
-# standing after two nights of football had already been played.
-GRIDIRON_BUYBACK_CUTOFF_HOUR = 19
-
-
-def gridiron_buyback_deadline(week):
-    """When the $100 Gridiron buy-back closes for this week, or None.
-
-    Derived from the week's own pick deadline rather than the configured
-    season start, so an admin who moves a week moves this with it: walk back
-    to the Thursday on or before that deadline, then set 7:00 PM. With the
-    normal Saturday-noon deadline that lands on the Thursday two days before,
-    which is the Thursday the betting week opens on.
-    """
-    if week is None or week.pick_deadline is None:
-        return None
-    # Monday is 0, so Thursday is 3. Walking back (weekday - 3) % 7 days lands
-    # on the Thursday of that same betting week, or the deadline's own day
-    # when the deadline is itself a Thursday.
-    days_back = (week.pick_deadline.weekday() - 3) % 7
-    thursday = (week.pick_deadline - timedelta(days=days_back)).date()
-    return datetime.combine(thursday, datetime.min.time()) + timedelta(
-        hours=GRIDIRON_BUYBACK_CUTOFF_HOUR
-    )
-
-
-def gridiron_buyback_closed(week):
-    """True once the buy-back window for this week has shut."""
-    cutoff = gridiron_buyback_deadline(week)
-    return cutoff is None or now_eastern() > cutoff
+def deadline_passed(week):
+    if week is None:
+        return True
+    return now_eastern() > week.pick_deadline
 
 
 def week_is_complete(week):

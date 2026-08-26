@@ -1,72 +1,75 @@
 {% extends "base.html" %}
 {% block title %}Gridiron Pools{% endblock %}
 {% block content %}
+{# The home page is the join page. Every pool is always shown: one you are in
+   carries its links and a "You're in" badge, one you are not carries a Join
+   button quoting the price, behind a confirm that says what you are taking on.
+   The old tick-box "choose your pools" screen is gone -- auth.choose_pools now
+   redirects here. #}
 <div class="hero-band text-center">
   <div class="hero-football mb-2">🏈</div>
   <h1 class="mb-2">Welcome to Gridiron Pools</h1>
-  <p class="mb-0">Pick 'em pools for the {{ season_year }} NFL season. Pick your entry to see rules, submit weekly picks, and check standings.</p>
+  <p class="mb-0">Pick 'em pools for the {{ season_year }} NFL season. Join any or all three &mdash; each is its own entry.</p>
+</div>
+
+{% macro pool_card(pool, icon, title, blurb, rules_ep, standings_ep, pick_ep, pick_label) %}
+  {% set joined = my_entries.get(pool) %}
+  <div class="col-md-4">
+    <div class="card pool-card pool-{{ pool }} h-100 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h4 class="card-title"><span class="pool-icon">{{ icon }}</span>{{ title }}</h4>
+        <p class="card-text">{{ blurb }}</p>
+
+        <div class="mb-3">
+          <a href="{{ url_for(rules_ep) }}" class="btn btn-outline-dark btn-sm">Rules</a>
+          <a href="{{ url_for(standings_ep) }}" class="btn btn-outline-dark btn-sm">Standings</a>
+          <a href="{{ url_for('main.help_page', pool=pool) }}" class="btn btn-outline-secondary btn-sm">How to Play</a>
+        </div>
+
+        <div class="mt-auto">
+          {% if joined %}
+            <div class="mb-2"><span class="badge badge-alive">&#10003; You're in</span></div>
+            <a href="{{ url_for(pick_ep) }}" class="btn btn-{{ pool }} w-100">{{ pick_label }}</a>
+          {% elif not current_user.is_authenticated %}
+            <div class="fw-bold">${{ fees[pool] }} per entry</div>
+            <div class="small text-muted">Sign in to join.</div>
+          {% elif not signups_open[pool] %}
+            <div class="alert alert-secondary py-2 mb-0 small">🔒 Closed to new entries.{% if signup_deadline[pool] %}
+              Signups ended at the Week 1 deadline ({{ signup_deadline[pool].strftime('%b %d, %Y') }}).{% endif %}</div>
+          {% else %}
+            <form method="post" action="{{ url_for(pool ~ '.join') }}"
+                  onsubmit="return confirm('The cost of the {{ title }} is ${{ fees[pool] }}. Are you sure you would like to join? You will be responsible for paying that amount to the commissioners.');">
+              <input type="hidden" name="from" value="home">
+              <button type="submit" class="btn btn-{{ pool }} w-100">Join {{ title }} &mdash; ${{ fees[pool] }}</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
+<div class="row g-4">
+  {{ pool_card('gridiron', '🏆', 'Gridiron Investments',
+     "Pick 5 NFL/college games against the spread each week (plus optional NFL over/under). Most correct picks over the season wins.",
+     'gridiron.rules', 'gridiron.standings', 'gridiron.pick', 'Make Picks') }}
+
+  {{ pool_card('loser', '📉', 'Loser Pool',
+     "Pick an NFL team to LOSE each week — any team, any week. Correct picks earn that team's point value; wrong picks deduct it.",
+     'loser.rules', 'loser.standings', 'loser.pick', 'Make Pick') }}
+
+  {{ pool_card('dropdead', '💀', 'Drop Dead Pool',
+     "Survivor pool. Pick one NFL team to win straight up each week. Lose or tie and you're out — unless you buy back in during the first four weeks.",
+     'dropdead.rules', 'dropdead.standings', 'dropdead.pick', 'Make Pick') }}
 </div>
 
 {% if current_user.is_authenticated and not my_entries %}
-<div class="alert alert-info">
-  You haven't joined any pools yet. <a href="{{ url_for('auth.choose_pools') }}" class="alert-link">Choose your pools</a> to get started.
-</div>
+  {# Once every pool has passed its Week 1 deadline there is no Join button left
+     to press, so pointing at one reads as a broken page. #}
+  {% if signups_open.values() | select | list %}
+<p class="text-muted mt-3">You haven't joined a pool yet &mdash; press a Join button above to get started.</p>
+  {% else %}
+<p class="text-muted mt-3">You haven't joined a pool, and all three are now closed to new entries for the {{ season_year }} season &mdash; signups end at the Week 1 deadline. You can still follow the standings, and the commissioners are on the <a href="{{ url_for('board.index') }}">Message Board</a> if you have a question.</p>
+  {% endif %}
 {% endif %}
-
-<div class="row g-4">
-  {% if not current_user.is_authenticated or my_entries.get('dropdead') %}
-  <div class="col-md-4">
-    <div class="card pool-card pool-dropdead h-100 shadow-sm">
-      <div class="card-body">
-        <h4 class="card-title"><span class="pool-icon">💀</span>Drop Dead Pool</h4>
-        <p class="card-text">Survivor pool. Pick one NFL team to win straight up each week. Lose or tie and you're out &mdash; unless you buy back in during the first four weeks.</p>
-        <a href="{{ url_for('dropdead.rules') }}" class="btn btn-outline-dark btn-sm">Rules</a>
-        <a href="{{ url_for('dropdead.standings') }}" class="btn btn-outline-dark btn-sm">Standings</a>
-        {% if my_entries.get('dropdead') %}
-        <a href="{{ url_for('dropdead.pick') }}" class="btn btn-dropdead btn-sm">Make Pick</a>
-        {% endif %}
-        <div class="mt-2"><a href="{{ url_for('main.help_page', pool='dropdead') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a></div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-  {% if not current_user.is_authenticated or my_entries.get('loser') %}
-  <div class="col-md-4">
-    <div class="card pool-card pool-loser h-100 shadow-sm">
-      <div class="card-body">
-        <h4 class="card-title"><span class="pool-icon">📉</span>Loser Pool</h4>
-        <p class="card-text">Pick an NFL team to LOSE each week &mdash; any team, any week. Correct picks earn that team's point value; wrong picks deduct it.</p>
-        <a href="{{ url_for('loser.rules') }}" class="btn btn-outline-dark btn-sm">Rules</a>
-        <a href="{{ url_for('loser.standings') }}" class="btn btn-outline-dark btn-sm">Standings</a>
-        {% if my_entries.get('loser') %}
-        <a href="{{ url_for('loser.pick') }}" class="btn btn-loser btn-sm">Make Pick</a>
-        {% endif %}
-        <div class="mt-2"><a href="{{ url_for('main.help_page', pool='loser') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a></div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-  {% if not current_user.is_authenticated or my_entries.get('gridiron') %}
-  <div class="col-md-4">
-    <div class="card pool-card pool-gridiron h-100 shadow-sm">
-      <div class="card-body">
-        <h4 class="card-title"><span class="pool-icon">🏆</span>Gridiron Investments</h4>
-        <p class="card-text">Pick 5 NFL/college games against the spread each week (plus optional NFL over/under). Most correct picks over the season wins.</p>
-        <a href="{{ url_for('gridiron.rules') }}" class="btn btn-outline-dark btn-sm">Rules</a>
-        <a href="{{ url_for('gridiron.standings') }}" class="btn btn-outline-dark btn-sm">Standings</a>
-        {% if my_entries.get('gridiron') %}
-        <a href="{{ url_for('gridiron.pick') }}" class="btn btn-gridiron btn-sm">Make Picks</a>
-        {% endif %}
-        <div class="mt-2"><a href="{{ url_for('main.help_page', pool='gridiron') }}" class="btn btn-outline-secondary btn-sm">Help / Instructional Videos</a></div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-</div>
-
-{% if current_user.is_authenticated and my_entries and my_entries|length < pool_count %}
-<p class="text-muted mt-3">Want to join another pool? <a href="{{ url_for('auth.choose_pools') }}">Choose more pools</a>.</p>
-{% endif %}
-
-<div class="laces-divider">🏈🏈🏈</div>
 {% endblock %}

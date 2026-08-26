@@ -50,6 +50,27 @@ def register():
         if not invite_row or invite_row.used_at is not None:
             session.pop("invite_token", None)
             return render_template("auth/register.html", invite_error=True, invite=None)
+
+        # An address that already has an account never registers again. A
+        # live invite is not a way in for someone who is already a member: it
+        # would build a SECOND account on their address and sign them into it,
+        # which reads as "the site lost my team" and leaves a duplicate in the
+        # standings. This matters for anyone invited twice before the invite
+        # page started refusing that, whose second link is still unused.
+        # Extra teams come from Add Another Account, inside the account.
+        owner = User.query.filter(
+            db.func.lower(User.email) == (invite_row.email or "").strip().lower()
+        ).first()
+        if owner is not None:
+            session.pop("invite_token", None)
+            return render_template(
+                "auth/register.html",
+                invite_error=True,
+                invite=None,
+                already_registered=invite_row.email,
+                signed_in_as=current_user.username if current_user.is_authenticated else None,
+            )
+
         session["invite_token"] = token
 
     if request.method == "POST":

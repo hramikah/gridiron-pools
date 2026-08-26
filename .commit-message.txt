@@ -518,3 +518,25 @@ and resends the same links; an address with an account is refused; a mixed
 batch sends the one new address and names the other two; the reused token still
 registers, is then marked used, cannot be used twice, and that address can no
 longer be invited.
+
+Registration refuses an address that already has an account.
+
+The invite page now skips people who are already members, but the registration
+route never checked -- it only asked whether the token was unused. So a live
+link belonging to an address that already has an account still built a SECOND
+account on it and signed the person into it, which reads as "the site lost my
+team" and leaves a duplicate in the standings. It applies to anyone invited
+twice BEFORE the invite guard shipped: their first link registered them, the
+second is still live, and re-opening that e-mail was all it took.
+
+register() now looks up the invited address and, if it already belongs to an
+account, shows "You already have an account" instead of the form: signed in, a
+button back to their pools; signed out, Sign in and Forgot my password. Either
+way it points at Add Another Account for a second team, which keeps both on one
+login and one bill. A used or unknown token still shows the ordinary
+"Invite required" page, and a genuinely new address is unaffected.
+
+Verified on a copy: two live invites for one address -- the first registers,
+the second is refused while signed in and creates nothing; an invite for an
+address that already has an account is refused signed out and offers sign-in
+and reset; a fresh address still registers normally.

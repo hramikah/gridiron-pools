@@ -3,7 +3,29 @@
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-md-5">
-    {% if invite_error %}
+    {% if already_registered %}
+    {# The invite link is live, but that address is already a member. Almost
+       always someone re-opening an old e-mail. Registering again would build a
+       second team, not sign them in, so say what to do instead. #}
+    <h2 class="mb-4 text-center"><span class="pool-icon">✅</span>You already have an account</h2>
+    <p class="text-muted text-center">
+      <strong>{{ already_registered }}</strong> is already registered
+      {%- if signed_in_as %}, and you are signed in as <strong>{{ signed_in_as }}</strong> right now{% endif %}.
+      There is nothing more to do with this invite &mdash; it was for setting the account up.
+    </p>
+    <div class="d-grid gap-2">
+      {% if signed_in_as %}
+      <a href="{{ url_for('main.index') }}" class="btn btn-gridiron">Go to my pools</a>
+      {% else %}
+      <a href="{{ url_for('auth.login') }}" class="btn btn-gridiron">Sign in</a>
+      <a href="{{ url_for('auth.forgot_password') }}" class="btn btn-outline-secondary">Forgot my password</a>
+      {% endif %}
+    </div>
+    <p class="text-muted small text-center mt-3">
+      Want a second team? Sign in and use <strong>+ Add Another Account</strong> in the
+      menu at the top right &mdash; that keeps both teams on one login and one bill.
+    </p>
+    {% elif invite_error %}
     <h2 class="mb-4 text-center"><span class="pool-icon">🔒</span>Invite required</h2>
     <p class="text-muted text-center">
       Gridiron Pools is invite-only. You need a valid invite link from an admin to create an account

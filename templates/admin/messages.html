@@ -8,12 +8,16 @@
 <div class="card mb-2 {% if row.unread %}border-warning{% endif %}">
   <div class="card-body py-2">
     <div class="d-flex justify-content-between align-items-start">
-      <a href="{{ url_for('admin.message_thread', user_id=row.user.id) }}" class="text-decoration-none text-body flex-grow-1">
+      {# msg-preview carries min-width:0 -- a flex child will not shrink below
+         its content's minimum width without it, so one long word or a pasted
+         link in a player's message pushed this card off the right of a phone
+         screen. See style.css. #}
+      <a href="{{ url_for('admin.message_thread', user_id=row.user.id) }}" class="text-decoration-none text-body flex-grow-1 msg-preview">
         <div class="small text-muted">
           {{ row.user.username }} &middot; {{ row.last.created_at.strftime('%a %b %d, %I:%M %p') }}
           &middot; {{ row.count }} message{{ 's' if row.count != 1 else '' }}
         </div>
-        <div>
+        <div class="msg-preview-body">
           {% if row.last.from_admin %}<span class="text-muted">You: </span>{% endif %}
           {{ row.last.body[:140] }}{% if row.last.body|length > 140 %}&hellip;{% endif %}
         </div>

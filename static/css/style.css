@@ -1063,3 +1063,16 @@ table.standings thead th,
 .pick-save-bar .btn { flex: 0 0 auto; }
 /* Room to scroll past the last row without the bar sitting on top of it. */
 body.has-pick-save-bar { padding-bottom: 5.5rem; }
+
+/* Admin message list. The preview is a flex child next to the unread badge and
+   the Delete button; a flex child will not shrink below its content's minimum
+   width unless min-width is cleared, so a single long word -- a pasted link, a
+   run of characters with no spaces -- made the card wider than the phone and
+   the text ran off the right edge. Admin replies happened to be short enough
+   never to hit it. */
+.msg-preview { min-width: 0; }
+.msg-preview-body,
+.msg-preview .small {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

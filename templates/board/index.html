@@ -45,7 +45,11 @@
       <a class="list-group-item list-group-item-action {% if row.unread %}list-group-item-warning{% endif %}"
          href="{{ url_for('admin.message_thread', user_id=row.user.id) }}">
         <div class="d-flex justify-content-between align-items-start">
-          <div class="me-2">
+          {# msg-preview clears min-width: this is a flex child, and without it
+             the fixed 44rem preview below refuses to shrink, so on a phone the
+             player's message ran off the right of the screen instead of
+             ellipsising. #}
+          <div class="me-2 msg-preview">
             <div class="fw-bold">{{ row.user.username }}
               {% if row.unread %}<span class="badge rounded-pill bg-danger">{{ row.unread }} new</span>{% endif %}
             </div>
@@ -53,7 +57,9 @@
               {% if row.last.from_admin %}You replied{% else %}{{ row.user.username }} wrote{% endif %}
               &middot; {{ row.last.created_at.strftime('%a %b %d, %I:%M %p') }}
             </div>
-            <div class="text-truncate" style="max-width: 44rem;">{{ row.last.body }}</div>
+            {# 44rem was a hard 704px -- wider than any phone. Cap it at the
+               column instead, so text-truncate ellipsises where the card ends. #}
+            <div class="text-truncate msg-preview-line">{{ row.last.body }}</div>
           </div>
           <span class="badge bg-secondary">{{ row.count }}</span>
         </div>

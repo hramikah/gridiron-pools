@@ -1071,6 +1071,11 @@ body.has-pick-save-bar { padding-bottom: 5.5rem; }
    the text ran off the right edge. Admin replies happened to be short enough
    never to hit it. */
 .msg-preview { min-width: 0; }
+/* One-line preview on the Message Board's admin panel. It is .text-truncate,
+   which only ellipsises if something bounds its width; it used to carry an
+   inline max-width: 44rem (704px), wider than any phone, so it simply ran off
+   the screen. */
+.msg-preview-line { max-width: 100%; }
 .msg-preview-body,
 .msg-preview .small {
   overflow-wrap: anywhere;

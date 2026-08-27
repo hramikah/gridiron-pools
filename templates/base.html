@@ -253,7 +253,15 @@
     }, true);
 
     document.addEventListener('submit', function (e) {
-      if (!e.defaultPrevented) start();
+      if (e.defaultPrevented) return;
+      start();
+      // This is a CAPTURE listener, so it runs before the form's own handlers:
+      // defaultPrevented is always false here, even for a form that is about
+      // to be handled in the background rather than navigated (the admin
+      // Payments page does exactly that). Re-check once the event has finished
+      // propagating and clear the bar if no navigation is coming -- otherwise
+      // it crawls to 90% and sits there forever.
+      setTimeout(function () { if (e.defaultPrevented) stop(); }, 0);
     }, true);
 
     // Coming back via the bfcache re-shows the old page with the bar mid-crawl.

@@ -86,7 +86,11 @@
                   <label class="pick-option {% if ts %}team-tinted{% endif %}"
                          for="loser_{{ entry.id }}_{{ g.id }}_{{ side }}"
                          {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>
-                    {{ tname }}<br><span class="pick-points">{{ points_by_team.get(tid, '?') }} pts</span>
+                    {# Two real elements, not a <br>: the phone layout makes this
+                       label a flex box, where a <br> does nothing and the name
+                       and the points badge end up side by side, overlapping on
+                       a long name like "Las Vegas Raiders". #}
+                    <span class="pick-name">{{ tname }}</span><span class="pick-points">{{ points_by_team.get(tid, '?') }} pts</span>
                   </label>
                   {% if tid in unpickable_team_ids %}<div class="pick-note">Locked - Kickoff too soon.</div>{% endif %}
                   {% else %}<span class="text-muted small">&mdash;</span>{% endif %}

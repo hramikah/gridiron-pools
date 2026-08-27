@@ -834,12 +834,21 @@ table.standings thead th,
   .pick-option {
     min-height: 48px;            /* Apple and Google both ask for >=44px */
     display: flex;
+    /* Column, or the label's parts become flex items sitting SIDE BY SIDE:
+       the Loser Pool button is a team name and a points badge, and on a long
+       name like "Las Vegas Raiders" the badge landed on top of the text. A
+       <br> between them does nothing inside a flex box. */
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: .15rem;
     text-align: center;
     font-size: .95rem;
     padding: .5rem .4rem;
   }
+  /* Let the name use the full width of the button and wrap if it must,
+     rather than being squeezed by the badge below it. */
+  .pick-option > .pick-name { max-width: 100%; }
 
   .pick-table .matchup {
     font-size: 1.1rem;

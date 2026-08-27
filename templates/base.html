@@ -269,5 +269,177 @@
     window.addEventListener('pagehide', stop);
   })();
   </script>
+
+  <!-- Floating save bar. Any pick form that carries data-pick-bar gets one:
+       it counts that form's selections, mirrors its real Save button, and
+       submits it. Styles live in style.css under .pick-save-bar. -->
+  <script>
+  (function () {
+    // The form's OWN Save button -- not merely the first submit button inside
+    // it. Once a Gridiron player has saved something, the pick table also
+    // contains the red X buttons, which are type=submit and sit inside this
+    // form but carry form="rmpick-N" pointing at a remove form elsewhere on
+    // the page. Grabbing one of those by mistake made the bar label itself
+    // "x", made it hide whenever an X scrolled into view, and would have made
+    // its Save button remove a pick instead of saving one.
+    function realBtn(f) {
+      var btns = Array.prototype.slice.call(f.querySelectorAll('button[type=submit]'));
+      for (var i = 0; i < btns.length; i++) {
+        if (!btns[i].hasAttribute('form') && btns[i].form === f) return btns[i];
+      }
+      return null;
+    }
+
+    var forms = Array.prototype.slice.call(
+      document.querySelectorAll('form[data-pick-bar]')
+    ).filter(function (f) { return realBtn(f); });
+    if (!forms.length) return;
+
+    // Whether the page's own Save button was disabled when the page loaded.
+    // That means the week is locked -- distinct from the Gridiron script
+    // disabling it moment to moment for being over the pick limit, which we
+    // still want the bar to show and explain.
+    var lockedAtLoad = new WeakMap();
+    // Is this form's real Save button currently on screen?
+    var onScreen = new WeakMap();
+    forms.forEach(function (f) {
+      lockedAtLoad.set(f, realBtn(f).disabled);
+      onScreen.set(f, false);
+    });
+
+    var bar = document.createElement('div');
+    bar.className = 'pick-save-bar';
+    bar.innerHTML = '<div class="pick-save-inner">' +
+                      '<span class="pick-save-count"></span>' +
+                      '<button type="button" class="btn"></button>' +
+                    '</div>';
+    document.body.appendChild(bar);
+    var countEl = bar.querySelector('.pick-save-count');
+    var saveBtn = bar.querySelector('button');
+
+    var active = forms[0];
+
+    // An empty value is the "clear this pick" radio, which is not a selection.
+    function countSelected(f) {
+      var n = 0;
+      f.querySelectorAll('input[type=radio],input[type=checkbox]').forEach(function (i) {
+        if (i.checked && i.value !== '') n++;
+      });
+      return n;
+    }
+
+    function refresh() {
+      var f = active, rb = realBtn(f);
+      var max = parseInt(f.dataset.pickMax, 10);
+      if (!(max > 0)) max = 0;
+      var n = countSelected(f);
+      var over = max > 0 && n > max;
+
+      countEl.textContent = over
+        ? n + ' of ' + max + ' \u2014 too many, remove one'
+        : (max > 1 ? n + ' of ' + max + ' selected'
+                   : (n ? 'Pick selected' : 'Nothing selected'));
+      // Only name the entry when there is more than one on the page, so a
+      // single-team player is not told something they already know.
+      if (forms.length > 1 && f.dataset.pickLabel) {
+        var sub = document.createElement('span');
+        sub.className = 'pick-save-entry';
+        sub.textContent = f.dataset.pickLabel;
+        countEl.appendChild(sub);
+      }
+      countEl.classList.toggle('text-danger', over);
+
+      saveBtn.textContent = (rb.textContent || 'Save').trim();
+      // Copy the page button's own classes so the bar is pool-coloured, minus
+      // the hook the Gridiron page's counter script uses to find its button.
+      saveBtn.className = rb.className.replace(/\bgridiron-submit\b/g, '')
+                                      .replace(/\s+/g, ' ').trim();
+      saveBtn.disabled = over || lockedAtLoad.get(f);
+
+      var show = n > 0 && !lockedAtLoad.get(f) && !onScreen.get(f);
+      bar.classList.toggle('is-visible', show);
+      // The bar itself is position:fixed and changes no layout, but the
+      // padding that keeps it clear of the last row does. Toggling that
+      // padding as the bar came and went made the page grow and shrink under
+      // the reader -- near the bottom the browser clamps the scroll position
+      // when the document shortens, so the page jumped, which could then put
+      // the Save button back out of view and start it flapping. Add the
+      // padding once and leave it for the life of the page.
+      if (show) { document.body.classList.add('has-pick-save-bar'); }
+    }
+
+    // Hide the bar whenever the page's own Save button is in view, so there
+    // are never two Save buttons competing at the bottom of the screen.
+    if (window.IntersectionObserver) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var f = en.target.closest('form[data-pick-bar]');
+          if (f) onScreen.set(f, en.isIntersecting);
+        });
+        refresh();
+      }, {
+        // A margin of hysteresis: the Save button has to be properly in view,
+        // not just grazing the bottom edge behind the bar, before the bar
+        // stands down. Without it the two swap back and forth around a single
+        // scroll position.
+        threshold: 0.1,
+        rootMargin: '0px 0px -96px 0px'
+      });
+      forms.forEach(function (f) { io.observe(realBtn(f)); });
+    }
+
+    // The active form is whichever one was last touched -- Gridiron shows one
+    // per entry for players with more than one team.
+    function markActive(e) {
+      var f = e.target.closest ? e.target.closest('form[data-pick-bar]') : null;
+      if (f) { active = f; refresh(); }
+    }
+    document.addEventListener('change', markActive);
+    document.addEventListener('click', markActive);
+
+    saveBtn.addEventListener('click', function () {
+      var rb = realBtn(active);
+      if (saveBtn.disabled || rb.disabled) return;
+      // requestSubmit fires the real submit event, so the unsaved-changes
+      // guard and the progress bar behave exactly as a click on the page's
+      // own button would. .click() is the fallback for older browsers.
+      if (active.requestSubmit) { active.requestSubmit(rb); } else { rb.click(); }
+    });
+
+    // Tapping a pick can scroll the page out from under you, and the save bar
+    // is not the cause -- Bootstrap's .btn-check radio is hidden with
+    // clip:rect(0 0 0 0) and its box ends up nowhere near the label you
+    // actually tapped; in the Gridiron table it can sit a few hundred pixels
+    // further up. Clicking the label focuses that input and the browser
+    // dutifully scrolls the focused element into view. Measured here: a tap
+    // mid-page moved Gridiron by 218-373px. Note the position before the tap
+    // and put it back.
+    var preX = 0, preY = 0, restoring = false;
+    function noteScroll(e) {
+      var l = e.target && e.target.closest ? e.target.closest('label') : null;
+      restoring = !!(l && l.closest('form[data-pick-bar]'));
+      if (restoring) { preX = window.scrollX; preY = window.scrollY; }
+    }
+    document.addEventListener('pointerdown', noteScroll, true);
+    document.addEventListener('mousedown', noteScroll, true);
+    document.addEventListener('click', function () {
+      if (!restoring) return;
+      restoring = false;
+      var x = preX, y = preY;
+      function putBack() {
+        if (window.scrollX !== x || window.scrollY !== y) window.scrollTo(x, y);
+      }
+      putBack();
+      // Browsers do the focus scroll a frame or two after the click, and the
+      // bar appearing adds its padding in between, so check again a couple of
+      // times rather than only once.
+      window.requestAnimationFrame(putBack);
+      window.requestAnimationFrame(function () { window.requestAnimationFrame(putBack); });
+      window.setTimeout(putBack, 80);
+    }, true);
+
+    refresh();
+  })();
+  </script>
 </body>
 </html>

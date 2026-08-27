@@ -51,6 +51,14 @@
     {# One place that renders "Cowboys -1.5" for a picked side, so the
        summary list and the locked badge in the table always agree. The sign
        is from the picked team's point of view, matching the pick buttons. #}
+    {# Pick buttons show the NICKNAME, not the full club name: "Chargers +3.5",
+       not "Los Angeles Chargers +3.5". The full matchup is printed directly
+       above in the same row, so nothing is lost, and the buttons stop wrapping
+       to two and three lines at different rows down the page. College games
+       have no Team row to take a nickname from, so they keep their full name
+       and lean on the font-size clamp in style.css instead. #}
+    {% macro team_label(g, side) %}{% set obj = g.away_team_obj if side == 'away' else g.home_team_obj %}{{ obj.name if obj and obj.name else (g.away_team if side == 'away' else g.home_team) }}{% endmacro %}
+
     {% macro spread_label(g, side) %}{{ g.home_team if side == 'home' else g.away_team }}{% if not g.favorite %} PK{% elif g.favorite == side %} -{{ g.spread }}{% else %} +{{ g.spread }}{% endif %}{% endmacro %}
 
     {% macro remove_pick_forms(pick_ids) %}
@@ -153,18 +161,21 @@
               {% else %}
               {% set away_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_away" value="away" autocomplete="off" {% if g_locked %}disabled{% endif %}>
-                {% set ts = team_styles.get(g.away_team) if g.sport != 'college' else none %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_away" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.away_team }}{% if g.favorite == 'away' %} -{{ g.spread }}{% elif g.favorite == 'home' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                {% set ts = team_styles.get(g.away_team) if g.sport != 'college' else none %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_away" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}><span class="pick-name">{{ team_label(g, 'away') }}</span><span class="pick-spread">{% if g.favorite == 'away' %}-{{ g.spread }}{% elif g.favorite == 'home' %}+{{ g.spread }}{% else %}PK{% endif %}</span></label>
               {% endset %}
               {% set home_btn %}
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_home" value="home" autocomplete="off" {% if g_locked %}disabled{% endif %}>
-                {% set ts = team_styles.get(g.home_team) if g.sport != 'college' else none %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_home" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ g.home_team }}{% if g.favorite == 'home' %} -{{ g.spread }}{% elif g.favorite == 'away' %} +{{ g.spread }}{% else %} PK{% endif %}</label>
+                {% set ts = team_styles.get(g.home_team) if g.sport != 'college' else none %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_home" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}><span class="pick-name">{{ team_label(g, 'home') }}</span><span class="pick-spread">{% if g.favorite == 'home' %}-{{ g.spread }}{% elif g.favorite == 'away' %}+{{ g.spread }}{% else %}PK{% endif %}</span></label>
               {% endset %}
               <div class="pick-choice-group" role="group">
                 {# favorite on the left, underdog on the right (plain away/home order for pick'em) #}
                 {% if g.favorite == 'home' %}{{ home_btn }}{{ away_btn }}{% else %}{{ away_btn }}{{ home_btn }}{% endif %}
 
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_none" value="" autocomplete="off" checked {% if g_locked %}disabled{% endif %}>
-                <label class="btn btn-outline-secondary btn-sm d-none" for="sp_{{ g.id }}_none"></label>
+                {# Always rendered so the row never changes size -- see
+                   .pick-clear in style.css. Shown only once a side is picked. #}
+                <label class="btn btn-outline-danger btn-sm pick-clear" for="sp_{{ g.id }}_none"
+                       title="Clear this selection" aria-label="Clear this selection">&times;</label>
               </div>
               {% endif %}
             </td>
@@ -185,7 +196,8 @@
                   <label class="pick-option pick-option-total" for="ou_{{ g.id }}_under">Under {{ g.over_under }}</label>
 
                   <input type="radio" class="btn-check" name="sel_{{ g.id }}_total" id="ou_{{ g.id }}_none" value="" autocomplete="off" checked {% if g_locked %}disabled{% endif %}>
-                  <label class="btn btn-outline-secondary btn-sm d-none" for="ou_{{ g.id }}_none"></label>
+                  <label class="btn btn-outline-danger btn-sm pick-clear" for="ou_{{ g.id }}_none"
+                         title="Clear this selection" aria-label="Clear this selection">&times;</label>
                 </div>
                 {% endif %}
               {% endif %}
@@ -195,7 +207,8 @@
     {% endmacro %}
 
     {% if display_games %}
-    <form method="post" class="gridiron-pick-form pool-theme-gridiron" data-max-picks="{{ remaining }}" data-warn-unsaved>
+    <form method="post" class="gridiron-pick-form pool-theme-gridiron" data-max-picks="{{ remaining }}" data-warn-unsaved
+          data-pick-bar data-pick-max="{{ remaining }}" data-pick-label="{{ entry.label }}">
       <input type="hidden" name="entry_id" value="{{ entry.id }}">
       {% if makeup_by_entry.get(entry.id) %}
       <div class="alert alert-warning py-2 small mb-2">
@@ -229,7 +242,9 @@
       {% if college_games %}
       <h6 class="text-uppercase text-muted fw-bold mt-4 mb-2 pt-3 border-top">🎓 College</h6>
       <div class="table-responsive">
-      <table class="table table-sm align-middle pick-table table-pick-sticky">
+      {# pick-table-college: these labels are full school names with no Team row
+         to shorten them, so style.css gives them tighter type. #}
+      <table class="table table-sm align-middle pick-table pick-table-college table-pick-sticky">
         <thead><tr><th>Game</th><th>Spread pick</th></tr></thead>
         <tbody>
         {% for g in college_games %}{{ game_row(g, my_picks, locked, false, my_pick_ids) }}{% endfor %}
@@ -306,8 +321,9 @@
     if (noneRadio) {
       var label = document.querySelector('label[for="' + noneRadio.id + '"]');
       if (label) {
-        label.textContent = 'Clear Selection';
-        label.classList.toggle('d-none', !hasPick);
+        // Visibility, not display: the slot stays reserved either way, so
+        // showing it cannot resize the buttons beside it.
+        label.classList.toggle('is-on', hasPick);
       }
     }
   }

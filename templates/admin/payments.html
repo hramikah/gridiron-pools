@@ -35,11 +35,12 @@
                meant 150 dialogs. The click is reversible (click again to flip
                back) and every flip is written to the activity log, so a
                mis-click is visible and undoable. #}
-            <form method="post" action="{{ url_for('admin.toggle_paid', entry_id=e.id) }}" class="d-inline">
+            <form method="post" action="{{ url_for('admin.toggle_paid', entry_id=e.id) }}" class="d-inline js-pay-form">
               <button type="submit"
                       class="badge {% if e.paid %}badge-alive border-0{% else %}bg-transparent border border-danger text-danger{% endif %}"
                       style="cursor: pointer"
-                      title="{{ 'Mark unpaid' if e.paid else 'Mark paid' }}">
+                      title="{{ 'Mark unpaid' if e.paid else 'Mark paid' }}"
+                      data-pay-kind="fee-badge">
                 {% if e.paid %}Paid{% else %}Unpaid{% endif %}
               </button>
             </form>
@@ -57,11 +58,12 @@
       {% for slot in row.bb_slots %}
       <td class="text-center">
         {% if slot %}
-        <form method="post" action="{{ url_for('admin.toggle_buyback_paid', buyback_id=slot.id) }}" class="d-inline">
+        <form method="post" action="{{ url_for('admin.toggle_buyback_paid', buyback_id=slot.id) }}" class="d-inline js-pay-form">
           <button type="submit"
                   class="badge border-0 {% if slot.paid %}badge-alive{% else %}bg-danger text-white{% endif %}"
                   style="cursor: pointer"
-                  title="{{ 'Mark this buy-back unpaid' if slot.paid else 'Mark this buy-back paid' }}{% if slot.week_number %} ({{ week_label(slot.week_number)|lower }}){% endif %}">
+                  title="{{ 'Mark this buy-back unpaid' if slot.paid else 'Mark this buy-back paid' }}{% if slot.week_number %} ({{ week_label(slot.week_number)|lower }}){% endif %}"
+                  data-pay-kind="bb-badge">
             BB{{ loop.index }}
           </button>
         </form>
@@ -108,7 +110,8 @@
       <td>
         <form method="post" class="js-pay-form"
               action="{% if r.kind == 'buyback' %}{{ url_for('admin.toggle_buyback_paid', buyback_id=r.buyback_id) }}{% else %}{{ url_for('admin.toggle_paid', entry_id=r.entry_id) }}{% endif %}">
-          <button type="submit" class="btn btn-sm js-pay-btn {% if r.paid %}btn-outline-secondary{% else %}btn-gridiron{% endif %}">
+          <button type="submit" data-pay-kind="row-btn"
+                  class="btn btn-sm js-pay-btn {% if r.paid %}btn-outline-secondary{% else %}btn-gridiron{% endif %}">
             {% if r.paid %}Mark Unpaid{% else %}Mark Paid{% endif %}
           </button>
         </form>
@@ -134,19 +137,74 @@
    and FormData carries it, so no token handling is needed here. #}
 <script>
 (function () {
-  var box = document.getElementById('all-entries');
-  if (!box || !window.fetch) return;
+  if (!window.fetch) return;   // very old browser: leave the plain form posts
 
   var PAID = '<span class="badge badge-alive">Paid</span>';
   var UNPAID = '<span class="badge bg-transparent border border-danger text-danger">Unpaid</span>';
 
-  box.addEventListener('submit', function (ev) {
-    var form = ev.target.closest('.js-pay-form');
+  // Anything that still reaches the server as an ordinary form post -- the
+  // fallback below, or a browser without fetch -- reloads the page. Remember
+  // where the admin was and put them back, so no route through this page ever
+  // dumps them at the top. sessionStorage is per-tab and consumed on use;
+  // wrapped because a browser set to block site data throws on access.
+  function rememberScroll() {
+    try { sessionStorage.setItem('paymentsScrollY', String(window.scrollY)); } catch (e) {}
+  }
+  try {
+    var back = sessionStorage.getItem('paymentsScrollY');
+    if (back !== null) {
+      sessionStorage.removeItem('paymentsScrollY');
+      window.requestAnimationFrame(function () { window.scrollTo(0, parseInt(back, 10) || 0); });
+    }
+  } catch (e) {}
+
+  document.addEventListener('submit', function (ev) {
+    // Capture phase, so this cannot yet know whether the submit will navigate.
+    // Store the position now and drop it on the next tick if the submit turned
+    // out to be handled in the background, or a stale value would move the
+    // page on some later, unrelated load.
+    if (ev.defaultPrevented) return;
+    rememberScroll();
+    setTimeout(function () {
+      if (!ev.defaultPrevented) return;
+      try { sessionStorage.removeItem('paymentsScrollY'); } catch (e) {}
+    }, 0);
+  }, true);
+
+  // One charge can appear twice on this page: as a badge in Who Owes What and
+  // as a row in All Entries. Both post to the same URL, so after a toggle we
+  // repaint every button pointing at it, whichever one was clicked.
+  function repaint(action, paid) {
+    document.querySelectorAll('form[action="' + action + '"]').forEach(function (f) {
+      var b = f.querySelector('button');
+      if (!b) return;
+      var kind = b.dataset.payKind;
+      if (kind === 'fee-badge') {
+        b.textContent = paid ? 'Paid' : 'Unpaid';
+        b.className = 'badge ' + (paid ? 'badge-alive border-0'
+                                       : 'bg-transparent border border-danger text-danger');
+        b.title = paid ? 'Mark unpaid' : 'Mark paid';
+      } else if (kind === 'bb-badge') {
+        // Its label is the column number (BB1..BB4) and must not change.
+        b.className = 'badge border-0 ' + (paid ? 'badge-alive' : 'bg-danger text-white');
+      } else if (kind === 'row-btn') {
+        b.textContent = paid ? 'Mark Unpaid' : 'Mark Paid';
+        b.className = 'btn btn-sm js-pay-btn ' +
+                      (paid ? 'btn-outline-secondary' : 'btn-gridiron');
+        var row = f.closest('tr');
+        var cell = row && row.querySelector('.js-pay-status');
+        if (cell) cell.innerHTML = paid ? PAID : UNPAID;
+      }
+    });
+  }
+
+  document.addEventListener('submit', function (ev) {
+    var form = ev.target.closest ? ev.target.closest('.js-pay-form') : null;
     if (!form) return;
     ev.preventDefault();
 
-    var btn = form.querySelector('.js-pay-btn');
-    if (btn.disabled) return;              // ignore a double-click mid-flight
+    var btn = form.querySelector('button');
+    if (!btn || btn.disabled) return;      // ignore a double-click mid-flight
     btn.disabled = true;
 
     fetch(form.action, {
@@ -155,42 +213,24 @@
       headers: { 'X-Requested-With': 'fetch' },
       credentials: 'same-origin'
     }).then(function (r) {
-      if (!r.ok) throw new Error(r.status);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (d) {
-      var row = form.closest('tr');
-      var cell = row.querySelector('.js-pay-status');
-      if (cell) cell.innerHTML = d.paid ? PAID : UNPAID;
-      btn.textContent = d.paid ? 'Mark Unpaid' : 'Mark Paid';
-      btn.className = 'btn btn-sm js-pay-btn ' +
-                      (d.paid ? 'btn-outline-secondary' : 'btn-gridiron');
-
-      // Keep the Who Owes What table above honest about this player.
+      repaint(form.getAttribute('action'), d.paid);
+      // Keep this player's Total Owed honest without reloading the page.
       var owed = document.getElementById('owed-' + d.user_id);
       if (owed) {
-        owed.innerHTML = d.owed
-          ? '<strong>$' + d.owed + '</strong>'
-          : '<span class="text-muted">$0</span>';
+        owed.innerHTML = d.owed ? '<strong>$' + d.owed + '</strong>'
+                                : '<span class="text-muted">$0</span>';
       }
-      document.querySelectorAll('form[action="' + form.getAttribute('action') + '"]')
-        .forEach(function (other) {
-          if (other === form) return;      // the same charge's badge up top
-          var b = other.querySelector('button');
-          if (!b) return;
-          if (b.textContent.trim().slice(0, 2) === 'BB') {
-            b.className = 'badge border-0 ' + (d.paid ? 'badge-alive' : 'bg-danger text-white');
-          } else {
-            b.textContent = d.paid ? 'Paid' : 'Unpaid';
-            b.className = 'badge ' + (d.paid ? 'badge-alive border-0'
-                                             : 'bg-transparent border border-danger text-danger');
-          }
-        });
       btn.disabled = false;
-    }).catch(function () {
-      // Something went wrong -- fall back to the ordinary form post so the
-      // change still happens rather than silently doing nothing. form.submit()
-      // does not fire this handler again.
+    }).catch(function (err) {
+      // Fall back to the ordinary form post so the change still happens rather
+      // than silently doing nothing. form.submit() does not fire this handler
+      // again, and rememberScroll keeps the position across the reload.
+      if (window.console) console.warn('Payments: background save failed, posting normally.', err);
       btn.disabled = false;
+      rememberScroll();
       form.submit();
     });
   });

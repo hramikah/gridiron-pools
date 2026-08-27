@@ -53,7 +53,8 @@
           {% endif %}
         </div>
       {% else %}
-      <form method="post" class="mt-3 pool-theme-loser" data-warn-unsaved>
+      <form method="post" class="mt-3 pool-theme-loser" data-warn-unsaved
+            data-pick-bar data-pick-max="1" data-pick-label="{{ entry.label }}">
         <input type="hidden" name="entry_id" value="{{ entry.id }}">
         <div class="pick-heading">{{ week.label }} &mdash; pick one team to <span style="color:var(--pick-accent)">LOSE</span></div>
         <p class="form-text mt-0 mb-2">Teams lock 1 hour before their own kickoff, even before Saturday's overall deadline. Points shown are what you gain if that team loses (or lose if it wins or ties).</p>

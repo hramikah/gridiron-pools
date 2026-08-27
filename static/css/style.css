@@ -472,9 +472,11 @@ li.badge {
 }
 .pick-choice-group > .pick-option {
   /* Wrap between words if it must -- `nowrap` here forced the whole table
-     wider and pushed the Over/Under buttons off-screen. */
+     wider and pushed the Over/Under buttons off-screen. NFL buttons carry the
+     nickname only, so they fit; this clamp is what keeps a long college name
+     ("Florida State Seminoles +10.5") down to a line or two instead of four. */
   white-space: normal;
-  font-size: .95rem;
+  font-size: clamp(.8rem, 2.3vw, .95rem);
   padding-left: .35rem;
   padding-right: .35rem;
 }
@@ -487,6 +489,98 @@ li.badge {
   .pick-choice-group > .pick-option { font-size: .85rem; }
 }
 
+/* Over/Under buttons stay on ONE line. There was already a `.pick-option-total`
+   rule saying so, but it is a single class and loses to
+   `.pick-choice-group > .pick-option` above -- measured in a browser, the
+   computed white-space came out `normal`, so "Under 41.5" wrapped to two lines
+   while "Over 41.5" stayed on one and rows down the page ended up different
+   heights. Scoped the same way now, so it actually wins. */
+.pick-choice-group > .pick-option-total {
+  white-space: nowrap;
+  font-size: clamp(.78rem, 2.2vw, .95rem);
+}
+
+/* Every pick button is the same height whatever its label does. Some
+   nicknames still take two lines in a narrow column ("Commanders +6.0") and
+   college names take more, which left rows all different heights down the
+   page. A floor plus centred content makes them uniform without truncating
+   anything -- a longer name simply uses more of a box that was already that
+   tall. */
+.pick-choice-group > .pick-option,
+.pick-choice-group > .pick-clear {
+  min-height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+/* The name and the number are separate lines rather than one run of text that
+   breaks wherever it happens to run out of room. "Chiefs -4.5" in this heavy
+   slab face is wider than it looks and was wrapping in a 98px column, so some
+   buttons were one line and some two, all down the page. Two deliberate lines
+   are the same height every time, and the number reads more clearly for being
+   on its own. */
+.pick-choice-group > .pick-option {
+  flex-direction: column;
+  gap: .05rem;
+  line-height: 1.1;
+}
+.pick-option .pick-name { display: block; }
+.pick-option .pick-spread {
+  display: block;
+  font-size: .85em;
+  opacity: .92;
+}
+/* Full school names, no nickname to fall back on, so give them smaller type
+   and they fit the same box. */
+.pick-table-college .pick-choice-group > .pick-option,
+.pick-table-college .pick-choice-group > .pick-clear {
+  font-size: clamp(.7rem, 1.9vw, .85rem);
+  line-height: 1.1;
+  /* A college name has no nickname to shorten it to, so the longest of them
+     ("Notre Dame Fighting Irish") needs three lines in a narrow column.
+     Measured worst case was 68px; the floor is set above it so every button
+     in this table is the same height as every other, whatever its name. */
+  min-height: 4.375rem;
+}
+@media (max-width: 767.98px) {
+  .pick-choice-group > .pick-option-total { font-size: clamp(.7rem, 2.9vw, .85rem); }
+}
+
+/* The clear-selection control keeps its slot whether or not it is showing.
+   It used to be display:none until you picked a side, at which point it
+   appeared as a third button in this flex row and squeezed the two team
+   buttons -- measured 149px wide down to 89px, which re-wrapped the team name
+   onto another line and grew the row from 229px to 246px. Everything below it
+   on the page then shifted. A fixed narrow slot, hidden rather than removed,
+   means selecting a team changes nothing about the layout. */
+.pick-choice-group > .pick-clear {
+  /* Wide enough to be a real tap target rather than the sliver a bare
+     btn-sm gives you next to two chunky team buttons, and the glyph is
+     centred in it at a size you can actually see. */
+  flex: 0 0 2.75rem;
+  min-width: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  line-height: 1;
+  visibility: hidden;
+}
+.pick-choice-group > .pick-clear.is-on { visibility: visible; }
+
+/* The same × used to drop a pick that is already locked in, in the table row
+   and in the Locked in so far list. btn-sm with px-1 rendered it about 18px
+   wide -- fine with a mouse, a poor target with a thumb. */
+.btn.btn-sm[form^="rmpick-"],
+.remove-pick-btn {
+  min-width: 2.1rem;
+  min-height: 2.1rem;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: .1rem .3rem;
+}
 
 /* ==========================================================================
    Warm type palette
@@ -654,7 +748,6 @@ table.standings thead th,
 .locked-pick .locked-team {
   margin-bottom: .15rem;
 }
-
 
 /* ==========================================================================
    PHONE LAYOUT  (<= 767.98px)
@@ -852,7 +945,6 @@ table.standings thead th,
   }
 }
 
-
 /* Thin progress bar shown while a page navigation is in flight. See the
    script at the foot of base.html -- it starts on link taps and form
    submits, so a slow page (Master Standings, mainly) acknowledges the tap
@@ -888,3 +980,63 @@ table.standings thead th,
 @media (min-width: 1200px) {
   .navbar-nav .nav-link { padding-left: .5rem; padding-right: .5rem; white-space: nowrap; }
 }
+
+/* ---------------------------------------------------------------------------
+   Floating save bar on the three pick pages.
+
+   A pick page is a long table -- on a phone the Save button sits several
+   screens below the game you are tapping, so people were selecting picks and
+   navigating away without ever saving. This bar appears as soon as something
+   is selected and hides itself again whenever the page's real Save button is
+   actually on screen, so the two are never both visible.
+
+   Built and driven entirely by the script at the end of base.html; the markup
+   does not exist in any template.
+   --------------------------------------------------------------------------- */
+.pick-save-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1030;            /* above the page, below Bootstrap's modals */
+  display: none;
+  padding: .6rem .9rem;
+  /* Clear of the iPhone home indicator. Falls back to the plain padding
+     above on anything that does not know env(). */
+  padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px));
+  /* Dark, like the navbar, with the gold rule along its top edge. A white
+     bar on this near-white page read as part of the page and was easy to
+     miss; this reads as a separate control surface, and matches the header
+     so the page is bracketed top and bottom. */
+  background: linear-gradient(90deg, var(--field-green-dark), var(--field-green));
+  border-top: 4px solid var(--gold);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, .35);
+  color: var(--chalk);
+}
+.pick-save-bar.is-visible { display: block; }
+.pick-save-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+.pick-save-count {
+  flex: 1 1 auto;
+  min-width: 0;             /* lets the text shrink instead of pushing Save off */
+  font-weight: 600;
+  line-height: 1.2;
+}
+.pick-save-entry {
+  display: block;
+  font-weight: 400;
+  font-size: .8rem;
+  color: rgba(245, 245, 240, .7);
+}
+/* Over the pick limit. Bootstrap's .text-danger is tuned for a light
+   background and goes muddy on the dark bar, so the bar sets its own. */
+.pick-save-count.text-danger { color: #ff8a80 !important; }
+
+.pick-save-bar .btn { flex: 0 0 auto; }
+/* Room to scroll past the last row without the bar sitting on top of it. */
+body.has-pick-save-bar { padding-bottom: 5.5rem; }

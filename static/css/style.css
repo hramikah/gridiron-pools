@@ -408,7 +408,7 @@ li.badge {
   background: rgba(255, 255, 255, .28);
 }
 .btn-check:disabled + .pick-option .pick-points {
-  background: #b9b4ae;
+  background: #6f6a65;
 }
 
 /* Status notes under a blocked button */
@@ -716,14 +716,26 @@ table.standings thead th,
   color: var(--team-ink);
   box-shadow: 0 .3rem .7rem rgba(0, 0, 0, .28);
 }
+/* Points badges are ALWAYS white lettering. Reading the ink off the brand
+   colour meant black digits on Bengals and Broncos orange, and on Panthers
+   blue -- legible but ugly against every other badge on the page. Instead the
+   badge keeps the club's hue and darkens it 45%, which puts white text above
+   4.5:1 on all 32 clubs. Checked with the real palette: the tightest are
+   Steelers gold at 5.33:1 and Saints gold at 5.54:1; every other club is 6:1
+   or better. Undarkened, white on Steelers gold is 1.76:1 -- unreadable. */
 .pick-option.team-tinted .pick-points {
-  background: var(--team-fill);
-  color: var(--team-ink);
+  background-color: var(--team-fill);
+  background-image: linear-gradient(rgba(0, 0, 0, .45), rgba(0, 0, 0, .45));
+  color: #fff;
 }
+/* On a selected button the whole tile is already the club colour, so the
+   badge goes dark rather than translucent-white -- white on a white veil over
+   orange was the worst case of all. */
 .btn-check:checked + .pick-option.team-tinted .pick-points,
 .pick-option.team-tinted:hover .pick-points {
-  background: rgba(255, 255, 255, .3);
-  color: var(--team-ink);
+  background-color: rgba(0, 0, 0, .45);
+  background-image: none;
+  color: #fff;
 }
 /* A disabled team button drops its colour entirely -- a greyed-out club still
    showing its brand colour reads as available. */
@@ -734,7 +746,9 @@ table.standings thead th,
   color: #9a948e;
 }
 .btn-check:disabled + .pick-option.team-tinted .pick-points {
-  background: #b9b4ae;
+  /* #b9b4ae gave white 2.0:1. Deep enough now to keep the same white text. */
+  background: #6f6a65;
+  background-image: none;
   color: #fff;
 }
 

@@ -29,15 +29,17 @@
       <td>
         {% if row[pool] %}
           {% for e in row[pool] %}
-            {# The badge is the button. Clicking it flips the entry fee, after
-               a confirm that names the player, the pool and the amount, so a
-               mis-click on a 150-row table can't quietly rewrite the books. #}
+            {# The badge is the button: one click flips the entry fee. There
+               used to be a confirm() naming the player, pool and amount; it
+               was removed at the commissioner's request -- settling 150 rows
+               meant 150 dialogs. The click is reversible (click again to flip
+               back) and every flip is written to the activity log, so a
+               mis-click is visible and undoable. #}
             <form method="post" action="{{ url_for('admin.toggle_paid', entry_id=e.id) }}" class="d-inline">
               <button type="submit"
                       class="badge {% if e.paid %}badge-alive border-0{% else %}bg-transparent border border-danger text-danger{% endif %}"
                       style="cursor: pointer"
-                      title="{{ 'Mark unpaid' if e.paid else 'Mark paid' }}"
-                      onclick="return confirm({% if e.paid %}'Mark {{ username }}\'s {{ pool_labels[pool] }} buy in of ${{ fees[pool] }} as UNPAID? This says the money has not been received.'{% else %}'Would you like to confirm that {{ username }} has paid their {{ pool_labels[pool] }} buy in of ${{ fees[pool] }}?'{% endif %});">
+                      title="{{ 'Mark unpaid' if e.paid else 'Mark paid' }}">
                 {% if e.paid %}Paid{% else %}Unpaid{% endif %}
               </button>
             </form>
@@ -59,15 +61,14 @@
           <button type="submit"
                   class="badge border-0 {% if slot.paid %}badge-alive{% else %}bg-danger text-white{% endif %}"
                   style="cursor: pointer"
-                  title="{{ 'Mark this buy-back unpaid' if slot.paid else 'Mark this buy-back paid' }}{% if slot.week_number %} ({{ week_label(slot.week_number)|lower }}){% endif %}"
-                  onclick="return confirm({% if slot.paid %}'Mark {{ username }}\'s buy-back {{ loop.index }} of ${{ slot.fee }} as UNPAID? This says the money has not been received.'{% else %}'Would you like to confirm that {{ username }} has paid their Drop Dead buy-back of ${{ slot.fee }}?'{% endif %});">
+                  title="{{ 'Mark this buy-back unpaid' if slot.paid else 'Mark this buy-back paid' }}{% if slot.week_number %} ({{ week_label(slot.week_number)|lower }}){% endif %}">
             BB{{ loop.index }}
           </button>
         </form>
         {% else %}<span class="text-muted">&mdash;</span>{% endif %}
       </td>
       {% endfor %}
-      <td>{% if row.owed %}<strong>${{ row.owed }}</strong>{% else %}<span class="text-muted">$0</span>{% endif %}</td>
+      <td id="owed-{{ row.user_id }}">{% if row.owed %}<strong>${{ row.owed }}</strong>{% else %}<span class="text-muted">$0</span>{% endif %}</td>
     </tr>
   {% else %}
     <tr><td colspan="9" class="text-muted">No entries yet.</td></tr>
@@ -77,7 +78,7 @@
 </div>
 
 <h5>All Entries</h5>
-<div class="table-responsive">
+<div class="table-responsive" id="all-entries">
 <table class="table table-striped standings bg-white">
   <thead><tr><th>Player</th><th>Pool</th><th>Entry</th><th>Fee</th><th>Committed</th><th>Status</th><th></th></tr></thead>
   <tbody>
@@ -99,23 +100,18 @@
         {% else %}<span class="text-muted">&mdash;</span>{% endif %}
       </td>
       <td>
-        {% if r.paid %}<span class="badge badge-alive">Paid</span>
-        {% else %}<span class="badge bg-transparent border border-danger text-danger">Unpaid</span>{% endif %}
+        <span class="js-pay-status">
+        {%- if r.paid %}<span class="badge badge-alive">Paid</span>
+        {%- else %}<span class="badge bg-transparent border border-danger text-danger">Unpaid</span>{% endif %}
+        </span>
       </td>
       <td>
-        {% if r.kind == 'buyback' %}
-        <form method="post" action="{{ url_for('admin.toggle_buyback_paid', buyback_id=r.buyback_id) }}">
-          <button type="submit" class="btn btn-sm {% if r.paid %}btn-outline-secondary{% else %}btn-gridiron{% endif %}">
+        <form method="post" class="js-pay-form"
+              action="{% if r.kind == 'buyback' %}{{ url_for('admin.toggle_buyback_paid', buyback_id=r.buyback_id) }}{% else %}{{ url_for('admin.toggle_paid', entry_id=r.entry_id) }}{% endif %}">
+          <button type="submit" class="btn btn-sm js-pay-btn {% if r.paid %}btn-outline-secondary{% else %}btn-gridiron{% endif %}">
             {% if r.paid %}Mark Unpaid{% else %}Mark Paid{% endif %}
           </button>
         </form>
-        {% else %}
-        <form method="post" action="{{ url_for('admin.toggle_paid', entry_id=r.entry_id) }}">
-          <button type="submit" class="btn btn-sm {% if r.paid %}btn-outline-secondary{% else %}btn-gridiron{% endif %}">
-            {% if r.paid %}Mark Unpaid{% else %}Mark Paid{% endif %}
-          </button>
-        </form>
-        {% endif %}
       </td>
     </tr>
   {% else %}
@@ -124,4 +120,80 @@
   </tbody>
 </table>
 </div>
+
+{# Marking a row paid used to be a form post, a redirect and a full page
+   reload -- which threw the admin back to the top of the page and made them
+   scroll down to find their place again, once per row. These buttons now post
+   with fetch and repaint just the row they changed, plus that player's Owed
+   cell in the table above, which would otherwise go stale. No navigation, no
+   scroll, no flash message.
+
+   The server still answers a plain form post exactly as before, and any error
+   here falls through to one, so the change always happens even if this script
+   does not run. base.html stamps a hidden csrf_token into every form on load
+   and FormData carries it, so no token handling is needed here. #}
+<script>
+(function () {
+  var box = document.getElementById('all-entries');
+  if (!box || !window.fetch) return;
+
+  var PAID = '<span class="badge badge-alive">Paid</span>';
+  var UNPAID = '<span class="badge bg-transparent border border-danger text-danger">Unpaid</span>';
+
+  box.addEventListener('submit', function (ev) {
+    var form = ev.target.closest('.js-pay-form');
+    if (!form) return;
+    ev.preventDefault();
+
+    var btn = form.querySelector('.js-pay-btn');
+    if (btn.disabled) return;              // ignore a double-click mid-flight
+    btn.disabled = true;
+
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'fetch' },
+      credentials: 'same-origin'
+    }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (d) {
+      var row = form.closest('tr');
+      var cell = row.querySelector('.js-pay-status');
+      if (cell) cell.innerHTML = d.paid ? PAID : UNPAID;
+      btn.textContent = d.paid ? 'Mark Unpaid' : 'Mark Paid';
+      btn.className = 'btn btn-sm js-pay-btn ' +
+                      (d.paid ? 'btn-outline-secondary' : 'btn-gridiron');
+
+      // Keep the Who Owes What table above honest about this player.
+      var owed = document.getElementById('owed-' + d.user_id);
+      if (owed) {
+        owed.innerHTML = d.owed
+          ? '<strong>$' + d.owed + '</strong>'
+          : '<span class="text-muted">$0</span>';
+      }
+      document.querySelectorAll('form[action="' + form.getAttribute('action') + '"]')
+        .forEach(function (other) {
+          if (other === form) return;      // the same charge's badge up top
+          var b = other.querySelector('button');
+          if (!b) return;
+          if (b.textContent.trim().slice(0, 2) === 'BB') {
+            b.className = 'badge border-0 ' + (d.paid ? 'badge-alive' : 'bg-danger text-white');
+          } else {
+            b.textContent = d.paid ? 'Paid' : 'Unpaid';
+            b.className = 'badge ' + (d.paid ? 'badge-alive border-0'
+                                             : 'bg-transparent border border-danger text-danger');
+          }
+        });
+      btn.disabled = false;
+    }).catch(function () {
+      // Something went wrong -- fall back to the ordinary form post so the
+      // change still happens rather than silently doing nothing. form.submit()
+      // does not fire this handler again.
+      btn.disabled = false;
+      form.submit();
+    });
+  });
+})();
+</script>
 {% endblock %}

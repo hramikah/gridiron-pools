@@ -128,7 +128,10 @@ with app.app_context():
     print()
 
     client = app.test_client()
-    with client.session_transaction() as sess:
+    # base_url matters: the session cookie is set for that host, and a
+    # later request to a different host would not send it -- the page would
+    # come back as the logged-out login redirect.
+    with client.session_transaction(base_url="https://gridironinvestment.com") as sess:
         sess["_user_id"] = str(user.id)
         sess["_fresh"] = True
     resp = client.get("/gridiron/pick", base_url="https://gridironinvestment.com",

@@ -906,7 +906,12 @@ def payments():
 
     by_player = {}
     for e in entries:
-        row = by_player.setdefault(e.user.username, {"dropdead": [], "loser": [], "gridiron": [], "owed": 0})
+        row = by_player.setdefault(
+            e.user.username,
+            # user_id so the page can address this player's Owed cell by id
+            # when a click in the table below changes what they owe.
+            {"dropdead": [], "loser": [], "gridiron": [], "owed": 0, "user_id": e.user_id},
+        )
         row[e.pool].append(e)
         if not e.paid:
             row["owed"] += fees[e.pool]
@@ -992,6 +997,23 @@ def payments():
     )
 
 
+def _player_owed(user_id, season_year):
+    """What one player still owes: unpaid entry fees plus unpaid Drop Dead
+    buy-backs. The same arithmetic the Payments page does for its Owed column,
+    pulled out so a single toggle can hand the new number back to the page
+    without re-rendering it. Gridiron's buy-back was removed in Aug 2026 and
+    legacy rows bill at $0, so only Drop Dead counts here -- matching the
+    buyback_fees table in payments().
+    """
+    total = 0
+    for e in Entry.query.filter_by(user_id=user_id, season_year=season_year).all():
+        if not e.paid:
+            total += POOL_ENTRY_FEES.get(e.pool, 0)
+        if e.pool == "dropdead":
+            total += sum(b.fee for b in e.buy_backs if not b.paid)
+    return total
+
+
 @bp.route("/entries/<int:entry_id>/toggle-paid", methods=["POST"])
 def toggle_paid(entry_id):
     entry = Entry.query.get_or_404(entry_id)
@@ -1009,6 +1031,17 @@ def toggle_paid(entry_id):
         pool=entry.pool,
         user=entry.user,
     )
+    # The All Entries table posts this with fetch and repaints the one row it
+    # changed. Before that, every click was a full redirect: the page reloaded,
+    # scrolled back to the top, and the admin had to find their place again
+    # after each of 150 rows. A plain (non-fetch) POST still works exactly as
+    # it did, so the button degrades to a normal form if JavaScript is off.
+    if request.headers.get("X-Requested-With") == "fetch":
+        return {
+            "paid": bool(entry.paid),
+            "user_id": entry.user_id,
+            "owed": _player_owed(entry.user_id, entry.season_year),
+        }
     flash(f"{entry.user.username} ({POOL_LABELS[entry.pool]}, {entry.label}) marked {'paid' if entry.paid else 'unpaid'}.", "success")
     return redirect(url_for("admin.payments"))
 
@@ -1037,6 +1070,12 @@ def toggle_buyback_paid(buyback_id):
         pool=entry.pool,
         user=entry.user,
     )
+    if request.headers.get("X-Requested-With") == "fetch":
+        return {
+            "paid": bool(bb.paid),
+            "user_id": entry.user_id,
+            "owed": _player_owed(entry.user_id, entry.season_year),
+        }
     flash(
         f"{entry.user.username} ({POOL_LABELS[entry.pool]}): buy-back "
         f"{'marked paid' if bb.paid else 'marked unpaid'} "

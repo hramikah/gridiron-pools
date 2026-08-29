@@ -25,12 +25,16 @@
     </h5>
 
     <p class="mb-1"><strong>Teams used:</strong>
-      {% set used = entry.used_team_ids() %}
-      {% if used %}
+      {# Every pick, not just the ones that spent a team. A preseason pick is
+         made and graded but doesn't use the team up, so used_team_ids() is
+         empty for an entry that has only played preseason -- and gating the
+         whole list on it meant the player saw "none yet" beside a pick they
+         could see graded in the other two pools. #}
+      {% if entry.picks %}
         {% for p in entry.picks|sort(attribute='week.number') %}
           <span class="badge {% if p.result == 'win' %}pick-win{% elif p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
             {{ short_week_label(p.week.number) }}: {{ p.team.name if p.team else '?' }}{% if p.result == 'win' %} ✅{% elif p.result == 'loss' %} ❌{% endif %}
-          </span>
+          </span>{% if p.week.is_preseason %}<span class="small text-muted ms-1">preseason &ndash; team not used</span>{% endif %}
         {% endfor %}
       {% else %}<span class="text-muted">none yet</span>{% endif %}
     </p>
@@ -90,6 +94,7 @@
                          for="dd_{{ entry.id }}_{{ g.id }}_{{ side }}"
                          {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}>{{ tname }}</label>
                   {% if used %}<div class="pick-note used">already used</div>
+                  {% elif game_started(g) %}<div class="pick-note">Locked - Kickoff passed.</div>
                   {% elif tid in unpickable_team_ids %}<div class="pick-note">Locked - Kickoff too soon.</div>{% endif %}
                   {% else %}<span class="text-muted small">&mdash;</span>{% endif %}
                 </td>

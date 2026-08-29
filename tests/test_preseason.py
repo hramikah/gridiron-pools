@@ -96,7 +96,7 @@ def test_a_regular_pick_does_spend_the_team(app, make_week, make_entry):
     assert entry.used_team_ids() == {home.id}
 
 
-def test_preseason_gridiron_results_stay_out_of_the_standings(app, make_week, make_entry, submit):
+def test_preseason_gridiron_results_do_show_in_the_standings(app, make_week, make_entry, submit):
     pre = _preseason_week(make_week)
     regular = make_week(1)
     entry = make_entry("player")
@@ -105,11 +105,25 @@ def test_preseason_gridiron_results_stay_out_of_the_standings(app, make_week, ma
 
     (_, _, wins, losses, _), = standings_gridiron(SEASON)
 
-    assert wins == 0, "5 preseason wins must not bank"
+    assert wins == 5, "preseason wins now show in the record"
     assert losses == 5
 
 
-def test_preseason_loser_points_do_not_bank(app, make_week, make_entry):
+def test_a_preseason_week_still_never_penalises(app, make_week, make_entry, submit):
+    """Showing preseason results must not drag the penalties along with them:
+    an entry that part-filled a preseason week is charged nothing for the
+    empty slots, where a regular week would cost one loss per slot."""
+    pre = _preseason_week(make_week)
+    entry = make_entry("player")
+    submit(entry, pre, 2, result="win")
+
+    (_, _, wins, losses, _), = standings_gridiron(SEASON)
+
+    assert wins == 2
+    assert losses == 0, "3 unfilled preseason slots must cost nothing"
+
+
+def test_preseason_loser_points_do_show(app, make_week, make_entry):
     pre = _preseason_week(make_week, pool="loser")
     entry = make_entry("player", pool="loser")
     home, _ = _teams()
@@ -121,7 +135,7 @@ def test_preseason_loser_points_do_not_bank(app, make_week, make_entry):
 
     (_, _, total), = standings_loser(SEASON)
 
-    assert total == 0
+    assert total == 41
 
 
 def test_forgetting_a_preseason_week_costs_nothing(app, make_week, make_entry):

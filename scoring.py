@@ -377,10 +377,13 @@ def gridiron_week_counts(entry, week_number):
     if week_number is None:
         return False
     # Preseason weeks are stored offset past the regular-season numbers, so
-    # the number alone identifies them -- no week row needed. They are graded
-    # and shown, but they never reach the season record.
+    # the number alone identifies them -- no week row needed. Their picks DO
+    # reach the record (commissioner's call, 2026-08-29): preseason standings
+    # are shown for Gridiron and the Loser Pool. What preseason still cannot
+    # do is PENALISE -- no empty-slot losses, no makeup week, no Drop Dead
+    # elimination. Every one of those stays gated on counts_for_season().
     if week_number > PRESEASON_OFFSET:
-        return False
+        return True
     frozen = gridiron_frozen_after(entry)
     return frozen is None or week_number <= frozen
 
@@ -722,8 +725,10 @@ def standings_loser(season_year):
     entries = Entry.query.filter_by(pool="loser", season_year=season_year).all()
     totals = []
     for e in entries:
-        # Preseason points are shown on the pick page but never banked.
-        total = sum(p.points or 0 for p in e.picks if counts_for_season(p.week))
+        # Preseason points count toward the displayed total, which also makes
+        # this agree with the pick page's running total -- the two used to
+        # disagree, one filtering and one not.
+        total = sum(p.points or 0 for p in e.picks)
         totals.append((e, total))
     totals.sort(key=lambda t: -t[1])
     return _assign_ranks(totals, key_func=lambda t: t[1])
@@ -779,9 +784,12 @@ def loser_totals_through_week(season_year, week_number):
     entries = Entry.query.filter_by(pool="loser", season_year=season_year).all()
     rows = []
     for e in entries:
+        # Preseason weeks are numbered 101+, so a plain <= comparison would
+        # drop them from every through-week view. They happened before week 1,
+        # so they belong in all of them.
         picks_through = [
             p for p in e.picks
-            if p.week.number <= week_number and counts_for_season(p.week)
+            if p.week.is_preseason or p.week.number <= week_number
         ]
         total = sum(p.points or 0 for p in picks_through)
         week_pick = next((p for p in e.picks if p.week.number == week_number), None)

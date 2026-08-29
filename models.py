@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
@@ -18,6 +19,30 @@ POOL_LABELS = {
     "loser": "Loser Pool",
     "gridiron": "Gridiron Investments",
 }
+
+
+# --- Name ordering -------------------------------------------------------
+# Every list of people or teams sorts on SPELLING ALONE.
+#
+# SQLite's ORDER BY compares bytes, so every capital letter sorts ahead of
+# every lowercase one. On the Payments, Players and pick tables that put
+# "Bofa", "GentlemanJack" and "TOPHAT" in a block at the top, ahead of
+# "aaron_h" -- capitalisation was deciding the order and the alphabet came
+# second. Python's own sorted() does exactly the same to a list of names.
+#
+# These two are the only name sort keys anything in this app should use:
+# name_order() inside a query, name_key() for a list already in memory.
+# Neither one changes what is stored or displayed -- the name keeps whatever
+# capitalisation its owner typed, it just stops counting for position.
+def name_order(column):
+    """ORDER BY this instead of the bare column."""
+    return func.lower(column)
+
+
+def name_key(value):
+    """Pass as key= when sorting names in Python."""
+    return (value or "").strip().lower()
+
 
 
 # What each pool costs, in one place: the admin Payments page bills from this

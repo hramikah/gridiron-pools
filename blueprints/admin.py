@@ -9,7 +9,7 @@ from flask_login import current_user, login_required
 
 from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting, week_label
 from mailer import send_invite_link_emails, send_password_reset_email, send_player_message_email
-from models import DEFAULT_MAX_TEAMS, DEFAULT_SITE_URL, ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, now
+from models import DEFAULT_MAX_TEAMS, DEFAULT_SITE_URL, ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, name_key, name_order, now
 from publisher import publish_week
 from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, process_due_weeks, gridiron_picks_grid, process_missed_picks, score_game
 
@@ -83,7 +83,7 @@ def pool_week(pool, week_id):
         flash("That week belongs to a different pool.", "error")
         return redirect(url_for("admin.pool_manager", pool=pool))
     ensure_missed_processed(week)  # apply penalties if the deadline has passed
-    teams = Team.query.order_by(Team.name).all()
+    teams = Team.query.order_by(name_order(Team.name)).all()
     games = Game.query.filter_by(week_id=week.id, pool=pool).all()
 
     # Gridiron: build a per-player picks grid (username + up to N pick slots)
@@ -111,14 +111,14 @@ def pool_week(pool, week_id):
 
 @bp.route("/users")
 def user_list():
-    users = User.query.order_by(User.username).all()
+    users = User.query.order_by(name_order(User.username)).all()
     return render_template("admin/user_list.html", users=users)
 
 
 @bp.route("/players")
 def players():
     season_year = current_app.config["CURRENT_SEASON"]
-    users = User.query.order_by(User.username).all()
+    users = User.query.order_by(name_order(User.username)).all()
     entries_by_user = {}
     for e in Entry.query.filter_by(season_year=season_year).all():
         entries_by_user.setdefault(e.user_id, []).append(e)
@@ -461,7 +461,7 @@ def game_creator():
     selected = request.args.get("week", type=int)
     if selected is None and numbers:
         selected = numbers[-1]
-    teams = Team.query.order_by(Team.name).all()
+    teams = Team.query.order_by(name_order(Team.name)).all()
     games_by_pool = {}
     if selected is not None:
         for pool in POOLS:
@@ -820,7 +820,7 @@ def reports():
     dropdead_alive = Entry.query.filter_by(pool="dropdead", season_year=season_year, is_active=True).count()
     dropdead_total = pool_entry_counts["dropdead"]
 
-    all_teams = Team.query.order_by(Team.name).all()
+    all_teams = Team.query.order_by(name_order(Team.name)).all()
     teams_with_points = {
         lp.team_id for lp in LoserPoolPoints.query.filter_by(season_year=season_year).all()
     }
@@ -843,7 +843,7 @@ def reports():
 @bp.route("/activity")
 def activity():
     """Audit trail: pick a player and see everything they did while logged in."""
-    users = User.query.order_by(User.username).all()
+    users = User.query.order_by(name_order(User.username)).all()
     selected_id = request.args.get("player", type=int)
     action_filter = request.args.get("action", "").strip()
 
@@ -960,7 +960,7 @@ def payments():
     entries = (
         Entry.query.filter_by(season_year=season_year)
         .join(User)
-        .order_by(User.username, Entry.pool)
+        .order_by(name_order(User.username), Entry.pool)
         .all()
     )
 
@@ -1007,7 +1007,7 @@ def payments():
                 filled += 1
         row["bb_slots"] = slots
 
-    player_rows = sorted(by_player.items())
+    player_rows = sorted(by_player.items(), key=lambda kv: name_key(kv[0]))
 
     # The All Entries table lists a buy-back as its own line rather than as a
     # column hanging off the entry it belongs to: same player, same pool, the
@@ -1057,7 +1057,7 @@ def payments():
                     "committed_at": b.created_at or (commits[i] if i < len(commits) else None),
                 })
                 number += 1
-    entry_rows.sort(key=lambda r: (r["username"].lower(), r["pool"], r["order"]))
+    entry_rows.sort(key=lambda r: (name_key(r["username"]), r["pool"], r["order"]))
 
     return render_template(
         "admin/payments.html",
@@ -1258,7 +1258,7 @@ def loser_points():
         flash("Loser Pool point values updated.", "success")
         return redirect(url_for("admin.loser_points"))
 
-    teams = Team.query.order_by(Team.name).all()
+    teams = Team.query.order_by(name_order(Team.name)).all()
     current_points = {
         lp.team_id: lp.points for lp in LoserPoolPoints.query.filter_by(season_year=season_year).all()
     }

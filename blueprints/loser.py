@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 
 from helpers import deadline_passed, game_pickable, get_current_week, log_activity, pool_signup_deadline, pool_signups_open, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
-from models import Entry, Game, LoserPoolPoints, Pick, Team, db
+from models import Entry, Game, LoserPoolPoints, Pick, Team, db, name_order
 from scoring import process_due_weeks, standings_loser
 
 bp = Blueprint("loser", __name__)
@@ -106,7 +106,7 @@ def pick():
         flash("Pick saved and locked in for the week.", "success")
         return redirect(url_for("loser.pick"))
 
-    teams = Team.query.order_by(Team.name).all()
+    teams = Team.query.order_by(name_order(Team.name)).all()
     points_by_team = {
         lp.team_id: lp.points for lp in LoserPoolPoints.query.filter_by(season_year=season_year).all()
     }

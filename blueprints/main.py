@@ -2,7 +2,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import get_current_week, pool_signup_deadline, pool_signups_open, week_sort_key, week_unlocked
-from models import ActivityLog, POOL_ENTRY_FEES, POOL_LABELS, POOLS, Entry, Game, User, Week, db
+from models import ActivityLog, POOL_ENTRY_FEES, POOL_LABELS, POOLS, Entry, Game, User, Week, db, name_order
 from pdf_report import build_week_pdf
 from scoring import (
     DROPDEAD_BUYBACK_FEE,
@@ -253,7 +253,7 @@ def standings():
     player_ids_with_entries = {
         e.user_id for e in Entry.query.filter_by(season_year=season_year).all()
     }
-    players = User.query.filter(User.id.in_(player_ids_with_entries)).order_by(User.username).all()
+    players = User.query.filter(User.id.in_(player_ids_with_entries)).order_by(name_order(User.username)).all()
     selected_player_id = request.args.get("player", type=int)
     player_history = None
     if selected_player_id is not None and any(p.id == selected_player_id for p in players):
@@ -321,7 +321,7 @@ def scores():
         for w in weeks_by_number[number]:
             for g in (
                 Game.query.filter_by(week_id=w.id, is_final=True)
-                .order_by(Game.sport, Game.away_team)
+                .order_by(Game.sport, name_order(Game.away_team))
                 .all()
             ):
                 key = (g.sport, g.away_team, g.home_team)
@@ -404,7 +404,7 @@ def week_report(week_id):
             columns=min(GRIDIRON_GRID_COLUMNS, max_slots) or GRIDIRON_GRID_COLUMNS,
         )
 
-    entries = Entry.query.filter_by(pool=week.pool, season_year=week.season_year).join(User).order_by(User.username).all()
+    entries = Entry.query.filter_by(pool=week.pool, season_year=week.season_year).join(User).order_by(name_order(User.username)).all()
     rows = []
     for e in entries:
         pick = next((p for p in e.picks if p.week_id == week.id), None)

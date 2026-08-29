@@ -17,6 +17,7 @@ from models import (
     User,
     Week,
     db,
+    name_order,
 )
 
 # Rule 8: "the loss of all games for that week" -- what a week the entry sat
@@ -566,7 +567,7 @@ def gridiron_picks_grid(week):
     entries = (
         Entry.query.filter_by(pool="gridiron", season_year=week.season_year)
         .join(User)
-        .order_by(User.username, Entry.id)
+        .order_by(name_order(User.username), Entry.id)
         .all()
     )
     picks_grid = []

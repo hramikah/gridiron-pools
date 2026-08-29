@@ -20,7 +20,7 @@ from helpers import (
     unread_message_count,
     week_is_complete,
 )
-from models import Invite, User, db
+from models import Invite, User, db, name_order
 from testbed_guard import TESTBED_MARKER
 
 csrf = CSRFProtect()
@@ -226,7 +226,7 @@ def create_app():
         if current_user.is_authenticated:
             other_accounts = (
                 User.query.filter(User.email == current_user.email, User.id != current_user.id)
-                .order_by(User.username)
+                .order_by(name_order(User.username))
                 .all()
             )
             same_email_accounts = other_accounts + [current_user]

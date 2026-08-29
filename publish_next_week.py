@@ -148,7 +148,7 @@ def run():
 
 
 def report(number, deadline, weeks, repaired):
-    from models import Entry, User
+    from models import Entry, User, name_order
     from scoring import gridiron_makeup_week, gridiron_pick_limit
     try:
         from scoring import dropdead_buyback_available
@@ -173,7 +173,7 @@ def report(number, deadline, weeks, repaired):
 
     print(f"\n  What each Gridiron entry is looking at in week {number}:")
     seen = {}
-    for entry in Entry.query.filter_by(pool="gridiron", season_year=SEASON).join(User).order_by(User.username).all():
+    for entry in Entry.query.filter_by(pool="gridiron", season_year=SEASON).join(User).order_by(name_order(User.username)).all():
         limit = gridiron_pick_limit(entry, weeks["gridiron"])
         makeup = gridiron_makeup_week(entry) == number
         seen.setdefault((limit, makeup), []).append(entry.user.username)
@@ -187,7 +187,7 @@ def report(number, deadline, weeks, repaired):
     if dropdead_buyback_available:
         print(f"\n  Drop Dead buy-back in week {number}:")
         offered, denied = [], []
-        for entry in Entry.query.filter_by(pool="dropdead", season_year=SEASON, is_active=False).join(User).order_by(User.username).all():
+        for entry in Entry.query.filter_by(pool="dropdead", season_year=SEASON, is_active=False).join(User).order_by(name_order(User.username)).all():
             (offered if dropdead_buyback_available(entry, weeks["dropdead"]) else denied).append(entry.user.username)
         print(f"    offered ($30): {', '.join(offered) or 'nobody'}")
         print(f"    denied:        {', '.join(denied) or 'nobody'}  (rule 6: no buy-back after a no-show)")

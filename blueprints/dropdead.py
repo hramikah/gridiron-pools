@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 
 from helpers import deadline_passed, game_pickable, get_current_week, log_activity, pool_signup_deadline, pool_signups_open, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
-from models import DROPDEAD_BUYBACK_FEE, BuyBack, Entry, Game, Pick, Team, Week, db
+from models import DROPDEAD_BUYBACK_FEE, BuyBack, Entry, Game, Pick, Team, Week, db, name_order
 from scoring import dropdead_buyback_available, dropdead_eliminated_for_no_pick, process_due_weeks, standings_dropdead
 
 bp = Blueprint("dropdead", __name__)
@@ -104,7 +104,7 @@ def pick():
         flash("Pick saved and locked in for the week.", "success")
         return redirect(url_for("dropdead.pick"))
 
-    teams = Team.query.order_by(Team.name).all()
+    teams = Team.query.order_by(name_order(Team.name)).all()
     picks_this_week = {}
     removable_picks = {}
     unpickable_team_ids = set()

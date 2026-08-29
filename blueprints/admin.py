@@ -875,6 +875,41 @@ def activity():
 COMPED_ENTRIES_PER_POOL = 4
 
 
+# Drop Dead is the only pool with a buy-back. Gridiron's was removed in
+# August 2026; any legacy rows are billed at $0 and shown nowhere.
+BUYBACK_FEES = {"dropdead": DROPDEAD_BUYBACK_FEE, "gridiron": 0, "loser": 0}
+
+
+def _buyback_map(entries):
+    """One record per Entry: its buy-back rows, how many are settled, and what
+    is still outstanding.
+
+    Lifted out of payments() so a single toggle can rebuild the summary cards
+    without re-rendering the whole page.
+    """
+    out = {}
+    for e in entries:
+        rows = sorted(e.buy_backs, key=lambda b: b.id) if BUYBACK_FEES[e.pool] else []
+        unpaid = [b for b in rows if not b.paid]
+        out[e.id] = {
+            "rows": rows,
+            "used": len(rows),
+            "paid": sum(1 for b in rows if b.paid),
+            "unpaid": len(unpaid),
+            "fee": BUYBACK_FEES[e.pool],
+            "owed": sum(b.fee for b in unpaid),
+        }
+    return out
+
+
+def _season_pool_totals(season_year):
+    """The three summary cards, recomputed from scratch. The toggle routes hand
+    this back so the counts and the money stay honest after a click instead of
+    disagreeing with the table until the next full page load."""
+    entries = Entry.query.filter_by(season_year=season_year).all()
+    return _pool_totals(entries, dict(POOL_ENTRY_FEES), _buyback_map(entries))
+
+
 def _pool_totals(entries, fees, buybacks):
     """Collected and still-owed per pool, for the three summary cards.
 
@@ -893,6 +928,10 @@ def _pool_totals(entries, fees, buybacks):
         paid = sum(1 for e in entries if e.pool == pool and e.paid)
         unpaid = sum(1 for e in entries if e.pool == pool and not e.paid)
         bb = [buybacks[e.id] for e in entries if e.pool == pool]
+        # A buy-back is another stake in the pool, so it is counted like any
+        # other -- the same way the All Entries table gives it its own line.
+        bb_paid = sum(b["paid"] for b in bb)
+        bb_unpaid = sum(b["unpaid"] for b in bb)
         gross = paid * fee + sum(b["paid"] * b["fee"] for b in bb)
         comped = COMPED_ENTRIES_PER_POOL * fee
         totals[pool] = {
@@ -902,6 +941,14 @@ def _pool_totals(entries, fees, buybacks):
             "owed": unpaid * fee + sum(b["owed"] for b in bb),
             "comp_exceeds_collected": comped > gross,
             "paid_count": paid,
+            # Head count for the card. n_* include buy-backs; n_entries and
+            # n_buybacks split them apart so the card can say which is which
+            # without recomputing anything in the template.
+            "n_total": paid + unpaid + bb_paid + bb_unpaid,
+            "n_paid": paid + bb_paid,
+            "n_unpaid": unpaid + bb_unpaid,
+            "n_entries": paid + unpaid,
+            "n_buybacks": bb_paid + bb_unpaid,
             "fee": fee,
         }
     return totals
@@ -925,23 +972,10 @@ def payments():
     # while its $30 was outstanding. The Loser Pool has no buy-back.
     # Drop Dead is the only pool with a buy-back. Gridiron's was removed in
     # August 2026; any legacy rows are billed at $0 and shown nowhere.
-    buyback_fees = {"dropdead": DROPDEAD_BUYBACK_FEE, "gridiron": 0, "loser": 0}
-
     # One BuyBack row per buy-back taken, each with its own paid flag, so an
     # entry that died and came back twice is billed twice and either fee can
     # be settled on its own.
-    buybacks = {}
-    for e in entries:
-        rows = sorted(e.buy_backs, key=lambda b: b.id) if buyback_fees[e.pool] else []
-        unpaid = [b for b in rows if not b.paid]
-        buybacks[e.id] = {
-            "rows": rows,
-            "used": len(rows),
-            "paid": sum(1 for b in rows if b.paid),
-            "unpaid": len(unpaid),
-            "fee": buyback_fees[e.pool],
-            "owed": sum(b.fee for b in unpaid),
-        }
+    buybacks = _buyback_map(entries)
 
     by_player = {}
     for e in entries:
@@ -1044,7 +1078,7 @@ def _player_owed(user_id, season_year):
     pulled out so a single toggle can hand the new number back to the page
     without re-rendering it. Gridiron's buy-back was removed in Aug 2026 and
     legacy rows bill at $0, so only Drop Dead counts here -- matching the
-    buyback_fees table in payments().
+    BUYBACK_FEES table above.
     """
     total = 0
     for e in Entry.query.filter_by(user_id=user_id, season_year=season_year).all():
@@ -1082,6 +1116,10 @@ def toggle_paid(entry_id):
             "paid": bool(entry.paid),
             "user_id": entry.user_id,
             "owed": _player_owed(entry.user_id, entry.season_year),
+            # The cards count paid and unpaid stakes, so every toggle moves
+            # them. Send the recomputed totals back rather than letting the
+            # cards disagree with the table until the next page load.
+            "totals": _season_pool_totals(entry.season_year),
         }
     flash(f"{entry.user.username} ({POOL_LABELS[entry.pool]}, {entry.label}) marked {'paid' if entry.paid else 'unpaid'}.", "success")
     return redirect(url_for("admin.payments"))
@@ -1116,6 +1154,10 @@ def toggle_buyback_paid(buyback_id):
             "paid": bool(bb.paid),
             "user_id": entry.user_id,
             "owed": _player_owed(entry.user_id, entry.season_year),
+            # The cards count paid and unpaid stakes, so every toggle moves
+            # them. Send the recomputed totals back rather than letting the
+            # cards disagree with the table until the next page load.
+            "totals": _season_pool_totals(entry.season_year),
         }
     flash(
         f"{entry.user.username} ({POOL_LABELS[entry.pool]}): buy-back "

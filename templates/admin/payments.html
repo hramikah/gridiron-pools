@@ -4,8 +4,11 @@
 <div class="page-header"><h2><span class="pool-icon">💵</span>Payments</h2></div>
 <p class="text-muted">Entry-fee and buy-back tracking, admin-only &mdash; players never see this. Drop Dead and Loser Pool are $20/entry; Gridiron Investments is $100/entry. A Drop Dead buy-back is billed as another entry at $30. Gridiron has no buy-back.</p>
 
-{# One card per pool: what has come in, what is still out. Gridiron first,
-   matching the column order in the table below. #}
+{# One card per pool: how many stakes are in it, how many have been settled,
+   and the money. Gridiron first, matching the column order in the table below.
+   Every number carries an id so a Mark Paid click further down the page can
+   repaint it -- the counts change on every toggle, and a card that disagrees
+   with the table below is worse than no card. #}
 <div class="row g-3 mb-4">
   {% for pool in ['gridiron', 'dropdead', 'loser'] %}
   {% set t = pool_totals[pool] %}
@@ -13,30 +16,48 @@
     <div class="card h-100">
       <div class="card-body">
         <h6 class="card-title mb-3">
-          {% if pool == 'dropdead' %}💀{% elif pool == 'loser' %}📉{% else %}🏈{% endif %}
+          {% if pool == 'dropdead' %}&#128128;{% elif pool == 'loser' %}&#128201;{% else %}&#127944;{% endif %}
           {{ pool_labels[pool] }}
         </h6>
         <div class="d-flex justify-content-between">
+          <span class="text-muted">Entries</span>
+          <strong id="n-total-{{ pool }}">{{ t.n_total }}</strong>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted ps-3">Paid</span>
+          <strong class="text-success" id="n-paid-{{ pool }}">{{ t.n_paid }}</strong>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted ps-3">Unpaid</span>
+          <strong id="n-unpaid-{{ pool }}" class="{{ 'text-danger' if t.n_unpaid else 'text-success' }}">{{ t.n_unpaid }}</strong>
+        </div>
+        <hr class="my-2">
+        <div class="d-flex justify-content-between">
           <span class="text-muted">Collected</span>
-          <strong class="text-success">${{ '{:,.0f}'.format(t.collected) }}</strong>
+          <strong class="text-success" id="collected-{{ pool }}">${{ '{:,.0f}'.format(t.collected) }}</strong>
         </div>
         <div class="d-flex justify-content-between">
           <span class="text-muted">Still owed</span>
-          <strong class="{% if t.owed %}text-danger{% else %}text-success{% endif %}">${{ '{:,.0f}'.format(t.owed) }}</strong>
+          <strong id="owed-pool-{{ pool }}" class="{{ 'text-danger' if t.owed else 'text-success' }}">${{ '{:,.0f}'.format(t.owed) }}</strong>
         </div>
         <hr class="my-2">
         <p class="small text-muted mb-0">
+          Entries counts every stake in this pool &mdash;
+          {{ t.n_entries }} entr{{ 'y' if t.n_entries == 1 else 'ies' }}
+          {%- if t.n_buybacks %} plus {{ t.n_buybacks }} buy-back{{ '' if t.n_buybacks == 1 else 's' }}{% endif %},
+          one line each in All Entries below.
+          <br>
           Collected is after subtracting {{ comped_entries }} comped commissioner
           {{ 'entry' if comped_entries == 1 else 'entries' }}
           (&minus;${{ '{:,.0f}'.format(t.comped) }} at ${{ t.fee }} each) &mdash;
           they are ticked paid so they stop showing as owed, but no money came in.
-          Marked paid in total: ${{ '{:,.0f}'.format(t.gross) }}.
-          {% if t.comp_exceeds_collected %}
-          <br><span class="text-danger fw-bold">Check this:</span> only
-          {{ t.paid_count }} {{ 'entry is' if t.paid_count == 1 else 'entries are' }}
-          marked paid in this pool, fewer than the {{ comped_entries }} comped
-          ones, so the deduction cannot be right. Collected is floored at $0.
-          {% endif %}
+          Marked paid in total: <span id="gross-{{ pool }}">${{ '{:,.0f}'.format(t.gross) }}</span>.
+          <span id="compwarn-{{ pool }}"{% if not t.comp_exceeds_collected %} hidden{% endif %}>
+            <br><span class="text-danger fw-bold">Check this:</span> only
+            <span id="paidcount-{{ pool }}">{{ t.paid_count }}</span> of the entries in
+            this pool are marked paid, fewer than the {{ comped_entries }} comped ones,
+            so the deduction cannot be right. Collected is floored at $0.
+          </span>
         </p>
       </div>
     </div>
@@ -211,6 +232,40 @@
     }, 0);
   }, true);
 
+  function money(n) {
+    return '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+  function setText(id, txt) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  }
+
+  // The three cards at the top count paid and unpaid stakes, so every toggle
+  // below changes them. The server returns the recomputed totals with each
+  // save; without this the cards would quietly disagree with the table until
+  // somebody reloaded, which is exactly the mistake the in-place repaint was
+  // built to avoid in the first place.
+  function paintCards(totals) {
+    Object.keys(totals).forEach(function (pool) {
+      var t = totals[pool];
+      setText('n-total-' + pool, t.n_total);
+      setText('n-paid-' + pool, t.n_paid);
+      setText('n-unpaid-' + pool, t.n_unpaid);
+      setText('collected-' + pool, money(t.collected));
+      setText('gross-' + pool, money(t.gross));
+      setText('paidcount-' + pool, t.paid_count);
+      var u = document.getElementById('n-unpaid-' + pool);
+      if (u) u.className = t.n_unpaid ? 'text-danger' : 'text-success';
+      var o = document.getElementById('owed-pool-' + pool);
+      if (o) {
+        o.textContent = money(t.owed);
+        o.className = t.owed ? 'text-danger' : 'text-success';
+      }
+      var w = document.getElementById('compwarn-' + pool);
+      if (w) w.hidden = !t.comp_exceeds_collected;
+    });
+  }
+
   // One charge can appear twice on this page: as a badge in Who Owes What and
   // as a row in All Entries. Both post to the same URL, so after a toggle we
   // repaint every button pointing at it, whichever one was clicked.
@@ -263,6 +318,7 @@
         owed.innerHTML = d.owed ? '<strong>$' + d.owed + '</strong>'
                                 : '<span class="text-muted">$0</span>';
       }
+      if (d.totals) paintCards(d.totals);
       btn.disabled = false;
     }).catch(function (err) {
       // Fall back to the ordinary form post so the change still happens rather

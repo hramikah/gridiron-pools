@@ -878,29 +878,30 @@ COMPED_ENTRIES_PER_POOL = 4
 def _pool_totals(entries, fees, buybacks):
     """Collected and still-owed per pool, for the three summary cards.
 
-    Collected counts entry fees marked paid plus settled buy-backs. Owed is
-    the unpaid side of both, less the comped commissioner entries.
+    The comped commissioner entries are ticked "paid" on this page, so that
+    they stop showing as owed. No money ever arrived for them, so it is
+    COLLECTED that overstates by four entry fees, not owed -- the deduction
+    belongs here and nowhere else. Owed is left exactly as the table computes
+    it.
 
-    The deduction is clamped at zero: if those four entries are ever ALSO
-    ticked as paid, they would be counted in Collected and subtracted from
-    Owed at the same time, and the total would go negative rather than
-    quietly under-reporting. `comp_exceeds_owed` says so on the page instead
-    of hiding it.
+    Clamped at zero, and `comp_exceeds_collected` says so on the page: if
+    fewer than four entries in a pool are marked paid, the deduction cannot
+    be right and the number should not be quietly floored.
     """
     totals = {}
     for pool, fee in fees.items():
         paid = sum(1 for e in entries if e.pool == pool and e.paid)
         unpaid = sum(1 for e in entries if e.pool == pool and not e.paid)
         bb = [buybacks[e.id] for e in entries if e.pool == pool]
-        collected = paid * fee + sum(b["paid"] * b["fee"] for b in bb)
-        raw_owed = unpaid * fee + sum(b["owed"] for b in bb)
+        gross = paid * fee + sum(b["paid"] * b["fee"] for b in bb)
         comped = COMPED_ENTRIES_PER_POOL * fee
         totals[pool] = {
-            "collected": collected,
-            "raw_owed": raw_owed,
+            "gross": gross,
             "comped": comped,
-            "owed": max(raw_owed - comped, 0),
-            "comp_exceeds_owed": comped > raw_owed,
+            "collected": max(gross - comped, 0),
+            "owed": unpaid * fee + sum(b["owed"] for b in bb),
+            "comp_exceeds_collected": comped > gross,
+            "paid_count": paid,
             "fee": fee,
         }
     return totals

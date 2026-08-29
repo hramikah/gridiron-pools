@@ -26,14 +26,16 @@
         </div>
         <hr class="my-2">
         <p class="small text-muted mb-0">
-          Owed is after subtracting {{ comped_entries }} comped commissioner
+          Collected is after subtracting {{ comped_entries }} comped commissioner
           {{ 'entry' if comped_entries == 1 else 'entries' }}
-          (&minus;${{ '{:,.0f}'.format(t.comped) }} at ${{ t.fee }} each).
-          Before the deduction: ${{ '{:,.0f}'.format(t.raw_owed) }}.
-          {% if t.comp_exceeds_owed %}
-          <br><span class="text-danger fw-bold">Check this:</span> the comped
-          amount is more than what is outstanding, so some of those four
-          entries look to be marked paid as well. Owed is floored at $0.
+          (&minus;${{ '{:,.0f}'.format(t.comped) }} at ${{ t.fee }} each) &mdash;
+          they are ticked paid so they stop showing as owed, but no money came in.
+          Marked paid in total: ${{ '{:,.0f}'.format(t.gross) }}.
+          {% if t.comp_exceeds_collected %}
+          <br><span class="text-danger fw-bold">Check this:</span> only
+          {{ t.paid_count }} {{ 'entry is' if t.paid_count == 1 else 'entries are' }}
+          marked paid in this pool, fewer than the {{ comped_entries }} comped
+          ones, so the deduction cannot be right. Collected is floored at $0.
           {% endif %}
         </p>
       </div>

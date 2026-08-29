@@ -835,7 +835,7 @@ def player_pick_history(season_year, user_id):
                 else:
                     team_label = f"{p.side.capitalize()} {p.game.over_under} ({p.game.home_team})"
 
-                result = p.result if week_is_complete(p.week) else "pending"
+                result = p.result if p.result in ("win", "loss", "push") else "pending"
                 rows.append(
                     {
                         "pool": pool_name,

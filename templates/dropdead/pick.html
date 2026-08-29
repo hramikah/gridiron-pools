@@ -28,9 +28,8 @@
       {% set used = entry.used_team_ids() %}
       {% if used %}
         {% for p in entry.picks|sort(attribute='week.number') %}
-          {% set complete = week_is_complete(p.week) %}
-          <span class="badge {% if complete and p.result == 'win' %}pick-win{% elif complete and p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
-            {{ short_week_label(p.week.number) }}: {{ p.team.name if p.team else '?' }}{% if complete and p.result == 'win' %} ✅{% elif complete and p.result == 'loss' %} ❌{% endif %}
+          <span class="badge {% if p.result == 'win' %}pick-win{% elif p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
+            {{ short_week_label(p.week.number) }}: {{ p.team.name if p.team else '?' }}{% if p.result == 'win' %} ✅{% elif p.result == 'loss' %} ❌{% endif %}
           </span>
         {% endfor %}
       {% else %}<span class="text-muted">none yet</span>{% endif %}

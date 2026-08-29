@@ -23,10 +23,9 @@
 
     <p class="mb-1"><strong>History:</strong>
       {% for p in entry.picks|sort(attribute='week.number') %}
-        {% set complete = week_is_complete(p.week) %}
-        <span class="badge {% if complete and p.result == 'win' %}pick-win{% elif complete and p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
+        <span class="badge {% if p.result == 'win' %}pick-win{% elif p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
           {{ short_week_label(p.week.number) }}: {{ p.team.name if p.team else '?' }}
-          {% if complete and p.result == 'win' %} (+{{ p.points|int }}){% elif complete and p.result == 'loss' %} ({{ p.points|int }}){% endif %}
+          {% if p.result == 'win' %} (+{{ p.points|int }}){% elif p.result == 'loss' %} ({{ p.points|int }}){% endif %}
         </span>
       {% else %}<span class="text-muted">none yet</span>{% endfor %}
     </p>

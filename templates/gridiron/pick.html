@@ -78,7 +78,6 @@
       {% set penalty_slots = penalty_slots_by_entry.get(entry.id, 0) %}
       {% if my_picks or penalty_slots %}
       {% set my_results = picks_results_this_week.get(entry.id, {}) %}
-      {% set complete = week_is_complete(week) %}
       <div class="p-3 mb-3 bg-light rounded border border-2" style="border-left: 5px solid var(--gridiron-accent) !important;">
       <p class="mb-1"><strong>Locked in so far ({{ my_picks|length }} / {{ limit }}){% if penalty_slots %},
         plus {{ penalty_slots }} penalty {{ 'loss' if penalty_slots == 1 else 'losses' }}{% endif %}:</strong></p>
@@ -88,7 +87,7 @@
           {% if my_picks.get((g.id,'spread')) %}
             {% set result = my_results.get((g.id,'spread')) %}
             <li class="mb-1 text-start">
-              <span class="badge {% if complete and result == 'win' %}pick-win{% elif complete and result == 'loss' %}pick-loss{% elif complete and result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
+              <span class="badge {% if result == 'win' %}pick-win{% elif result == 'loss' %}pick-loss{% elif result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
                 {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ spread_label(g, my_picks[(g.id,'spread')]) }}</strong>
               </span>
               {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'spread'))) }}{% endif %}
@@ -97,7 +96,7 @@
           {% if my_picks.get((g.id,'total')) %}
             {% set result = my_results.get((g.id,'total')) %}
             <li class="mb-1 text-start">
-              <span class="badge {% if complete and result == 'win' %}pick-win{% elif complete and result == 'loss' %}pick-loss{% elif complete and result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
+              <span class="badge {% if result == 'win' %}pick-win{% elif result == 'loss' %}pick-loss{% elif result == 'push' %}pick-push{% else %}bg-secondary{% endif %}">
                 {{ g.away_team }} @ {{ g.home_team }}: <strong>{{ my_picks[(g.id,'total')]|capitalize }} {{ g.over_under }}</strong>
               </span>
               {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'total'))) }}{% endif %}

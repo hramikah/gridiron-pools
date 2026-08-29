@@ -76,8 +76,10 @@
       Its record is final as of {{ week_label(entry.eliminated_week) }}.</p>
     {% else %}
       {% set penalty_slots = penalty_slots_by_entry.get(entry.id, 0) %}
-      {% if my_picks or penalty_slots %}
+      {# Hoisted out of the if below: the game table further down passes this
+         into game_row(), so it must exist even for an entry with no picks. #}
       {% set my_results = picks_results_this_week.get(entry.id, {}) %}
+      {% if my_picks or penalty_slots %}
       <div class="p-3 mb-3 bg-light rounded border border-2" style="border-left: 5px solid var(--gridiron-accent) !important;">
       <p class="mb-1"><strong>Locked in so far ({{ my_picks|length }} / {{ limit }}){% if penalty_slots %},
         plus {{ penalty_slots }} penalty {{ 'loss' if penalty_slots == 1 else 'losses' }}{% endif %}:</strong></p>
@@ -129,13 +131,18 @@
            through disabled with a note, the same as Loser and Drop Dead --
            it used to vanish from the page entirely. #}
         {% set display_games = all_games %}
-    {% macro game_row(g, my_picks, locked, show_total, my_pick_ids) %}
+    {% macro game_row(g, my_picks, locked, show_total, my_pick_ids, my_results) %}
           {% set spread_locked = my_picks.get((g.id,'spread')) %}
           {% set total_locked = my_picks.get((g.id,'total')) %}
           {% set removable = not locked and g.id in pickable_game_ids %}
-          {# This game's own cutoff, independent of the week's deadline. #}
-          {% set too_soon = not locked and g.id not in pickable_game_ids %}
-          {% set g_locked = locked or too_soon %}
+          {# This game's own cutoff, independent of the week's deadline.
+             game_pickable() goes False an hour BEFORE kickoff, so on its own
+             it cannot tell "starting shortly" from "finished days ago" --
+             which is why past games used to read "Kickoff too soon". #}
+          {% set not_pickable = g.id not in pickable_game_ids %}
+          {% set started = game_started(g) %}
+          {% set too_soon = not locked and not_pickable and not started %}
+          {% set g_locked = locked or not_pickable %}
           {# Always show the game; picked markets render as "Locked" rather than
              hiding the whole row (which made fully-picked games vanish). #}
           <tr>
@@ -149,12 +156,14 @@
                 {% if g.over_under %} &middot; O/U {{ g.over_under }}{% endif %}
                 {% if g.is_mnf %} <span class="badge bg-dark">MNF</span>{% endif %}
               </div>
-              {% if too_soon %}<div class="pick-note">Locked - Kickoff too soon.</div>{% endif %}
+              {% if started %}<div class="pick-note">Locked - Kickoff passed.</div>
+              {% elif too_soon %}<div class="pick-note">Locked - Kickoff too soon.</div>{% endif %}
             </td>
             <td>
               {% if spread_locked %}
                 <div class="d-flex justify-content-center align-items-center gap-1 flex-wrap">
-                  <span class="badge bg-secondary">Locked: {{ spread_label(g, spread_locked) }}</span>
+                  {% set sres = my_results.get((g.id,'spread')) %}
+                  <span class="badge {% if sres == 'win' %}pick-win{% elif sres == 'loss' %}pick-loss{% elif sres == 'push' %}pick-push{% else %}bg-secondary{% endif %}">Locked: {{ spread_label(g, spread_locked) }}</span>
                   {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'spread'))) }}{% endif %}
                 </div>
               {% else %}
@@ -183,7 +192,8 @@
               {% if g.over_under %}
                 {% if total_locked %}
                   <div class="d-flex justify-content-center align-items-center gap-1 flex-wrap">
-                    <span class="badge bg-secondary">Locked: {{ total_locked|capitalize }} {{ g.over_under }}</span>
+                    {% set tres = my_results.get((g.id,'total')) %}
+                    <span class="badge {% if tres == 'win' %}pick-win{% elif tres == 'loss' %}pick-loss{% elif tres == 'push' %}pick-push{% else %}bg-secondary{% endif %}">Locked: {{ total_locked|capitalize }} {{ g.over_under }}</span>
                     {% if removable %}{{ remove_pick_btn(my_pick_ids.get((g.id,'total'))) }}{% endif %}
                   </div>
                 {% else %}
@@ -232,7 +242,7 @@
       <table class="table table-sm align-middle pick-table table-pick-sticky">
         <thead><tr><th>Game</th><th>Spread pick</th>{% if nfl_games|selectattr('over_under')|list %}<th>Total pick</th>{% endif %}</tr></thead>
         <tbody>
-        {% for g in nfl_games %}{{ game_row(g, my_picks, locked, nfl_games|selectattr('over_under')|list|length > 0, my_pick_ids) }}{% endfor %}
+        {% for g in nfl_games %}{{ game_row(g, my_picks, locked, nfl_games|selectattr('over_under')|list|length > 0, my_pick_ids, my_results) }}{% endfor %}
         </tbody>
       </table>
       </div>
@@ -246,7 +256,7 @@
       <table class="table table-sm align-middle pick-table pick-table-college table-pick-sticky">
         <thead><tr><th>Game</th><th>Spread pick</th></tr></thead>
         <tbody>
-        {% for g in college_games %}{{ game_row(g, my_picks, locked, false, my_pick_ids) }}{% endfor %}
+        {% for g in college_games %}{{ game_row(g, my_picks, locked, false, my_pick_ids, my_results) }}{% endfor %}
         </tbody>
       </table>
       </div>

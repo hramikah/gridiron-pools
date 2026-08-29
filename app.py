@@ -13,6 +13,7 @@ from helpers import (
     _testbed_clock,
     any_pool_signups_open,
     deadline_epoch_ms,
+    game_started,
     get_setting,
     short_week_label,
     week_label,
@@ -275,6 +276,7 @@ def create_app():
         }
 
     app.jinja_env.globals["week_is_complete"] = week_is_complete
+    app.jinja_env.globals["game_started"] = game_started
     app.jinja_env.globals["deadline_epoch_ms"] = deadline_epoch_ms
     app.jinja_env.globals["short_week_label"] = short_week_label
     # Bare week numbers are shown through this so a preseason week never

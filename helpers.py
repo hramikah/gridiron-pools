@@ -329,6 +329,17 @@ def game_pickable(game):
     return game.kickoff is None or now_eastern() < game.kickoff - timedelta(hours=1)
 
 
+def game_started(game):
+    """True once this game's kickoff has actually been reached.
+
+    game_pickable() goes False a full hour BEFORE kickoff, so it cannot tell
+    "starting shortly" from "finished on Thursday". The pick pages showed
+    "Kickoff too soon" on games that had been over for days because that one
+    flag was carrying both meanings.
+    """
+    return game is not None and game.kickoff is not None and now_eastern() >= game.kickoff
+
+
 def team_game_this_week(team_id, week_id, pool=None):
     """The Game a team plays in for a given week, or None (e.g. a bye).
     Pass ``pool`` to resolve within that pool's own lines."""

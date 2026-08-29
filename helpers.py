@@ -416,9 +416,18 @@ def team_matchups_for_week(week_id, pool):
     locked in, so that detail doesn't disappear after saving."""
     matchups = {}
     for g in Game.query.filter_by(week_id=week_id, pool=pool).all():
-        away_line = _team_line(g, "away")
-        home_line = _team_line(g, "home")
-        text = f"{g.away_team} {away_line} @ {g.home_team} {home_line}"
+        # Drop Dead and Loser games are mirrored from the Gridiron slate as the
+        # straight-up matchup, so they carry no favorite or spread -- and
+        # neither pool is played against a line anyway. _team_line() renders a
+        # missing line as "PK", which put a meaningless "PK" beside both teams
+        # on every game in both pools.
+        if g.favorite is None:
+            text = f"{g.away_team} @ {g.home_team}"
+        else:
+            text = (
+                f"{g.away_team} {_team_line(g, 'away')} @ "
+                f"{g.home_team} {_team_line(g, 'home')}"
+            )
         if g.kickoff:
             text += f" — {g.kickoff.strftime('%a %b %d, %I:%M %p')} Eastern"
         if g.away_team_id:

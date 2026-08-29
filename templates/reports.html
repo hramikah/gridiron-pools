@@ -4,10 +4,27 @@
 <div class="page-header"><h2><span class="pool-icon">📋</span>Weekly Picks Reports</h2></div>
 <p class="text-muted">Each pool has its own weeks and deadlines. Once a pool's pick deadline passes, that pool's picks for the week become available here.</p>
 
-{% for pool in ['dropdead', 'loser', 'gridiron'] %}
+{% macro pool_icon(pool) %}{% if pool == 'dropdead' %}💀{% elif pool == 'loser' %}📉{% else %}🏈{% endif %}{% endmacro %}
+
+{% if latest_links %}
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title mb-1">Latest release &mdash; {{ latest_week.label }}</h5>
+    <p class="text-muted small mb-3">Unlocked {{ latest_week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern.</p>
+    <div class="d-flex flex-wrap gap-2">
+      {% for pool, w in latest_links %}
+      <a href="{{ url_for('main.week_report', week_id=w.id) }}" class="btn btn-outline-primary">
+        {{ pool_icon(pool) }} {{ pool_labels[pool] }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% for pool in pool_order %}
 <h5 class="mt-4">
-  {% if pool == 'dropdead' %}💀{% elif pool == 'loser' %}📉{% else %}🏈{% endif %}
-  {{ pool_labels[pool] }}
+  {{ pool_icon(pool) }} {{ pool_labels[pool] }}
 </h5>
 <div class="table-responsive mb-4">
 <table class="table bg-white align-middle">

@@ -335,6 +335,11 @@ def scores():
     return render_template("scores.html", by_week=by_week)
 
 
+# Weekly Picks lists the pools in this order, which is not the storage order
+# in models.POOLS -- Gridiron leads because it is the pool most players are in.
+REPORT_POOL_ORDER = ("gridiron", "dropdead", "loser")
+
+
 @bp.route("/reports")
 @login_required
 def reports():
@@ -348,10 +353,33 @@ def reports():
             key=week_sort_key,
         )
         weeks_by_pool[pool] = [(w, week_unlocked(w)) for w in weeks]
+
+    # The most recently released week, across all three pools: the latest
+    # deadline that has actually passed. Weeks are per-pool, so the winner is
+    # resolved to a week NUMBER and then looked up again in each pool -- the
+    # three rows share a number but have their own ids and deadlines.
+    latest = None
+    for rows in weeks_by_pool.values():
+        for w, unlocked in rows:
+            if unlocked and (latest is None or w.pick_deadline > latest.pick_deadline):
+                latest = w
+    latest_links = []
+    if latest is not None:
+        for pool in REPORT_POOL_ORDER:
+            match = next(
+                (w for w, u in weeks_by_pool[pool] if w.number == latest.number and u),
+                None,
+            )
+            if match:
+                latest_links.append((pool, match))
+
     return render_template(
         "reports.html",
         weeks_by_pool=weeks_by_pool,
         pool_labels=POOL_LABELS,
+        pool_order=REPORT_POOL_ORDER,
+        latest_week=latest,
+        latest_links=latest_links,
     )
 
 

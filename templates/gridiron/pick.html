@@ -79,7 +79,41 @@
       {# Hoisted out of the if below: the game table further down passes this
          into game_row(), so it must exist even for an entry with no picks. #}
       {% set my_results = picks_results_this_week.get(entry.id, {}) %}
-      {% if my_picks or penalty_slots %}
+      {% if (my_picks or penalty_slots) and locked %}
+      {# Deadline passed: the picks are final and the table below is unusable,
+         so show them large and readable the way Drop Dead and Loser show
+         theirs, with each game's kickoff time, instead of small badges
+         stacked above a table nobody can act on. #}
+      <p class="mb-2"><strong>Your picks for {{ week.label }} ({{ my_picks|length }} / {{ limit }}){% if penalty_slots %},
+        plus {{ penalty_slots }} penalty {{ 'loss' if penalty_slots == 1 else 'losses' }}{% endif %}:</strong></p>
+      {% for g in all_games %}
+        {% for market in ['spread', 'total'] %}
+          {% if my_picks.get((g.id, market)) %}
+            {% set result = my_results.get((g.id, market)) %}
+            <div class="locked-pick pool-theme-gridiron mb-2">
+              <div class="locked-label">{{ g.away_team }} @ {{ g.home_team }}{% if g.kickoff %}
+                &middot; {{ g.kickoff.strftime('%a %b %d, %I:%M %p') }} Eastern{% endif %}</div>
+              <div class="locked-team">
+                {% if market == 'spread' %}{{ spread_label(g, my_picks[(g.id, 'spread')]) }}
+                {% else %}{{ my_picks[(g.id, 'total')]|capitalize }} {{ g.over_under }}{% endif %}
+              </div>
+              {% if result in ['win', 'loss', 'push'] %}
+                <span class="badge {% if result == 'win' %}pick-win{% elif result == 'loss' %}pick-loss{% else %}pick-push{% endif %}">{{ result|upper }}</span>
+              {% else %}
+                <span class="badge bg-secondary">Awaiting result</span>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+      {% for i in range(penalty_slots) %}
+        <div class="locked-pick pool-theme-gridiron mb-2">
+          <div class="locked-label">Makeup week penalty</div>
+          <div class="locked-team">Penalty loss</div>
+          <span class="badge pick-loss">LOSS</span>
+        </div>
+      {% endfor %}
+      {% elif my_picks or penalty_slots %}
       <div class="p-3 mb-3 bg-light rounded border border-2" style="border-left: 5px solid var(--gridiron-accent) !important;">
       <p class="mb-1"><strong>Locked in so far ({{ my_picks|length }} / {{ limit }}){% if penalty_slots %},
         plus {{ penalty_slots }} penalty {{ 'loss' if penalty_slots == 1 else 'losses' }}{% endif %}:</strong></p>
@@ -119,12 +153,14 @@
 
       {% if not week %}
         {# top-level "No weeks have been set up yet" message already covers this #}
-      {% elif remaining <= 0 and not locked %}
+      {% elif locked %}
+        {# The table is disabled end to end once the deadline passes, so it is
+           just noise. The cards above carry the picks. #}
+        <p class="text-muted mb-0">The pick deadline for this week has passed &mdash; picks are final.</p>
+      {% elif remaining <= 0 %}
         <p class="text-muted mb-0">All {{ limit }} picks are locked in for this week.</p>
       {% else %}
-        {% if locked %}
-        <p class="text-muted mb-0">The pick deadline for this week has passed &mdash; picks are final. Below is every game with your locked-in picks and the options that were available.</p>
-        {% elif not games %}
+        {% if not games %}
         <p class="text-muted mb-0">No more games are available to pick right now &mdash; picks close 1 hour before each game's kickoff.</p>
         {% endif %}
         {# Every game is rendered. One past its own 1-hour cutoff comes

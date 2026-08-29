@@ -289,6 +289,21 @@ def any_pool_signups_open(season_year):
     return any(pool_signups_open(season_year, p) for p in POOLS)
 
 
+def week_sort_key(week):
+    """Preseason weeks first, then the regular season, each ascending.
+
+    Preseason week N is stored as PRESEASON_OFFSET + N, so ordering on the raw
+    number drops preseason (101, 102...) below Week 18 -- which is how the
+    Weekly Picks page ended up listing them at the bottom of every pool.
+
+    is_preseason alone isn't enough: only the auto-publisher sets it, so a
+    hand-created week numbered 101+ carries the flag as False. A week in the
+    preseason number range belongs with the preseason whatever its flag says.
+    """
+    return (0 if (week.is_preseason or week.number >= PRESEASON_OFFSET) else 1,
+            week.number)
+
+
 def deadline_passed(week):
     if week is None:
         return True

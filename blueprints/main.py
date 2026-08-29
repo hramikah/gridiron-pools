@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 
-from helpers import get_current_week, pool_signup_deadline, pool_signups_open, week_unlocked
+from helpers import get_current_week, pool_signup_deadline, pool_signups_open, week_sort_key, week_unlocked
 from models import ActivityLog, POOL_ENTRY_FEES, POOL_LABELS, POOLS, Entry, Game, User, Week, db
 from pdf_report import build_week_pdf
 from scoring import (
@@ -341,10 +341,11 @@ def reports():
     season_year = current_app.config["CURRENT_SEASON"]
     weeks_by_pool = {}
     for pool in POOLS:
-        weeks = (
-            Week.query.filter_by(season_year=season_year, pool=pool)
-            .order_by(Week.number)
-            .all()
+        # Sorted in Python, not SQL: preseason weeks are numbered 101+ and
+        # have to come first. See helpers.week_sort_key.
+        weeks = sorted(
+            Week.query.filter_by(season_year=season_year, pool=pool).all(),
+            key=week_sort_key,
         )
         weeks_by_pool[pool] = [(w, week_unlocked(w)) for w in weeks]
     return render_template(

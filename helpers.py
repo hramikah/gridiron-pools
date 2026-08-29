@@ -204,6 +204,11 @@ def admin_required(f):
     return wrapper
 
 
+# A week opens for picking on the Thursday before its Saturday-noon deadline,
+# which is also when its betting week starts (Thursday -> the next Wednesday).
+WEEK_OPENS_DAYS_BEFORE_DEADLINE = 2
+
+
 def get_current_week(season_year, pool):
     """The active week players see for this pool.
 
@@ -222,13 +227,49 @@ def get_current_week(season_year, pool):
                 return pinned
 
     n = now_eastern()
+
+    # A week becomes "the current week" when its own betting window opens --
+    # the Thursday before its Saturday-noon deadline -- not the instant the
+    # previous deadline passes. Without this, at 12:01 on Saturday the pick
+    # pages jumped to the next scheduled week (possibly a fortnight out) and
+    # the picks players had just locked in vanished from view.
+    window_open = n + timedelta(days=WEEK_OPENS_DAYS_BEFORE_DEADLINE)
     upcoming = (
-        Week.query.filter(Week.season_year == season_year, Week.pool == pool, Week.pick_deadline >= n)
+        Week.query.filter(
+            Week.season_year == season_year,
+            Week.pool == pool,
+            Week.pick_deadline >= n,
+            Week.pick_deadline <= window_open,
+        )
         .order_by(Week.pick_deadline.asc())
         .first()
     )
     if upcoming:
         return upcoming
+
+    # Nothing open to pick. Stay on the most recently closed week so players
+    # keep seeing what they locked in, rather than an empty future week.
+    just_closed = (
+        Week.query.filter(
+            Week.season_year == season_year,
+            Week.pool == pool,
+            Week.pick_deadline < n,
+        )
+        .order_by(Week.pick_deadline.desc())
+        .first()
+    )
+    if just_closed:
+        return just_closed
+
+    # Nothing has closed yet either: show the next week on the schedule, so a
+    # brand-new season still has something to display.
+    nxt = (
+        Week.query.filter(Week.season_year == season_year, Week.pool == pool, Week.pick_deadline >= n)
+        .order_by(Week.pick_deadline.asc())
+        .first()
+    )
+    if nxt:
+        return nxt
     return Week.query.filter_by(season_year=season_year, pool=pool).order_by(Week.number.desc()).first()
 
 

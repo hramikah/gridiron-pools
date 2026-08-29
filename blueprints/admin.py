@@ -868,6 +868,44 @@ def activity():
     )
 
 
+# Four of the commissioners play one entry per pool without paying for it.
+# The fifth admin pays like everyone else, so this is a flat count rather than
+# anything derived from User.is_admin -- the site has no way to tell the two
+# kinds of admin apart, and guessing wrong would misstate the money.
+COMPED_ENTRIES_PER_POOL = 4
+
+
+def _pool_totals(entries, fees, buybacks):
+    """Collected and still-owed per pool, for the three summary cards.
+
+    Collected counts entry fees marked paid plus settled buy-backs. Owed is
+    the unpaid side of both, less the comped commissioner entries.
+
+    The deduction is clamped at zero: if those four entries are ever ALSO
+    ticked as paid, they would be counted in Collected and subtracted from
+    Owed at the same time, and the total would go negative rather than
+    quietly under-reporting. `comp_exceeds_owed` says so on the page instead
+    of hiding it.
+    """
+    totals = {}
+    for pool, fee in fees.items():
+        paid = sum(1 for e in entries if e.pool == pool and e.paid)
+        unpaid = sum(1 for e in entries if e.pool == pool and not e.paid)
+        bb = [buybacks[e.id] for e in entries if e.pool == pool]
+        collected = paid * fee + sum(b["paid"] * b["fee"] for b in bb)
+        raw_owed = unpaid * fee + sum(b["owed"] for b in bb)
+        comped = COMPED_ENTRIES_PER_POOL * fee
+        totals[pool] = {
+            "collected": collected,
+            "raw_owed": raw_owed,
+            "comped": comped,
+            "owed": max(raw_owed - comped, 0),
+            "comp_exceeds_owed": comped > raw_owed,
+            "fee": fee,
+        }
+    return totals
+
+
 @bp.route("/payments")
 def payments():
     season_year = current_app.config["CURRENT_SEASON"]
@@ -994,6 +1032,8 @@ def payments():
         fees=fees,
         buybacks=buybacks,
         entry_rows=entry_rows,
+        pool_totals=_pool_totals(entries, fees, buybacks),
+        comped_entries=COMPED_ENTRIES_PER_POOL,
     )
 
 

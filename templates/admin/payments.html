@@ -4,6 +4,44 @@
 <div class="page-header"><h2><span class="pool-icon">💵</span>Payments</h2></div>
 <p class="text-muted">Entry-fee and buy-back tracking, admin-only &mdash; players never see this. Drop Dead and Loser Pool are $20/entry; Gridiron Investments is $100/entry. A Drop Dead buy-back is billed as another entry at $30. Gridiron has no buy-back.</p>
 
+{# One card per pool: what has come in, what is still out. Gridiron first,
+   matching the column order in the table below. #}
+<div class="row g-3 mb-4">
+  {% for pool in ['gridiron', 'dropdead', 'loser'] %}
+  {% set t = pool_totals[pool] %}
+  <div class="col-12 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title mb-3">
+          {% if pool == 'dropdead' %}💀{% elif pool == 'loser' %}📉{% else %}🏈{% endif %}
+          {{ pool_labels[pool] }}
+        </h6>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Collected</span>
+          <strong class="text-success">${{ '{:,.0f}'.format(t.collected) }}</strong>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Still owed</span>
+          <strong class="{% if t.owed %}text-danger{% else %}text-success{% endif %}">${{ '{:,.0f}'.format(t.owed) }}</strong>
+        </div>
+        <hr class="my-2">
+        <p class="small text-muted mb-0">
+          Owed is after subtracting {{ comped_entries }} comped commissioner
+          {{ 'entry' if comped_entries == 1 else 'entries' }}
+          (&minus;${{ '{:,.0f}'.format(t.comped) }} at ${{ t.fee }} each).
+          Before the deduction: ${{ '{:,.0f}'.format(t.raw_owed) }}.
+          {% if t.comp_exceeds_owed %}
+          <br><span class="text-danger fw-bold">Check this:</span> the comped
+          amount is more than what is outstanding, so some of those four
+          entries look to be marked paid as well. Owed is floored at $0.
+          {% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
 <h5 class="mt-2">By Player &mdash; Who Owes What</h5>
 <div class="table-responsive mb-4">
 {# Column order runs biggest fee first: Gridiron, Loser, then Drop Dead with

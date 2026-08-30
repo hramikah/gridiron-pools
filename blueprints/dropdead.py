@@ -247,5 +247,14 @@ def buyback(entry_id):
 @bp.route("/standings")
 def standings():
     season_year = current_app.config["CURRENT_SEASON"]
+    # Settle any past-deadline week before reading the table. The pick pages
+    # already do this; without it here, the standings and the place badge on
+    # the home card rendered whatever the last pick-page visit or the
+    # two-hourly update_scores run happened to leave behind, and disagreed
+    # with the pick page until one of them ran. Must be the FIRST statement:
+    # helpers._read_cache() memoises reads for the rest of a GET on the
+    # assumption nothing writes during one, so the write has to land before
+    # any cached read does.
+    process_due_weeks(season_year, "dropdead")
     entries = standings_dropdead(season_year)
     return render_template("dropdead/standings.html", entries=entries)

@@ -1,568 +1,79 @@
-2026-2027 rules sheets, How to Play pages for all three pools, both-sides rule dropped
-
-Rules pages now carry the sheets supplied 2026-08-25, word for word:
-
-- Gridiron: picks are made in the site account and e-mailed, faxed and phoned
-  picks are expressly not accepted (new rule 4), with the account's countdown
-  clock named as official. The old rules on nickname/ambiguous designations, on
-  invalid picks counting as a loss, and on selecting both sides of the same game
-  are gone. 2nd place is $1,500, not $1,550. Contact goes through the message
-  board rather than the commissioners' e-mail addresses. 15 rules became 14.
-- Drop Dead: picks made in the Drop Dead account; the buy-back moved to rule 4.
-- Loser: picks made in the Loser account; the forgot-to-pick default is now the
-  VISITING team of the LAST Monday night game of the betting week -- the page
-  previously said the first Monday night game.
-
-Code follows the sheets:
-
-- scoring.py no longer looks for both sides of a game. It cost two losses and
-  disqualified the entry from the Last Place Award; neither applies now, and
-  such a week is no longer treated as penalised for the 0-5 award.
-- The Loser missed-pick fallback takes the latest Monday night game by kickoff
-  rather than whichever row came back first. It already used the visiting team.
-
-Help pages, replacing the "instructional videos" placeholder:
-
-- /help/gridiron, /help/loser and /help/dropdead are full walkthroughs -- how to
-  join and pay, the two deadlines, how to read the pick page, saving and
-  removing picks, the situations that catch people out, and a FAQ each.
-- Drop Dead covers the one-team-once rule, elimination, and what the $30
-  buy-back does and does not restore -- including that it cannot revive an entry
-  eliminated for failing to pick.
-- Loser covers the point values, that a tie costs you points, and the
-  forgot-to-pick assignment.
-- Each page shows how to join: the Choose Pools screen with that pool ticked,
-  and the join button at the foot of its own rules page. The Gridiron page had
-  only a full-page shot of the registration-time screen; it now has both, cropped
-  to the part that matters.
-- 21 screenshots of the real site in static/help/<pool>/, captured from the
-  mid-week-3 testbed with its banners removed. Each sits in a box that scrolls
-  sideways on a phone rather than shrinking to nothing.
-- templates/_help_shot.html holds the shared figure/FAQ macros so the three
-  pages stay consistent.
-- main.help_page renders help_<pool>.html when one exists.
-
-Extra accounts no longer ask for a password
-
-Adding a second or third entry now needs only a username. The new account
-starts on the password of the account that created it -- the hash is copied, so
-the password itself is never handled -- and they stay independent afterwards:
-changing one does not change the others. Nothing ever required the passwords to
-differ; asking for a second one was friction, and a forgotten one means a
-commissioner has to reset an account the player thinks of as theirs. The page
-copy said "pick a different username and password", which was wrong on both
-counts, and now explains switching accounts from the top-right menu. Creating
-one writes an "account_added" row to the activity log.
-
-Local test site: session cookie no longer Secure-only
-
-SESSION_COOKIE_SECURE was unconditionally True, so on the test site -- plain
-http on 127.0.0.1 -- browsers that do not make a localhost exception (Safari
-among them) dropped the session cookie silently. Every form then posted a CSRF
-token with no session behind it and sign-in failed with a misleading "that page
-had been sitting open too long". It is now keyed on the database being a testbed
-one, the same marker the frozen clock and the seed guard use, so the live site
-is unaffected and still Secure-only.
-
-The CSRF error message no longer blames staleness: token expiry is already
-disabled (WTF_CSRF_TIME_LIMIT = None), so the real cause is always a missing or
-changed session -- usually signing out in another tab.
-
-Email changes:
-
-- Welcome email removed. Registering (and adding another account) no longer
-  mails anything -- the player is already looking at the site.
-- Weekly picks recap removed: send_picks_recap_email, notifications.py,
-  email_weekly_picks.py, the admin email-picks route and the "Email Picks to
-  Players" buttons on both week pages. Week.picks_emailed is left on the model;
-  dropping a column means rebuilding the table in SQLite and nothing reads it now.
-- Message board notifications, both directions. A player posting to the
-  commissioners emails every admin with an address on file (bulk send, so one
-  bad address does not stop the rest) with the message and a link to the thread.
-  An admin replying emails that player with the reply and a link to the board.
-  Both go out on a background thread, so a slow mail API never holds up the post.
-  The admin flash now says whether the player could be notified.
-- Forgot password now says "There is no account with that username or email
-  address" instead of the deliberately vague "if that account exists" wording,
-  and says so plainly when the account exists but has no address on file.
-  Hunter's call. Note the trade-off: the form now confirms to anyone who asks
-  whether a given address is registered here.
-
-Gridiron: buy-back removed, signups now close at the Week 1 deadline
-
-The $100 week-2 clean slate that voided week 1 is gone, and with it the reason
-late entries were allowed: signups ran to the Week 2 deadline so a latecomer
-could buy into week 1 and play 10 picks in week 2. Both are removed, so nobody
-can join after week 1 closes and nobody can undo a week.
-
-- helpers: gridiron_signup_deadline is the Week 1 deadline (falls back to the
-  season-start Thursday + 2 days at noon). gridiron_buyback_deadline,
-  gridiron_buyback_closed and GRIDIRON_BUYBACK_CUTOFF_HOUR deleted.
-- scoring: gridiron_buyback_available, gridiron_buyback_catchup_week,
-  gridiron_void_through, GRIDIRON_BUYBACK_FEE and GRIDIRON_BUYBACK_PICKS
-  deleted. gridiron_pick_limit is 5, or 8 in a makeup week -- never 10.
-  gridiron_week_counts no longer voids anything. The award rows drop
-  bought_back, and last_place_eligible turns on missed weeks alone.
-- models: default_buyback_open no longer opens Gridiron week 2;
-  GRIDIRON_BUYBACK_WEEK deleted. Entry.buyback_week stays for Drop Dead.
-- blueprints/gridiron: the /buyback route and every buy-back context value are
-  gone. The pick page loses the offer card and the "Bought back in" notice.
-- Payments and Billing bill no Gridiron buy-back, so the 34 legacy rows in the
-  demo database are quoted at $0 and produce no lines at all. The Help hub fee
-  table drops the row; the Gridiron How to Play drops the section and now says
-  signups close at the Week 1 deadline.
-- standings, week_report and the admin week page lose the VOID cells and the
-  "buy-back -- 10 picks" captions.
-- 15 buy-back tests removed, 3 added: the pick limit can never exceed 8, a week
-  is never voided even with a stale buyback_week on the row, and signups close
-  at week 1. 32 pass.
-
-Admin Payments page:
-
-- Top table reordered to Gridiron, Loser, Drop Dead, and the Drop Dead column
-  renamed "Drop Dead Initial" now that its buy-backs have columns of their own:
-  BB1-BB4, one per week the rules allow a buy-back. Green BB is paid, red BB is
-  unpaid, dash means that one was never taken.
-- Unpaid entry fees now read as a red outlined "Unpaid" badge rather than an
-  amber one, in all three pool columns, so what is outstanding reads at a glance.
-  The Gridiron week-2 buy-back has no column of its own and stays inline.
-- The Paid/Unpaid badges and the BB badges in the By Player table are now
-  buttons: clicking one flips it, behind a confirm that names the player, the
-  pool and the amount ("Would you like to confirm that Bofa has paid their
-  Loser Pool buy in of $20?"), with the reverse direction spelled out as
-  marking money NOT received. Buy-back fees are an interchangeable count per
-  entry, so clicking a badge settles exactly that fee.
-- Each Drop Dead buy-back is now its own BuyBack row (entry, week bought back,
-  fee, paid, paid_at, created_at) instead of a pair of counters on Entry that
-  treated the fees as interchangeable -- settling the third one used to turn the
-  first green. migrate_schema backfills a row per existing buy-back, marking the
-  first buy_backs_paid of each entry's as settled, which is what the counter
-  meant. Entry.buy_backs_used and buy_backs_paid are still written alongside,
-  since the pick page and the printed-rule checks count off them.
-- An admin resetting a player's password now writes a "password_reset" row to
-  the activity log, filed against that player with the admin named. Somebody
-  else taking control of an account is worth being able to find later; the
-  temporary password itself is never written to the log. (A player changing
-  their own password already logged.)
-- Marking anything paid or unpaid writes a "payment" row to the activity log,
-  filed against the PLAYER rather than the admin who clicked -- it is money on
-  that player's account -- with the admin named in the detail so the trail still
-  says who did it. Reads: "Loser Pool entry fee ($20) marked PAID by admin".
-- All Entries gains a "Committed" column: when the player took the charge on --
-  joining the pool for an entry fee, pressing the buy-back button for a buy-back
-  (read from the activity row written at the time). Not when it was paid.
-
-Billing page for players:
-
-- "Billing" in the account dropdown opens /billing: every charge on the account
-  -- entry fees and each buy-back as its own line -- with the date it was
-  incurred, the amount, and whether the commissioners have recorded it as paid,
-  plus owed / paid / season-total tiles and the check-mailing details when
-  anything is outstanding.
-- It reads the same flags the admin Payments page writes, so marking a fee paid
-  there shows up here on the next page load with nothing to keep in sync.
-- Billing covers every account sharing the player's email, grouped by account
-  with a combined total, since extra lines come out of one pocket and one check
-  usually settles them all. A single-account player sees no grouping.
-- entry.paid_at and entry.buy_backs_paid_at are new columns (added by
-  migrate_schema, idempotent) so the page can say WHEN something was settled;
-  the admin toggles stamp them. Rows settled before this existed read "Date not
-  recorded" rather than showing a made-up date.
-- Buy-back dates come from the activity log written when the button was pressed
-  -- the entry row keeps only a count and a week number.
-- Entry fees moved to models.POOL_ENTRY_FEES, quoted by both the admin Payments
-  page and Billing, so the two cannot drift.
-
-Join flow reworked: the home page is the join page
-
-The tick-box "choose your pools" screen is gone -- the one with JOIN SELECTED
-POOLS and Skip for now. Registering, adding an account or switching accounts
-now lands on the home page, where all three pools are always shown: one you are
-in carries its links plus a green "You're in" and its Make Picks button; one you
-are not carries a full-width Join button with the price on it, behind a confirm
-that names the amount and says you will owe it to the commissioners. Logged-out
-visitors see the price as text, no button.
-
-- auth.choose_pools is now a one-line redirect to main.index, kept because
-  register / add_account / switch_account all send people there.
-  templates/auth/choose_pools.html is retired (parked in _to_delete/).
-- The three /join routes take a hidden from=home and return to the home page in
-  that case, so the remaining Join buttons are in front of the player. Joining
-  from a pool's Rules page still lands on its picks, unchanged.
-- Gridiron's card shows a closed badge naming the Week 1 deadline once signups
-  have shut; the route enforces it regardless.
-- All three How to Play pages showed a screenshot of the retired screen. They
-  now show the home page cards instead (static/help/<pool>/join-home.jpg) and
-  the Gridiron page's "tick your pools" step is rewritten.
-
-This is the rework built in the Windows session's cloud clone and never
-re-applied; it is now in the repo for the first time. Verified on a blank
-account: registration lands on /, three Join buttons with the right prices, the
-confirm text is exact, joining returns to / with "You're in" and one fewer
-button, and JOIN SELECTED POOLS / Skip for now / Choose your pools appear
-nowhere. No horizontal overflow at 390px. 32 tests pass.
-
-New Help tab:
-
-- A Help tab in the top nav opens /help: three cards, one per pool, each with a
-  How to Play button and a link to that pool's official rules.
-- The same page carries the payment details, which were nowhere a member could
-  see them -- the Payments page is admin only. Who to make the check out to,
-  where to mail it, the September 14th postmark, and a table of every fee
-  including both buy-backs.
-- Seven tabs no longer fit at 992-1199px, so the navbar expands at xl instead of
-  lg (that range gets the hamburger) and link padding is tightened above it.
-  Checked from 390px to 1920px: one row, no wrapped labels, no overflow.
-
-Also adds restart-testbed.command: stop and restart the local test site after a
-Python change, since only templates reload on their own.
-
-44 tests pass; all three pages checked at 1280px and 390px with no overflow,
-no broken images and no console errors.
-
-Week 1 signup cutoff now applies to all three pools:
-
-- helpers.py gains pool_signup_deadline(season_year, pool) and
-  pool_signups_open(season_year, pool). Both prefer that pool's real Week 1 row
-  (so moving the Week 1 deadline moves the cutoff with it) and fall back to
-  deriving Saturday noon from season_start_thursday. gridiron_signup_deadline /
-  gridiron_signups_open stay as thin wrappers so the templates, the Gridiron
-  join route and the tests keep working.
-- loser.join() and dropdead.join() now refuse a late entry at the route, not
-  just in the UI -- a direct POST past the deadline flashes "closed to new
-  entries" and creates nothing. Verified by posting to all three join routes
-  with the demo clock at 2026-08-20, past the 08-08 Week 1 deadline: zero
-  entries created.
-- Both rules pages show the closed notice with the deadline date in place of
-  the join button, matching the Gridiron page.
-- The home page empty state no longer tells a member to "press a Join button
-  above" when every pool is closed and there is no button to press.
-- Help copy corrected: help_loser said the Loser Pool had no signup cut-off,
-  which is now wrong; help_dropdead had no cutoff note at all and now says the
-  $30 buy-back is a separate thing that still runs through Week 4.
-
-32 tests pass.
-
-Extra teams close with the pools:
-
-- helpers.any_pool_signups_open(season_year) is true while at least one pool
-  will still take an entry.
-- /auth/add-account refuses once every pool has passed its Week 1 deadline, and
-  the "+ Add Another Account" item disappears from the Hi dropdown. The route
-  checks as well as the template, so a bookmarked link is no way around it.
-  Before this, a player could still create a sibling account after the cutoff;
-  it could not join anything, so no free entry was possible, but it dropped them
-  on a join page with every button gone and left the commissioners an empty
-  account in the Players list.
-- Also removes a duplicated definition of helpers.deadline_passed.
-
-Verified against a copy of the live testbed database on both sides of the
-cutoff: past it, the dropdown item is gone, GET and POST are both refused and
-the user count does not change; before it, an under-limit player still sees the
-item and the page loads. 32 tests pass.
-
-Help pages: controlling more than one team.
-
-- New shared macro _help_shot.multiple_teams(), used by the Help hub and all
-  three How to Play pages, so the wording can never drift between them. Covers
-  creating another team (Hi menu -> Add Another Account, username only, no
-  second password), that joining is per team and charged per team, switching
-  between teams from the same menu, a warning to check the name in the menu bar
-  before picking, and that Billing totals every team on the email.
-- Two new screenshots in static/help/shared/ (shared, not per-pool): the Hi menu
-  open with the other teams listed, and the Add another account form. Captured
-  with the demo email rewritten to yourname@example.com so no real address is
-  published, and with the clock rolled back before the Week 1 deadline, since
-  the Add Another Account item is hidden after it. shots5.py reproduces them.
-- Each pool page gets a "More than one team" jump link; the section sits inside
-  "Joining and paying" so the numbered sections do not shift.
-- The Gridiron page's old one-liner ("register a second account with a different
-  username") is replaced by the pointer to that section.
-
-All four pages render; images serve; no horizontal overflow at 390px.
-
-fix-testbed-emails.command (test data only, no site code):
-
-Accounts are linked by sharing an e-mail address -- that is what makes Billing
-total every team on the address and the Hi menu list them for switching. The
-SendGrid testing broke that link in the testbed database: each account was
-redirected to its OWN alias (adventurecoastmarketing+gentlemanjack2@gmail.com
-and so on) and the four commissioner accounts were blanked outright, so a
-player with three teams saw three separate bills. The Billing code is right and
-the live demo database is unaffected -- its families still share an address.
-
-The script rebuilds the families from instance/testbed-demo.db and gives every
-account in a family the same alias, so test mail still lands in one inbox. It
-prints the changes, waits for a keypress, stops the site, backs the database up
-and restarts. Nine accounts change; the seeded @mockpool.test players and the
-hunter test account are left alone. Verified on a copy: all three GentlemanJack
-accounts then show one combined bill.
-
-Two launcher scripts fixed:
-
-- commit-work.command piped the staged file list through git's pager, so it sat
-  at a ":" prompt waiting for a keypress and the window was closed before the
-  commit ever ran -- 66 files staged, no commit, and a deploy that pulled
-  nothing. GIT_PAGER=cat, PAGER=cat and git --no-pager.
-- reset-testbed.command renamed the database and seeded a new one without
-  stopping the site. A running process keeps its handle on the file it already
-  opened, so the site carried on serving the OLD database and the reset looked
-  like it had done nothing. It now stops the site first and restarts it at the
-  end, the way fix-testbed-db.command does.
-
-Master Standings and home page:
-
-- The Rules dropdown is now Gridiron, Loser, Drop Dead -- the order the pools
-  are listed in everywhere else.
-- The Gridiron and Loser "Week by week" grids are gone from Master Standings;
-  Drop Dead keeps its one. The view no longer builds gridiron_matrix or
-  loser_matrix either, each of which walked every pick of every entry for every
-  unlocked week. The intro line now points at the Week History tab for
-  week-by-week detail.
-- The home page greets a signed-in player by name: "Welcome to Gridiron Pools,
-  <username>!". It doubles as a check on which team you are in, since picks save
-  against whichever account is signed in.
-
-Home page cards now show where each entry stands, beside "You're in":
-
-- Gridiron and Loser show the place and the field ("9th of 150"), computed from
-  standings_gridiron / standings_loser -- the same functions the standings pages
-  use, so the two can never disagree. Only the pools the player has joined are
-  computed.
-- Drop Dead says "Still alive -- 78 of 150 left" rather than a place: it is a
-  survivor pool, every surviving entry is joint first, so a number there would
-  read the same for everyone and mean nothing.
-- An eliminated Drop Dead entry shows "Eliminated -- Week N", or "Eliminated:
-  Buy back eligible" in red when dropdead_buyback_available() says the buy-back
-  is on the table right now (the week after the elimination, before its
-  deadline, buy-backs open for that week, and not a no-pick elimination).
-- New ordinal() Jinja global (1st, 2nd, 3rd, 11th, 21st).
-
-Missed-week processing no longer depends on someone loading a page.
-
-ensure_missed_processed() only ever settles the week it is handed, and every
-player route handed it the *current* week. A week that stopped being current
-before anyone opened a page after its deadline -- an admin pinning active_week
-forward, a quiet Tuesday, a site nobody visited -- was never settled at all: no
-0-5, no Gridiron makeup week, no Drop Dead no-show elimination. Nothing came
-back for it, because every caller had already moved past it.
-
-- scoring.due_weeks(season_year, pool=None) lists every past-deadline week
-  still flagged missed_processed=False, OLDEST FIRST (week N must settle before
-  N+1: the Gridiron makeup week is the week straight after the first miss).
-- scoring.process_due_weeks() settles them all and returns what it settled. One
-  query over a few dozen rows a season, and on the common path it finds
-  nothing, so it is cheap enough to sit on a page load.
-- The three pick pages and admin.pool_manager now call it instead of the
-  single-week version.
-- update_scores.py calls it too, after the scores are pulled -- an elimination
-  follows from a final result. That is the actual fix: the droplet runs that
-  job every two hours whether anyone visits or not. A failure there is caught
-  and logged separately so it cannot look like a scoring failure, and the weeks
-  are simply retried on the next run.
-- A Loser week still waits for its Monday night game before it can assign the
-  no-show auto-pick; it is skipped and retried, and does not block other pools.
-
-7 new tests (39 total), including one that spells out the old bug: settling
-only the current week leaves week 1 owed forever. Also reproduced the real
-scenario against a copy of the demo database -- week 2 marked unprocessed with
-active_week pinned to 3, which the old code could never recover from: the
-catch-up settled it and wrote all 22 missing GridironMiss rows.
-
-Preseason weeks are now a real trial run, and are labelled as one.
-
-Week.is_preseason had said "doesn't count toward standings" since it was added
-and was honoured NOWHERE: a preseason loss really did eliminate a Drop Dead
-entry, a preseason pick really did spend that team for the season, preseason
-wins really did bank in the standings, and a forgotten preseason week really
-did charge a Gridiron 0-5 and a makeup allowance. Commissioner's decisions
-2026-08-26, all keyed off one new predicate, scoring.counts_for_season(week):
-
-- Picks are still made, graded and shown -- the point of the trial weeks.
-- A losing Drop Dead pick does NOT eliminate (score_dropdead_pick).
-- A preseason pick does NOT spend the team (Entry.used_team_ids), so everyone
-  starts Week 1 with all 32 available.
-- Preseason results stay out of the season standings: Gridiron via
-  gridiron_week_counts (preseason numbers sit past PRESEASON_OFFSET, so the
-  number alone identifies them) and _gridiron_empty_losses, Loser via
-  standings_loser and loser_totals_through_week.
-- No penalties for forgetting: process_missed_picks returns early, and
-  ensure_missed_processed marks the week settled without charging anything --
-  before the Loser MNF check, which would otherwise hold a preseason Loser week
-  open forever waiting for a game whose only purpose is an auto-pick nobody
-  would be charged for.
-
-Labels: preseason weeks are stored as PRESEASON_OFFSET + N (101, 102) so they
-sort past the regular season, but that is an internal detail and players were
-being shown "Week 101". New helpers.week_label(number) -> "Preseason Week 1",
-registered as a Jinja global, and every bare week number now goes through it or
-through the existing Week.label: home page, master standings and its history
-tab, both pick pages, three standings pages, the week report, the admin week
-dropdowns and game creator, the payments tooltip, the admin flashes and the
-picks PDF. short_week_label now reads "Pre 2" rather than "PS2".
-
-11 new tests (50 total), including that a REGULAR losing pick still eliminates
-and still spends the team -- the guard has to be specific to preseason, not a
-blanket switch-off. Also run end to end against a copy of the demo database
-with a preseason week published in all three pools: the pick graded as a loss,
-the entry stayed active, the team stayed unspent, the alive count held at 78,
-and no page anywhere renders a 100-something week number.
-
-Preseason checkbox on both week-creation forms.
-
-Only the auto-publisher ever set is_preseason, so a week created by hand was a
-regular-season week whatever number it carried -- it scored for real, it
-eliminated Drop Dead entries for real, and it rendered as "Week 101". Both
-forms (Pool Manager's per-pool one and Game Creator's all-pools one) now carry
-a "Preseason week" tick box, with a line under each saying what it means.
-
-The admin types the preseason week's OWN number -- 1 for the first weekend --
-and admin.preseason_number() stores it at PRESEASON_OFFSET + N so it sorts past
-the regular season and cannot collide with it. Idempotent, so a number already
-in preseason range is left alone. buyback_open follows default_buyback_open's
-preseason rule (closed), rather than being granted because the stored number
-happened to be small.
-
-Verified through the routes: ticked on the per-pool form stores 101 /
-is_preseason / "Preseason Week 1" and flashes that name; ticked on the
-all-pools form creates 102 in all three; unticked still creates an ordinary
-Week 7; both pages render the box; the week dropdowns read "Preseason Week 1"
-and "Preseason Week 2". Then end to end on the week the form made: a losing
-Drop Dead pick graded as a loss, the entry stayed active and no team was spent.
-
-Gridiron pick page: college rows plain, over/unders on one line.
-
-- Team colouring is now NFL-only. The colour table holds the 32 NFL teams, so
-  a college slate got a tint on the handful of names that happened to collide
-  and nothing on the rest -- about 5% of them -- which read as a rendering bug
-  rather than a feature. blueprints/gridiron.py builds team_styles from
-  non-college games only, and the template also refuses a tint on a college row
-  outright, so a college team sharing a name with an NFL one stays plain too.
-- "Under 44.5" is a couple of characters longer than "Over 44.5", so at some
-  column widths one wrapped to two lines and the other did not, leaving rows
-  different heights down the page. New .pick-option-total keeps both on one
-  line, shrinking the digits (clamp) rather than wrapping. Measured on a full
-  24-game slate: all 32 buttons come out 39px, none wrapped.
-
-Master Standings, By Player: every result is coloured text now.
-
-The team cell was a filled badge (white on solid green/red/purple) while the
-result cell beside it was plain black text with a tick or cross emoji, so the
-purple push was the only thing that read as coloured type. Both cells now take
-their class from helpers.RESULT_CLASS -- green win, red loss, purple push, grey
-while a week is still ungraded -- which is the same map every other page reads,
-so these colours cannot drift from the ones elsewhere. The tick/cross emoji are
-gone; the colour carries it.
-
-The Wk column also goes through short_week_label now, so a preseason row reads
-"Pre 4" rather than "104".
-
-App link: the fallback was a dead Tailscale IP.
-
-get_setting("site_url", ...) carried "http://100.71.232.56:8090" as its default
-in three places, and an empty string in two more. That default is an address
-from an earlier deployment that no member can reach, and the empty one produced
-a bare path -- fine in a browser, useless in an e-mail. Both matter because
-site_url is what builds the links in invitations, password resets and
-message-board notifications, which are read outside the browser session.
-
-The live database has no site_url row at all, so every one of those links would
-have pointed at the dead IP the first time a member used "Forgot password".
-
-- models.DEFAULT_SITE_URL = "https://gridironinvestment.com", one definition.
-- All five call sites use it, and treat a stored empty value as unset too.
-- The Settings field's help text no longer talks about Tailscale; it explains
-  that the address has to be the public one because an e-mail is read outside
-  the browser, and the placeholder shows the real domain.
-
-Still worth setting explicitly in Admin > Settings -- an explicit value always
-wins over the fallback.
-
-Five teams per e-mail address by default (a main team plus four).
-
-models.DEFAULT_MAX_TEAMS = 5, used by the User.max_teams column default, by
-auth._team_limit_for_email's fallback and by the admin setter. The old default
-was 1, which meant nobody could add a second team without asking a commissioner
-first -- 150 people's first support request.
-
-Existing rows keep whatever they were given, so migrate_schema raises anything
-below 5 ONCE, guarded by a 'max_teams_default5' marker setting: an admin who
-later drops somebody to 1 must not have it undone on the next boot. Verified
-both directions -- an account created at 3 came up as 5, and one an admin then
-set to 1 stayed at 1 across a restart.
-
-Also verified through the real route: five accounts created on one address, the
-sixth refused with the existing "reach out to the admins" 403.
-
-Invites: never re-invite someone who already has an account.
-
-The route minted a fresh Invite row and a fresh token on every submission,
-with no check for an existing account or an existing invite. Invite the same
-address three times and three links arrived, ALL of them live -- and
-registering through a second one builds a whole second account on that address
-rather than signing the person in. A member re-invited by mistake would have
-ended up with two teams they never asked for and two lines in the standings.
-Registration also does not enforce the per-email team cap that Add Another
-Account does, so duplicate invites were a way around it.
-
-- An address that already has an account is skipped, and named in the flash.
-- An address with a live unused invite gets that SAME link again rather than a
-  second token, so a resend is idempotent -- no new row, no extra way in.
-- The flash now separates sent / resent / already registered / invalid instead
-  of claiming everything was sent.
-- The invite page says all this, and points members wanting a second team at
-  Add Another Account.
-
-Verified: two new addresses create two rows; the same pair again creates none
-and resends the same links; an address with an account is refused; a mixed
-batch sends the one new address and names the other two; the reused token still
-registers, is then marked used, cannot be used twice, and that address can no
-longer be invited.
-
-Registration refuses an address that already has an account.
-
-The invite page now skips people who are already members, but the registration
-route never checked -- it only asked whether the token was unused. So a live
-link belonging to an address that already has an account still built a SECOND
-account on it and signed the person into it, which reads as "the site lost my
-team" and leaves a duplicate in the standings. It applies to anyone invited
-twice BEFORE the invite guard shipped: their first link registered them, the
-second is still live, and re-opening that e-mail was all it took.
-
-register() now looks up the invited address and, if it already belongs to an
-account, shows "You already have an account" instead of the form: signed in, a
-button back to their pools; signed out, Sign in and Forgot my password. Either
-way it points at Add Another Account for a second team, which keeps both on one
-login and one bill. A used or unknown token still shows the ordinary
-"Invite required" page, and a genuinely new address is unaffected.
-
-Verified on a copy: two live invites for one address -- the first registers,
-the second is refused while signed in and creates nothing; an invite for an
-address that already has an account is refused signed out and offers sign-in
-and reset; a fresh address still registers normally.
-
-Team names: players can fix their own, until the Week 1 deadline.
-
-Several people typed the wrong name at registration and there was no way to
-change it short of an admin editing the database.
-
-- "Change Name" in the Hi menu -> /auth/change-name. Shows the current name, a
-  box for the new one, and asks for the password: the name is what everyone
-  else sees on the standings, so a borrowed browser should not be able to
-  change it.
-- Rejects an empty name, one over 50 characters, and one another team already
-  uses (case-insensitive, excluding this account -- so "hunter" can fix itself
-  to "Hunter"). Every change is written to the player activity log with the old
-  and new name.
-- LOCKS at the Week 1 deadline, in the page and in the route: after that every
-  entry is billed and scored under its name, so a change is a commissioner's
-  job and the page says to ask on the message board.
-
-Wording: "Username" is now "Team Name" on register, login ("Team name or
-email"), forgot-password and add-account, and in the messages those pages show
--- "Another team is already using that name", "Invalid team name/email or
-password", "There is no team with that name or email address".
-
-Verified: wrong password, taken name and empty name are all refused; a good one
-saves, logs, and shows under the new name; and with the Week 1 deadline moved
-into the past the form disappears and a direct POST is refused.
+Standings settle missed weeks first; a Gridiron preseason week acts like a real one
+
+1. The Make a Pick badge and the Master Standings could show a player two
+   different places. They run identical code -- the difference was timing.
+   process_due_weeks() writes down a past-deadline week's penalties, and it was
+   wired into the three pick pages, the admin pages and the two-hourly
+   update_scores job, but not into /standings, the three per-pool standings
+   pages, or the home page carrying the "Nth of N" badge beside Make Picks.
+   Those pages only displayed whatever the last of the others had left behind.
+   All five now call it as their FIRST statement -- first because
+   helpers._read_cache() memoises reads for the rest of a GET on the assumption
+   nothing writes during one, so the write has to land before any cached read.
+
+2. A Gridiron preseason week now behaves end to end like a regular one.
+   process_missed_picks records a GridironMiss for a preseason week an entry sat
+   out. That single row is what makes the rest work: Rule 8 forgives a FIRST
+   failure, so the record stays 0-0-0 rather than 0-5, the standings' Penalties
+   column can name the week, and the 8-pick makeup week follows. Recorded but
+   never fatal -- the bench check stays gated on counts_for_season(), so a trial
+   week cannot end anyone's season. Drop Dead elimination, the spent-team rule
+   and the Loser auto-pick are all untouched.
+
+   Empty slots are charged in preseason too, which they always were everywhere
+   except the season Won/Lost columns: the "last week W-L-T" column beside them,
+   the weekly picks grid and the pick page all call _gridiron_week_empty_losses
+   directly and never had that filter, so one row read 0-0 on the left and 0-5
+   on the right. A full no-show still costs nothing, because a forgiven first
+   miss returns 0 -- what is charged is a part-filled week, exactly as in the
+   regular season.
+
+3. Two orderings keyed off the raw week number, which sorts preseason weeks
+   (101+) AFTER week 18 even though they happen before week 1:
+
+   - gridiron_first_miss_week() let any regular-season miss beat a preseason
+     one, forgiving the wrong week and hanging the makeup off the wrong week.
+   - due_weeks() settled week 1 before Preseason Week 4, despite "oldest first"
+     being the entire point of that ordering.
+
+   Both now sort in Python with helpers.week_sort_key.
+
+4. gridiron_makeup_week() returns the next week ON THE SCHEDULE instead of
+   first_miss + 1. A miss in Preseason Week 4 (104) is followed by Week 1, not
+   by a week 105 that will never exist -- which would have granted the makeup
+   allowance for a week nobody could ever play.
+
+Verified against a 124-entry replica of the live Preseason Week 4: the 58
+non-pickers show 0-0-0, "Preseason Week 4" in Penalties, 8 picks and 2 penalty
+slots waiting in Week 1, and none of them benched. 54 tests pass.
+
+5. The makeup week's 2 penalty losses are charged as soon as that week is
+   known, instead of waiting for its deadline. They were already shown as slots
+   on the pick page from the moment the week opened, so an entry read 0-0-0 on
+   the Thursday and 0-2-0 at Saturday noon while the page in front of them said
+   2 losses the whole time. Same disagreement as everything else in this commit,
+   one function further along. (Commissioner's call, 2026-08-30: on entering the
+   makeup week the record already reads 0-2-0.)
+
+   Charged when the league ENTERS the makeup week, via a new
+   helpers.week_started() -- the same boundary get_current_week() moves on.
+   Not on the week row existing: all 18 regular weeks are created at once, so
+   that would have shown the penalty weeks before the week could be played.
+
+   New _week_order() puts bare week NUMBERS in schedule order -- preseason
+   weeks are stored at 101+ but come before week 1 -- and gridiron_counted_picks
+   and gridiron_penalty_losses now use it, so preseason picks and penalties stop
+   dropping out of every through-week view.
+
+Confirmed against the live shape with Preseason Week 5 created and PW4 closed:
+a PW4 no-show reads 0-2-0 in the Master Standings, "Preseason Week 4" in the
+Penalties column, 0-0-0 in the PW4 column, and gets 8 picks plus 2 penalty loss
+slots on the PW5 pick page.
+
+6. A week now opens 72 hours before its deadline instead of 48
+   (WEEK_OPENS_DAYS_BEFORE_DEADLINE 2 -> 3), so it becomes the current week at
+   noon on the WEDNESDAY before its Saturday-noon deadline rather than the
+   Thursday. 2026 Week 1 has a Thursday game, and opening the same day left
+   almost no room. The constant drives get_current_week() and week_started()
+   together, so the pick pages, the current-week label and the makeup week's
+   2 penalty losses all move on the same instant.

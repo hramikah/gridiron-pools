@@ -34,6 +34,9 @@ import pytest
 
 import helpers
 from helpers import deadline_passed, gridiron_signup_deadline
+from datetime import timedelta
+
+from helpers import now_eastern
 from models import GridironMiss, Pick, db
 from scoring import (
     GRIDIRON_BENCH_AFTER_MISSES,
@@ -269,17 +272,31 @@ def test_penalty_losses_land_in_the_makeup_weeks_own_column(
     assert cells[entry.id][2]["wins"] == 8
 
 
-def test_penalty_slots_show_while_the_makeup_week_is_still_open(
+def test_the_makeup_penalty_is_charged_when_the_league_enters_that_week(
     make_week, make_entry
 ):
-    """The 2 automatic losses are visible on the pick page from the moment
-    the week opens, not only once the deadline has passed."""
+    """The 2 automatic losses land when the makeup week OPENS -- not when its
+    row is created, and not when its deadline passes.
+
+    Waiting for the deadline made the standings disagree with the pick page,
+    which showed the 2 losses as slots from the moment the week opened.
+    Charging on existence was worse: all 18 regular weeks are created at once,
+    so the penalty would have appeared weeks before the week could be played.
+    (Commissioner's call, 2026-08-30.)
+    """
     weeks = {1: make_week(1), 2: make_week(2, future=True)}
     entry = make_entry("early_bird")
     process_missed_picks(weeks[1])
 
+    # Week 2 exists but is still a month out -- the league is not in it yet.
+    assert gridiron_penalty_losses(entry) == 0, "not charged just because the week row exists"
+
+    # Its betting window opens (the Thursday before its Saturday-noon deadline).
+    weeks[2].pick_deadline = now_eastern() + timedelta(days=1)
+    db.session.commit()
+
     assert gridiron_penalty_slots(entry, weeks[2]) == 2
-    assert gridiron_penalty_losses(entry) == 0, "not charged until picks are in"
+    assert gridiron_penalty_losses(entry) == 2, "charged on entering the week, not at its deadline"
     assert gridiron_penalty_slots(entry, weeks[1]) == 0
 
 

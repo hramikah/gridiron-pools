@@ -6,6 +6,7 @@ from models import ActivityLog, POOL_ENTRY_FEES, POOL_LABELS, POOLS, Entry, Game
 from pdf_report import build_week_pdf
 from scoring import (
     DROPDEAD_BUYBACK_FEE,
+    process_due_weeks,
     GRIDIRON_GRID_COLUMNS,
     dropdead_buyback_available,
     dropdead_matrix,
@@ -34,6 +35,15 @@ def index():
     There is no separate tick-box screen any more -- see auth.choose_pools.
     """
     season_year = current_app.config["CURRENT_SEASON"]
+    # Settle any past-deadline week before reading the table. The pick pages
+    # already do this; without it here, the standings and the place badge on
+    # the home card rendered whatever the last pick-page visit or the
+    # two-hourly update_scores run happened to leave behind, and disagreed
+    # with the pick page until one of them ran. Must be the FIRST statement:
+    # helpers._read_cache() memoises reads for the rest of a GET on the
+    # assumption nothing writes during one, so the write has to land before
+    # any cached read does.
+    process_due_weeks(season_year)
     my_entries = {}
     if current_user.is_authenticated:
         for e in Entry.query.filter_by(user_id=current_user.id, season_year=season_year).all():
@@ -226,6 +236,15 @@ def help_page(pool):
 @bp.route("/standings")
 def standings():
     season_year = current_app.config["CURRENT_SEASON"]
+    # Settle any past-deadline week before reading the table. The pick pages
+    # already do this; without it here, the standings and the place badge on
+    # the home card rendered whatever the last pick-page visit or the
+    # two-hourly update_scores run happened to leave behind, and disagreed
+    # with the pick page until one of them ran. Must be the FIRST statement:
+    # helpers._read_cache() memoises reads for the rest of a GET on the
+    # assumption nothing writes during one, so the write has to land before
+    # any cached read does.
+    process_due_weeks(season_year)
     weeks = Week.query.filter_by(season_year=season_year).order_by(Week.number).all()
     # Weeks are per-pool now; a week number is "unlocked" for a pool once that
     # pool's deadline for it has passed. Column headers show the union, but

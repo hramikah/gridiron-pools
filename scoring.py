@@ -5,6 +5,8 @@ from helpers import (
     _read_cache,
     deadline_passed,
     week_is_complete,
+    week_sort_key,
+    week_started,
 )
 from models import (
     DROPDEAD_BUYBACK_FEE,
@@ -179,10 +181,15 @@ def process_missed_picks(week):
       week; an entry with more than 5 missed weeks is benched (is_active
       set to False).
     """
-    # Nothing is charged for a preseason week: no Drop Dead no-show
-    # elimination, no Gridiron 0-5 or makeup allowance, no Loser auto-pick.
-    # Forgetting to pick in a trial run costs nothing real.
-    if not counts_for_season(week):
+    # A preseason week charges nothing in Drop Dead or the Loser Pool: no
+    # no-show elimination, no auto-pick. Gridiron is the exception. A preseason
+    # week an entry sat out IS recorded as a missed week, because that is what
+    # makes it behave like a real one: forgiven as a first miss (0-0-0, not
+    # 0-5), named in the standings' Penalties column, and worth the 8-pick
+    # makeup week that follows. Recorded, but never fatal -- the bench check
+    # below stays gated on counts_for_season(), so preseason misses cannot end
+    # anyone's season. (Commissioner's call, 2026-08-30.)
+    if not counts_for_season(week) and week.pool != "gridiron":
         return
 
     if week.pool == "dropdead":
@@ -242,6 +249,8 @@ def process_missed_picks(week):
                 continue
             db.session.add(GridironMiss(entry_id=entry.id, week_id=week.id))
             db.session.flush()
+            if not counts_for_season(week):
+                continue  # recorded, but a trial week can never bench anyone
             total_misses = GridironMiss.query.filter_by(entry_id=entry.id).count()
             if total_misses > GRIDIRON_BENCH_AFTER_MISSES:
                 entry.is_active = False
@@ -258,10 +267,16 @@ def ensure_missed_processed(week):
     if week is None or week.missed_processed or not deadline_passed(week):
         return
     if not counts_for_season(week):
-        # Settle it so it stops showing as owed, but charge nothing. Marked
-        # before the Loser MNF check below, which would otherwise hold a
-        # preseason Loser week open forever waiting for a game that only
-        # matters for an auto-pick nobody is going to be charged for.
+        # Settle it so it stops showing as owed. Marked before the Loser MNF
+        # check below, which would otherwise hold a preseason Loser week open
+        # forever waiting for a game that only matters for an auto-pick nobody
+        # is going to be charged for.
+        #
+        # Gridiron still runs: a sat-out preseason week is recorded as a miss
+        # so it is forgiven, named, and followed by the makeup week. Drop Dead
+        # and the Loser Pool are skipped entirely, as before.
+        if week.pool == "gridiron":
+            process_missed_picks(week)
         week.missed_processed = True
         db.session.commit()
         return
@@ -294,10 +309,12 @@ def due_weeks(season_year, pool=None):
     Oldest first matters: the Gridiron makeup week is the week straight after
     the first miss, so week N has to be settled before week N+1 is judged.
     """
-    weeks = (
-        Week.query.filter_by(season_year=season_year, missed_processed=False)
-        .order_by(Week.number, Week.pool)
-        .all()
+    # Sorted in Python for the same reason as gridiron_first_miss_week:
+    # ORDER BY Week.number would settle week 1 before Preseason Week 4, and
+    # "oldest first" is the whole point of this ordering.
+    weeks = sorted(
+        Week.query.filter_by(season_year=season_year, missed_processed=False).all(),
+        key=lambda w: week_sort_key(w) + (w.pool,),
     )
     if pool:
         weeks = [w for w in weeks if w.pool == pool]
@@ -360,6 +377,18 @@ def dropdead_buyback_available(entry, current_week):
     return bool(elim_week and elim_week.buyback_open)
 
 
+def _week_order(number):
+    """Where a week NUMBER sits on the schedule.
+
+    Preseason weeks are stored at PRESEASON_OFFSET + N so they never collide
+    with the regular season, which means a raw numeric comparison puts them
+    after week 18 when they actually come before week 1. Anything comparing
+    two week numbers has to go through here. helpers.week_sort_key does the
+    same job for a Week row.
+    """
+    return (0 if number > PRESEASON_OFFSET else 1, number)
+
+
 def gridiron_frozen_after(entry):
     """The last week that still counts for a benched entry, or None if live.
 
@@ -393,7 +422,8 @@ def gridiron_counted_picks(entry, through_week=None):
     """This entry's Gridiron picks from the weeks that still count."""
     picks = [p for p in entry.picks if gridiron_week_counts(entry, p.week.number)]
     if through_week is not None:
-        picks = [p for p in picks if p.week.number <= through_week]
+        picks = [p for p in picks
+                 if _week_order(p.week.number) <= _week_order(through_week)]
     return picks
 
 
@@ -409,16 +439,20 @@ def gridiron_first_miss_week(entry):
     if cache is not None and ck in cache:
         return cache[ck]
 
-    first = (
+    # Ordered in Python, not SQL. Preseason weeks are numbered 101+, so
+    # ORDER BY Week.number put them AFTER week 18 -- and a preseason miss then
+    # lost the race to any regular-season miss, which is the wrong week to
+    # forgive and the wrong week to hang the makeup off.
+    misses = (
         GridironMiss.query.join(Week, GridironMiss.week_id == Week.id)
         .filter(
             GridironMiss.entry_id == entry.id,
             Week.season_year == entry.season_year,
             Week.pool == "gridiron",
         )
-        .order_by(Week.number.asc())
-        .first()
+        .all()
     )
+    first = min(misses, key=lambda m: week_sort_key(m.week)) if misses else None
     result = first.week.number if first else None
     if cache is not None:
         cache[ck] = result
@@ -433,7 +467,28 @@ def gridiron_makeup_week(entry):
     subsequent failure, or a failure for the last week will result in the loss
     of all games for that week" -- so later misses get no extra picks."""
     first_miss = gridiron_first_miss_week(entry)
-    return first_miss + 1 if first_miss is not None else None
+    if first_miss is None:
+        return None
+    # The next week ON THE SCHEDULE, which is not always first_miss + 1.
+    # Preseason weeks are numbered 101+, so the week after Preseason Week 4
+    # (104) is Week 1 -- not a week 105 that will never exist. Getting this
+    # wrong means the makeup allowance is granted for a week nobody can play.
+    cache = _read_cache()
+    ck = ("gridiron_week_numbers", entry.season_year)
+    if cache is not None and ck in cache:
+        numbers = cache[ck]
+    else:
+        numbers = sorted(
+            (w.number for w in Week.query.filter_by(
+                season_year=entry.season_year, pool="gridiron").all()),
+            key=_week_order,
+        )
+        if cache is not None:
+            cache[ck] = numbers
+    if first_miss in numbers:
+        i = numbers.index(first_miss)
+        return numbers[i + 1] if i + 1 < len(numbers) else None
+    return first_miss + 1
 
 
 def gridiron_pick_limit(entry, week):
@@ -449,8 +504,17 @@ def gridiron_pick_limit(entry, week):
 def gridiron_penalty_losses(entry, through_week=None):
     """The 2-game penalty attached to the makeup week (8 picks out of 10).
 
-    Charged once the makeup week's deadline has passed, the same way empty
-    slots are, so it never shows up while that week's picks are still open.
+    Charged from the moment the league ENTERS the makeup week -- not when that
+    week's row is created, and not when its deadline passes.
+
+    Both other timings were wrong. Waiting for the deadline meant an entry read
+    0-0-0 on the Thursday the makeup week opened and 0-2-0 at Saturday noon,
+    while the pick page in front of them had been showing the 2 losses as slots
+    the whole time. Charging on existence was worse: all 18 regular weeks are
+    created at once, so the penalty would appear the instant the miss was
+    recorded, weeks before anyone could play the week it belongs to.
+    week_started() is the same boundary get_current_week() moves on.
+    (Commissioner's call, 2026-08-30.)
 
     Charged whether or not the entry turned up. The 2 games are the price of
     the makeup week itself, not of using it, so an entry that sits the week
@@ -460,14 +524,14 @@ def gridiron_penalty_losses(entry, through_week=None):
     makeup = gridiron_makeup_week(entry)
     if makeup is None:
         return 0
-    if through_week is not None and makeup > through_week:
+    if through_week is not None and _week_order(makeup) > _week_order(through_week):
         return 0
     if not gridiron_week_counts(entry, makeup):
         return 0
     week = Week.query.filter_by(
         season_year=entry.season_year, pool="gridiron", number=makeup
     ).first()
-    if week is None or not deadline_passed(week):
+    if not week_started(week):
         return 0
     return GRIDIRON_MAKEUP_PENALTY_LOSSES
 
@@ -694,9 +758,25 @@ def _gridiron_empty_losses(entry, through_week=None):
         ).all()
         if cache is not None:
             cache[ck] = weeks
-    weeks = [w for w in weeks if counts_for_season(w)]
+    # Preseason weeks are charged here too. Every OTHER view of an empty slot
+    # -- the "last week" column on the Master Standings, the weekly picks
+    # grid, the pick page's own slot list -- calls _gridiron_week_empty_losses
+    # directly and has never had this filter, so a preseason week the entry
+    # sat out already read as 0-5 in all of them while the season Won/Lost
+    # columns beside them read 0-0. Worse, it meant an entry that turned up
+    # and went 0-5 finished BELOW one that never picked at all.
+    # (Commissioner's call, 2026-08-30: a preseason week counts in the
+    # standings exactly like a regular one.)
+    #
+    # What preseason still cannot do is PENALISE beyond the week itself: no
+    # GridironMiss row, so no makeup week and no benching, and a sat-out
+    # preseason week does not burn the one forgiven first miss. Those all stay
+    # gated on counts_for_season() inside process_missed_picks().
     if through_week is not None:
-        weeks = [w for w in weeks if w.number <= through_week]
+        # Preseason weeks are numbered 101+, so a plain <= comparison would
+        # drop them from every through-week view. They happened before week 1,
+        # so they belong in all of them.
+        weeks = [w for w in weeks if w.is_preseason or w.number <= through_week]
     return sum(_gridiron_week_empty_losses(entry, w) for w in weeks)
 
 

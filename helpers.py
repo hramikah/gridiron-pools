@@ -204,9 +204,16 @@ def admin_required(f):
     return wrapper
 
 
-# A week opens for picking on the Thursday before its Saturday-noon deadline,
-# which is also when its betting week starts (Thursday -> the next Wednesday).
-WEEK_OPENS_DAYS_BEFORE_DEADLINE = 2
+# How far ahead of its own Saturday-noon deadline a week opens for picking --
+# which is also the moment it becomes the current week and, for an entry on its
+# makeup week, the moment that week's 2 penalty losses reach the standings.
+#
+# 3 days, so a week opens at noon on the WEDNESDAY before its deadline. It was
+# 2 (Thursday noon), which left almost no room in a week whose first game is
+# played on the Thursday: picks would have opened the same day, hours before
+# kickoff, and a game locks an hour before it starts either way.
+# (Commissioner's call, 2026-08-30.)
+WEEK_OPENS_DAYS_BEFORE_DEADLINE = 3
 
 
 def get_current_week(season_year, pool):
@@ -229,7 +236,7 @@ def get_current_week(season_year, pool):
     n = now_eastern()
 
     # A week becomes "the current week" when its own betting window opens --
-    # the Thursday before its Saturday-noon deadline -- not the instant the
+    # WEEK_OPENS_DAYS_BEFORE_DEADLINE ahead of its own deadline -- not the instant the
     # previous deadline passes. Without this, at 12:01 on Saturday the pick
     # pages jumped to the next scheduled week (possibly a fortnight out) and
     # the picks players had just locked in vanished from view.
@@ -349,6 +356,22 @@ def deadline_passed(week):
     if week is None:
         return True
     return now_eastern() > week.pick_deadline
+
+
+def week_started(week):
+    """True once a week's betting window has opened -- WEEK_OPENS_DAYS_BEFORE_DEADLINE
+    ahead of its own Saturday-noon deadline, and every moment after.
+
+    Deliberately the same boundary get_current_week() moves on, so "the league
+    is in this week" means one thing across the site. A week row can exist
+    weeks or months ahead of that (all 18 regular weeks are created at once),
+    so existence is not the test.
+    """
+    if week is None:
+        return False
+    return now_eastern() >= week.pick_deadline - timedelta(
+        days=WEEK_OPENS_DAYS_BEFORE_DEADLINE
+    )
 
 
 def week_is_complete(week):

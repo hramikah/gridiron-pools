@@ -226,17 +226,54 @@ def test_forgetting_a_preseason_week_records_the_gridiron_miss_only(app, make_we
     assert survivor.is_active is True, "but a Drop Dead no-show must not eliminate"
 
 
-def test_a_preseason_loser_week_settles_without_a_monday_night_game(app, make_week, make_entry):
-    """A regular Loser week waits for its MNF game so the no-show auto-pick can
-    be assigned. A preseason one has no auto-pick to assign, so waiting would
-    leave it owed forever."""
+def test_a_preseason_loser_week_waits_for_its_monday_night_game(app, make_week, make_entry):
+    """A preseason Loser week waits for its MNF game exactly as a regular one
+    does, because it has the same auto-pick to assign.
+
+    It used to settle immediately and hand out nothing, which left every
+    entry that forgot with no pick at all for the week.
+    """
     pre = _preseason_week(make_week, pool="loser")
     make_entry("player", pool="loser")
 
     process_due_weeks(SEASON)
 
+    assert pre.missed_processed is False, "still owed -- nothing is flagged MNF yet"
+    assert Pick.query.filter_by(week_id=pre.id).count() == 0
+
+
+def test_a_preseason_loser_no_show_is_assigned_the_mnf_visitor(app, make_week, make_entry):
+    """Once a game is flagged MNF and linked to real Team rows, the no-show
+    auto-pick lands in a preseason week just as it would in the season."""
+    pre = _preseason_week(make_week, pool="loser")
+    entry = make_entry("forgot", pool="loser")
+    home, away = _teams()
+    game = Game.query.filter_by(week_id=pre.id).first()
+    game.home_team_id, game.away_team_id, game.is_mnf = home.id, away.id, True
+    db.session.commit()
+
+    process_due_weeks(SEASON)
+
     assert pre.missed_processed is True
-    assert Pick.query.filter_by(week_id=pre.id).count() == 0, "no auto-pick in a trial week"
+    picks = Pick.query.filter_by(week_id=pre.id, entry_id=entry.id).all()
+    assert len(picks) == 1
+    assert picks[0].team_id == away.id, "the VISITING team of the last Monday night game"
+
+
+def test_a_loser_game_with_no_team_links_cannot_be_auto_assigned(app, make_week, make_entry):
+    """A hand-entered game carrying only free-text names has no away_team_id.
+    There is nothing to assign, so the week stays owed and visibly unsettled
+    rather than quietly closing with the no-shows left pickless."""
+    pre = _preseason_week(make_week, pool="loser")
+    make_entry("forgot", pool="loser")
+    game = Game.query.filter_by(week_id=pre.id).first()
+    game.is_mnf = True          # flagged, but never linked to Team rows
+    db.session.commit()
+
+    process_due_weeks(SEASON)
+
+    assert pre.missed_processed is False
+    assert Pick.query.filter_by(week_id=pre.id).count() == 0
 
 
 def test_week_labels_never_show_the_stored_number(app):

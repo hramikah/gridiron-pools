@@ -77,3 +77,26 @@ slots on the PW5 pick page.
    almost no room. The constant drives get_current_week() and week_started()
    together, so the pick pages, the current-week label and the makeup week's
    2 penalty losses all move on the same instant.
+
+7. A preseason Loser Pool week now assigns the no-show auto-pick, and waits for
+   its Monday night game like any other week.
+
+   process_missed_picks short-circuited on every preseason week, so an entry
+   that forgot a preseason Loser week was left with no pick at all -- pressing
+   Process Missed Picks handed out nothing. Preseason weeks now settle down the
+   same path as the rest; the pools that must not act on one say so inside
+   process_missed_picks instead of at the door.
+
+   Drop Dead keeps its exemption, moved into the branch that needs it:
+   elimination ends a season with no way back, so a preseason no-show is left
+   alone there, exactly as score_dropdead_pick already leaves a losing preseason
+   pick alone. Benching in Gridiron stays gated the same way.
+
+   The MNF wait now applies to preseason too, which is the point: a week whose
+   MNF game is missing, unflagged, or carries only typed-in team names (no
+   away_team_id) stays owed and visibly unsettled rather than closing quietly
+   with the no-shows left pickless.
+
+   diagnose-loser-mnf.command (new, read-only) reports, per Loser week, which
+   game is flagged MNF, whether it is linked to real Team rows, how many entries
+   have no pick, and which team would be handed out.

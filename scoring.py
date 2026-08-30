@@ -181,18 +181,25 @@ def process_missed_picks(week):
       week; an entry with more than 5 missed weeks is benched (is_active
       set to False).
     """
-    # A preseason week charges nothing in Drop Dead or the Loser Pool: no
-    # no-show elimination, no auto-pick. Gridiron is the exception. A preseason
-    # week an entry sat out IS recorded as a missed week, because that is what
-    # makes it behave like a real one: forgiven as a first miss (0-0-0, not
-    # 0-5), named in the standings' Penalties column, and worth the 8-pick
-    # makeup week that follows. Recorded, but never fatal -- the bench check
-    # below stays gated on counts_for_season(), so preseason misses cannot end
-    # anyone's season. (Commissioner's call, 2026-08-30.)
-    if not counts_for_season(week) and week.pool != "gridiron":
-        return
-
+    # A preseason week is played for real in Gridiron and the Loser Pool.
+    #
+    # Gridiron: a week an entry sat out IS recorded as a missed week, because
+    # that is what makes it behave like a real one -- forgiven as a first miss
+    # (0-0-0, not 0-5), named in the standings' Penalties column, and worth the
+    # 8-pick makeup week after it. Recorded but never fatal: the bench check
+    # below stays gated on counts_for_season().
+    #
+    # Loser: an entry that forgot still gets the MNF visitor assigned. Skipping
+    # it left those entries with no pick at all for the week, which is not what
+    # a trial run is for.
+    #
+    # Drop Dead is the one pool a preseason week cannot touch. Elimination ends
+    # a season with no way back, so a no-show is left alone here exactly as
+    # score_dropdead_pick leaves a losing preseason pick alone.
+    # (Commissioner's call, 2026-08-30.)
     if week.pool == "dropdead":
+        if not counts_for_season(week):
+            return
         picked_dropdead_entry_ids = {
             p.entry_id
             for p in Pick.query.filter_by(pool="dropdead", week_id=week.id).all()
@@ -266,20 +273,10 @@ def ensure_missed_processed(week):
     Monday Night game is entered so the no-show auto-pick can be assigned."""
     if week is None or week.missed_processed or not deadline_passed(week):
         return
-    if not counts_for_season(week):
-        # Settle it so it stops showing as owed. Marked before the Loser MNF
-        # check below, which would otherwise hold a preseason Loser week open
-        # forever waiting for a game that only matters for an auto-pick nobody
-        # is going to be charged for.
-        #
-        # Gridiron still runs: a sat-out preseason week is recorded as a miss
-        # so it is forgiven, named, and followed by the makeup week. Drop Dead
-        # and the Loser Pool are skipped entirely, as before.
-        if week.pool == "gridiron":
-            process_missed_picks(week)
-        week.missed_processed = True
-        db.session.commit()
-        return
+    # Preseason weeks are no longer short-circuited here. They settle down the
+    # same path as any other week, which is what lets a preseason Gridiron miss
+    # be recorded and a preseason Loser no-show be auto-assigned. The pools that
+    # must not act on one say so inside process_missed_picks().
     if week.pool == "loser":
         mnf = (
             Game.query.filter_by(week_id=week.id, is_mnf=True)
@@ -287,7 +284,13 @@ def ensure_missed_processed(week):
             .first()
         )
         if not (mnf and mnf.away_team_id):
-            return  # retry on a later load, once the MNF game exists
+            # Retry on a later load, once a game is flagged MNF and that game
+            # is linked to real Team rows. A hand-entered game carrying only
+            # free-text names has no away_team_id, so there is nothing to
+            # assign and nothing this could score -- the week stays owed, and
+            # says so in the admin, rather than silently settling with the
+            # no-shows left pickless.
+            return
     process_missed_picks(week)
     enforce_dropdead_no_tie(week)
     week.missed_processed = True

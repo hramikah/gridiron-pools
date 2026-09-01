@@ -52,11 +52,16 @@
         <label class="form-label">Password</label>
         <input type="password" class="form-control" name="password" required>
       </div>
-      <button type="submit" class="btn btn-primary">Login</button>
-      <a href="{{ url_for('auth.forgot_password') }}" class="btn btn-link">Forgot password?</a>
-      {% if has_valid_invite %}
-      <a href="{{ url_for('auth.register') }}" class="btn btn-link">Need an account?</a>
-      {% endif %}
+      <div class="d-grid mb-4">
+        <button type="submit" class="btn btn-primary btn-lg">Login</button>
+      </div>
+      {# "Need an account?" used to sit here for a visitor holding a valid
+         invite. Dropped 2026-09-01: the Register link in the top nav covers
+         that same visitor, and the invite email links straight to the
+         register page, so this was a third copy of one path. #}
+      <div class="d-grid text-center">
+        <a href="{{ url_for('auth.forgot_password') }}" class="btn btn-link py-2">Forgot password?</a>
+      </div>
     </form>
   </div>
 </div>

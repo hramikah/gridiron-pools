@@ -23,20 +23,33 @@ from scoring import process_due_weeks  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
 if __name__ == "__main__":
+    # Fetching scores and settling past-deadline weeks are independent jobs
+    # that happen to share a timer, and settling is the one that must never be
+    # skipped: it is what applies a missed week's penalties, hands out the
+    # Loser Pool's no-show auto-pick and records a Gridiron miss, with nobody
+    # pressing a button. It used to sit behind sys.exit(1) on a scoring
+    # failure, so one bad Odds API call -- an expired key, a timeout, the
+    # monthly credit gone -- left every past-deadline week owed until an admin
+    # happened to open a page. Each job now runs, logs and fails on its own,
+    # and the exit code still reports if either did.
+    failed = False
+
+    summary = None
     try:
         summary = update_scores(app)
     except Exception:
         logging.exception("Failed to update scores")
-        sys.exit(1)
+        failed = True
 
-    logging.info(
-        "Scores: %s finalized, %s already final, %s still pending",
-        summary["finalized"],
-        summary["already_final"],
-        summary["pending"],
-    )
-    for line in summary.get("details", []):
-        logging.info("  finalized %s", line)
+    if summary is not None:
+        logging.info(
+            "Scores: %s finalized, %s already final, %s still pending",
+            summary["finalized"],
+            summary["already_final"],
+            summary["pending"],
+        )
+        for line in summary.get("details", []):
+            logging.info("  finalized %s", line)
 
     # A failure here must not look like a scoring failure, and must not stop
     # the next run: the weeks stay unprocessed and are retried in two hours.
@@ -51,4 +64,7 @@ if __name__ == "__main__":
             logging.info("Weeks: nothing owed processing")
     except Exception:
         logging.exception("Failed to settle past-deadline weeks")
+        failed = True
+
+    if failed:
         sys.exit(1)

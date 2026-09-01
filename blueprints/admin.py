@@ -8,8 +8,8 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting, week_label
-from mailer import send_invite_link_emails, send_password_reset_email, send_player_message_email
-from models import DEFAULT_MAX_TEAMS, DEFAULT_SITE_URL, ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, name_key, name_order, now
+from mailer import send_invite_link_emails, send_password_reset_email, send_password_reset_link_email, send_player_message_email
+from models import DEFAULT_MAX_TEAMS, DEFAULT_SITE_URL, ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, PasswordReset, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, name_key, name_order, now
 from publisher import publish_week
 from scoring import DROPDEAD_BUYBACK_FEE, GRIDIRON_GRID_COLUMNS, GRIDIRON_MISS_PENALTY_LOSSES, enforce_dropdead_no_tie, ensure_missed_processed, gridiron_pick_limit, process_due_weeks, gridiron_picks_grid, process_missed_picks, score_game
 
@@ -184,29 +184,59 @@ def toggle_admin(user_id):
 
 @bp.route("/players/<int:user_id>/reset-password", methods=["POST"])
 def reset_password(user_id):
+    """Send the player the same single-use link they would get from "forgot
+    password", so they choose their own password instead of being read a
+    temporary one over the phone.
+
+    Deliberately does NOT change the password here: mail to Yahoo and the
+    like can sit in a queue for ten minutes, and locking someone out of an
+    account they can still get into while they wait for that email is worse
+    than leaving the old password alive until they use the link. An account
+    with no email on file has no link to click, so that case still falls back
+    to a temporary password shown once on screen."""
     user = User.query.get_or_404(user_id)
+
+    if user.email:
+        # Built from the configured site_url, never the request's Host header
+        # -- same reason as the invite links.
+        site_url = get_setting("site_url", DEFAULT_SITE_URL) or DEFAULT_SITE_URL
+        token = secrets.token_urlsafe(32)
+        db.session.add(PasswordReset(user_id=user.id, token=token))
+        db.session.commit()
+        link = f"{site_url}{url_for('auth.reset_password', token=token)}"
+        send_async(send_password_reset_link_email, user.email, [(user.username, link)], True)
+        log_activity(
+            "password_reset_requested",
+            f"Reset link sent by {current_user.username} to {user.email}",
+            user=user,
+        )
+        flash(
+            f"A reset link is on its way to {user.email} for {user.username}. "
+            "It works once and expires in 1 hour. Their current password keeps "
+            "working until they use it -- tell them to check spam if it hasn't "
+            "landed in a few minutes.",
+            "success",
+        )
+        return redirect(url_for("admin.players"))
+
     temp_password = secrets.token_urlsafe(6)
     user.set_password(temp_password)
     db.session.commit()
-    if user.email:
-        send_async(send_password_reset_email, user, temp_password)
-        emailed = f" It was also emailed to {user.email}."
-    else:
-        emailed = " They have no email on file, so it wasn't sent to them."
     # Filed against the player whose password changed, with the admin named --
     # somebody else taking control of an account is exactly the kind of thing
     # you want to be able to find later. The temporary password itself is
     # never written here.
     log_activity(
         "password_reset",
-        f"Password reset by {current_user.username}; temporary password "
-        + ("emailed to them" if user.email else "shown on screen only (no email on file)"),
+        f"Password reset by {current_user.username}; temporary password shown "
+        "on screen only (no email on file)",
         user=user,
     )
     flash(
-        f"New temporary password for {user.username}: {temp_password} "
-        "-- give this to them now, it won't be shown again. They should change it "
-        f"immediately after logging in (top-right menu -> Change Password).{emailed}",
+        f"{user.username} has no email on file, so there is nowhere to send a "
+        f"reset link. Their new temporary password is: {temp_password} -- give "
+        "this to them now, it won't be shown again, and they should change it "
+        "right after logging in (top-right menu -> Change Password).",
         "success",
     )
     return redirect(url_for("admin.players"))

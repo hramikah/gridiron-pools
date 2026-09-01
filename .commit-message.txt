@@ -100,3 +100,12 @@ slots on the PW5 pick page.
    diagnose-loser-mnf.command (new, read-only) reports, per Loser week, which
    game is flagged MNF, whether it is linked to real Team rows, how many entries
    have no pick, and which team would be handed out.
+
+8. Settling past-deadline weeks no longer rides on the score fetch succeeding.
+
+   update_scores.py ran update_scores() and sys.exit(1)'d on any exception,
+   before it ever reached process_due_weeks(). Since that timer is the only
+   thing that settles a week when nobody is on the site, one bad Odds API call
+   -- expired key, timeout, monthly credits gone -- left every past-deadline
+   week owed until an admin happened to open a page. The two jobs now run, log
+   and fail independently; the exit code still reports if either did.

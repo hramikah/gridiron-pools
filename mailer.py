@@ -103,10 +103,15 @@ def send_password_reset_email(user, temp_password):
     _send(user.email, subject, body)
 
 
-def send_password_reset_link_email(email, username_links):
+def send_password_reset_link_email(email, username_links, by_admin=False):
     """username_links: list of (username, reset_url) pairs. One email may
     have several accounts (one per entry), so a single message carries a
-    separate single-use link for each."""
+    separate single-use link for each.
+
+    by_admin is True when a commissioner started the reset from the Players
+    page instead of the player using the "forgot password" form -- same
+    link, different explanation, because "someone asked to reset your
+    password" reads like a break-in attempt when it was the commissioner."""
     subject = "Reset your Gridiron Pools password"
     if len(username_links) == 1:
         username, link = username_links[0]
@@ -117,14 +122,25 @@ def send_password_reset_link_email(email, username_links):
             "you want to reset:\n\n"
             + "\n".join(f"Account: {u}\n{link}\n" for u, link in username_links)
         )
-    body = (
-        "Hi,\n\n"
-        "Someone asked to reset the Gridiron Pools password for this email.\n\n"
-        f"{accounts}\n"
-        "The link works once and expires in 1 hour. If you didn't ask for "
-        "this, you can ignore this email -- your password hasn't changed.\n\n"
-        "-- Gridiron Pools"
-    )
+    if by_admin:
+        body = (
+            "Hi,\n\n"
+            "A Gridiron Pools commissioner started a password reset for this "
+            "email. Use the link below to pick a new password.\n\n"
+            f"{accounts}\n"
+            "The link works once and expires in 1 hour. Your current password "
+            "keeps working until you use it.\n\n"
+            "-- Gridiron Pools"
+        )
+    else:
+        body = (
+            "Hi,\n\n"
+            "Someone asked to reset the Gridiron Pools password for this email.\n\n"
+            f"{accounts}\n"
+            "The link works once and expires in 1 hour. If you didn't ask for "
+            "this, you can ignore this email -- your password hasn't changed.\n\n"
+            "-- Gridiron Pools"
+        )
     _send(email, subject, body)
 
 

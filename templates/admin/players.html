@@ -63,8 +63,8 @@
       </td>
       <td>
         <form method="post" action="{{ url_for('admin.reset_password', user_id=u.id) }}"
-              onsubmit="return confirm('Reset {{ u.username }}\'s password? A new temporary password will be shown once — make sure to copy it and give it to them.');">
-          <button type="submit" class="btn btn-sm btn-outline-warning">Reset Password</button>
+              onsubmit="return confirm({% if u.email %}'Email {{ u.username }} a link to set a new password? Goes to {{ u.email }}. Their current password keeps working until they use it.'{% else %}'{{ u.username }} has no email on file, so a temporary password will be shown once — make sure to copy it and give it to them. Continue?'{% endif %});">
+          <button type="submit" class="btn btn-sm btn-outline-warning">{% if u.email %}Send Reset Link{% else %}Reset Password{% endif %}</button>
         </form>
       </td>
       <td>

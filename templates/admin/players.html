@@ -10,9 +10,9 @@
     <tr>
       <th>Username</th>
       <th>Email</th>
-      <th>Drop Dead</th>
-      <th>Loser</th>
       <th>Gridiron</th>
+      <th>Loser</th>
+      <th>Drop Dead</th>
       <th>Role</th>
       <th>Allow Max Teams</th>
       <th></th>
@@ -25,7 +25,7 @@
     <tr>
       <td>{{ u.username }}</td>
       <td>{{ u.email }}</td>
-      {% for pool in ['dropdead', 'loser', 'gridiron'] %}
+      {% for pool in ['gridiron', 'loser', 'dropdead'] %}
       <td>
         {% set pool_entries = entries|selectattr('pool', 'equalto', pool)|list %}
         <form method="post" action="{{ url_for('admin.toggle_pool_membership', user_id=u.id, pool=pool) }}"

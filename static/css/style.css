@@ -1360,3 +1360,11 @@ body.has-pick-save-bar { padding-bottom: 5.5rem; }
     line-height: 1.05 !important;
   }
 }
+
+/* Loser Pool rules, the points table. The badges carry one- and two-digit
+   numbers; without a floor on the width the team names sit at two different
+   left edges down a column and the block reads ragged. */
+.loser-points-grid .badge {
+  min-width: 2.1rem;
+  text-align: center;
+}

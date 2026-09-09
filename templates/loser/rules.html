@@ -28,11 +28,27 @@
 </ul>
 
 <h5 class="fw-bold">{{ season_year }} POINTS</h5>
-<div class="row">
-  {% for lp in points %}
-  <div class="col-6 col-md-3 mb-1"><span class="badge bg-secondary">{{ lp.points }}</span> {{ lp.team.name }}</div>
+{# Read DOWN a column, not across a row. The list arrives sorted by points
+   ascending, and |batch(per_col) cuts it into consecutive runs -- so the first
+   column holds the cheapest teams, the last holds the dearest, and the value
+   climbs left to right. Filling the old single .row put the four cheapest side
+   by side on row one instead, which is the opposite of how the printed sheet
+   reads. #}
+{% if points %}
+{% set col_count = 4 %}
+{% set per_col = (((points|length) + col_count - 1) // col_count) or 1 %}
+<div class="row loser-points-grid">
+  {% for column in points|batch(per_col) %}
+  <div class="col-6 col-md-3">
+    {% for lp in column %}
+    <div class="mb-1"><span class="badge bg-secondary">{{ lp.points }}</span> {{ lp.team.name }}</div>
+    {% endfor %}
+  </div>
   {% endfor %}
 </div>
+{% else %}
+<p class="text-muted">Point values have not been set for this season yet.</p>
+{% endif %}
 <p class="text-muted mt-2">Remember, these designated points for each team remain the same all season long.</p>
 
 <p class="mt-4 mb-1"><strong>COST: $20.00 per entry - - good for the whole season.</strong><br>

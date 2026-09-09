@@ -1,69 +1,42 @@
-Preseason purge: a read-only diagnosis and the purge itself
+Loser Pool rules: read the points table DOWN the columns
 
-Two new .command scripts for the switch into the regular season. Neither is
-part of the app; they sit alongside the other diagnose-*.command tools and run
-from the Mac over SSH.
+The 32 teams were laid out in a single Bootstrap .row of col-md-3 cells, which
+fills left to right, row by row -- so the four cheapest teams sat side by side
+on the top row. The printed sheet reads down its columns instead: Cardinals,
+Dolphins, Jets, Raiders down the far left, and the value climbing as you move
+right.
 
-- diagnose-preseason.command -- READ-ONLY. Copies the live database to a
-  throwaway file on the droplet, reports every scrap of preseason data, then
-  performs the purge ON THAT COPY and prints the standings before and after,
-  an orphan check, and an HTTP check that every page still renders. The live
-  database is never written.
+The grid is now four explicit columns, cut with |batch(per_col) from the same
+points-ascending list, so column 1 is the cheapest eight and column 4 the
+dearest eight. per_col is a ceiling division rather than a hard 8, so a season
+with a different number of teams still balances, and an empty list gets a
+message instead of a division by zero.
 
-- purge-preseason.command -- the real thing. Takes a SQLite .backup() of the
-  live database first (not a file copy: the site holds it open, and copying a
-  live SQLite file is how the August database got corrupted), on the droplet
-  and again on this Mac. Then re-checks its assumptions and REFUSES if any of
-  them has moved: a regular week with picks in it, a GridironMiss row pointing
-  somewhere other than a preseason week, or a buy-back recorded as paid. Only
-  then does it delete -- miss rows first, then picks, games, weeks -- clears a
-  preseason-pinned active_week, verifies no orphans are left, prints the new
-  standings, restarts the site and prints the restore commands.
+Also: .loser-points-grid .badge gets a min-width, because one- and two-digit
+point values otherwise left the team names on two different left edges down a
+column.
 
-GridironMiss is why the order matters. Week cascades to its games and picks but
-NOT to GridironMiss, so deleting a preseason week without taking its miss rows
-first leaves rows pointing at a week that no longer exists -- and those rows are
-what grant a forgiven miss plus an 8-pick makeup week with 2 penalty losses.
-On live, all 88 of them point at a preseason week.
+Checked at 1200px (four columns of eight) and at 390px (two of eight, then two
+more), reading correctly down each column in both.
 
-Both scripts were exercised end to end against a 150-player database: the
-success path, the refusal path (a stray miss row), a second run (nothing left
-to do), and an HTTP check of every page afterwards.
+Also adds add-opener-game.command -- pulls the Wednesday season opener's real
+line from The Odds API and adds it to Week 1 in all three pools. Unused if the
+game is entered by hand instead; kept because the same thing happens whenever
+the opener falls outside the Thu-Wed window.
 
-Post-run fix: the health check after the restart curled login-gated pages
-without -L and reported bare 302s, which reads like a failure and is not one.
-It now follows the redirect and prints where it landed.
+And publish-week-now.command -- runs the ordinary publish against the LIVE
+database on demand, aimed at the COMING Thursday (run today, the plain
+publisher picks the week about to end). Dry run first, refuses if that resolves
+to a preseason week, backs up, then prints the resulting slate. This is what
+put Week 1's 15 NFL and 85 college games up.
 
----
+And pause-droplet-publish.command / resume-droplet-publish.command -- stop and
+start the LIVE site's Thursday publish timer. The publisher only skips a game
+it can still SEE in the week, so a college game deleted by hand is simply
+re-added on the next run; pausing is the only way to make a hand-pruned slate
+stick. Scores keep running either way. The pause script says loudly that the
+next week will not publish itself until the resume is run.
 
-Hand-added games now spell teams the way the odds feed does
-
-The admin forms wrote Team.name -- the nickname alone, "Cowboys" -- while
-publisher.py stores what the feed sends, "Dallas Cowboys". Two jobs match on
-that string letter for letter, so anything added by hand was invisible to both:
-
-  * publisher.py dedupes on (week_id, home_team, away_team), so a hand-added
-    game inside the week's window was not recognised and got added a SECOND
-    time;
-  * score_fetcher.py keys results on (away_team, home_team), so a hand-added
-    game never received its final score -- in any pool, not just Drop Dead.
-
-helpers.game_team_name(team) is now the single definition of how a Game row
-spells a team, and helpers.normalize_nfl_team_name() expands a typed nickname
-("ravens" -> "Baltimore Ravens") for the free-text Gridiron form. Every path
-that creates a Game goes through one of them: Week Manager's add form (all
-three pools), the pool-week add form, the edit form, and publish_next_week.py.
-College names are not nicknames and pass through untouched. The pool-week
-dropdown's data-name and the placeholders were updated to match, with a note
-on the form saying why the full name matters.
-
-team_colors already handled both spellings ("game rows carry the full name"),
-so the pick-button tinting is unaffected.
-
-Done now because the preseason purge left ZERO games in the database: nothing
-to rename, and no chance of two spellings coexisting across the season.
-
-Verified against a 150-player database: all four entry paths store the full
-name, a college game is untouched, the publisher's own dedupe query now MATCHES
-a hand-added game (and still misses the old nickname spelling), and the admin
-pages render. 56 tests pass.
+Note the existing pause-publishweek.command / resume-publishweek.command target
+a launchd agent on the Mac from before the droplet existed. They do nothing to
+the live site.

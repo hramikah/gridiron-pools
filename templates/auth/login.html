@@ -2,44 +2,6 @@
 {% block title %}Login - Gridiron Pools{% endblock %}
 {% block content %}
 
-{# ------------------------------------------------------------------ #}
-{# Site notice, 2026-08-26. Replaces the 2026-08-23 shared-password    #}
-{# notice, which described the demo simulation and a password every    #}
-{# account shared -- both gone now that the site runs on real data      #}
-{# with a roster that starts empty.                                     #}
-{# Shown to signed-out visitors only, as a popup on load plus a banner  #}
-{# that stays put after the popup is dismissed. Remove this block (and  #}
-{# the script at the bottom) once everyone has registered.              #}
-{# ------------------------------------------------------------------ #}
-{% if not current_user.is_authenticated %}
-{% set site_notice %}
-  <p class="mb-0"><strong>Welcome to Gridiron Investments 2026!</strong>
-  If you were with us for early testing before August 26th you will need to
-  create a new account.</p>
-{% endset %}
-
-<div class="modal fade" id="siteNoticeModal" tabindex="-1" aria-labelledby="siteNoticeLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="siteNoticeLabel"><span class="pool-icon">📢</span>Site Notice</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">{{ site_notice }}</div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-gridiron" data-bs-dismiss="modal">Got it</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row justify-content-center">
-  <div class="col-md-6">
-    <div class="alert alert-info" role="alert">{{ site_notice }}</div>
-  </div>
-</div>
-{% endif %}
-
 <div class="row justify-content-center">
   <div class="col-md-5">
     <h2 class="mb-4 text-center"><span class="pool-icon">🏈</span>Login</h2>
@@ -65,16 +27,4 @@
     </form>
   </div>
 </div>
-
-{% if not current_user.is_authenticated %}
-<script>
-  // base.html can render its own popup (#popupAnnouncementModal). Two modals
-  // opening at once fight over the backdrop, so stand down if that one exists.
-  document.addEventListener('DOMContentLoaded', function () {
-    if (document.getElementById('popupAnnouncementModal')) return;
-    var el = document.getElementById('siteNoticeModal');
-    if (el && window.bootstrap) new bootstrap.Modal(el).show();
-  });
-</script>
-{% endif %}
 {% endblock %}

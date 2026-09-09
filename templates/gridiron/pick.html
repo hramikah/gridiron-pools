@@ -286,8 +286,8 @@
                 {% set ts = team_styles.get(g.home_team) if g.sport != 'college' else none %}<label class="pick-option {% if ts %}team-tinted{% endif %}" for="sp_{{ g.id }}_home" {% if ts %}style="--team-fill: {{ ts.fill }}; --team-ink: {{ ts.ink }}; --team-label: {{ ts.label }};"{% endif %}><span class="pick-name">{{ team_label(g, 'home') }}</span><span class="pick-spread">{% if g.favorite == 'home' %}-{{ g.spread }}{% elif g.favorite == 'away' %}+{{ g.spread }}{% else %}PK{% endif %}</span></label>
               {% endset %}
               <div class="pick-choice-group" role="group">
-                {# favorite on the left, underdog on the right (plain away/home order for pick'em) #}
-                {% if g.favorite == 'home' %}{{ home_btn }}{{ away_btn }}{% else %}{{ away_btn }}{{ home_btn }}{% endif %}
+                {# away team on the left, home team on the right #}
+                {{ away_btn }}{{ home_btn }}
 
                 <input type="radio" class="btn-check" name="sel_{{ g.id }}_spread" id="sp_{{ g.id }}_none" value="" autocomplete="off" checked {% if g_locked %}disabled{% endif %}>
                 {# Always rendered so the row never changes size -- see

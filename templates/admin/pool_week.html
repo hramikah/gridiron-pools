@@ -45,11 +45,15 @@
       </div>
       <div class="col-md-5">
         <label class="form-label">Away team (name)</label>
-        <input type="text" name="away_team" class="form-control" required placeholder="e.g. Steelers">
+        <input type="text" name="away_team" class="form-control" required placeholder="e.g. Pittsburgh Steelers">
+        <div class="form-text">NFL: use the full name, city and all. That is how the
+        odds feed spells it, and matching it is what stops the Thursday job adding
+        the game a second time and lets the score job fill in the result. A bare
+        nickname is expanded for you. College names are free text.</div>
       </div>
       <div class="col-md-5">
         <label class="form-label">Home team (name)</label>
-        <input type="text" name="home_team" class="form-control" required placeholder="e.g. Ravens">
+        <input type="text" name="home_team" class="form-control" required placeholder="e.g. Baltimore Ravens">
       </div>
       <div class="col-md-2">
         <label class="form-label">Favorite</label>
@@ -79,7 +83,7 @@
         <label class="form-label">Away team</label>
         <select name="away_team_id" class="form-select team-name-src" data-target="away_team" required>
           <option value="">-- select NFL team --</option>
-          {% for t in teams %}<option value="{{ t.id }}" data-name="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+          {% for t in teams %}<option value="{{ t.id }}" data-name="{{ t.city }} {{ t.name }}">{{ t.name }}</option>{% endfor %}
         </select>
         <input type="hidden" name="away_team" value="">
       </div>
@@ -88,7 +92,7 @@
         <label class="form-label">Home team</label>
         <select name="home_team_id" class="form-select team-name-src" data-target="home_team" required>
           <option value="">-- select NFL team --</option>
-          {% for t in teams %}<option value="{{ t.id }}" data-name="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+          {% for t in teams %}<option value="{{ t.id }}" data-name="{{ t.city }} {{ t.name }}">{{ t.name }}</option>{% endfor %}
         </select>
         <input type="hidden" name="home_team" value="">
       </div>

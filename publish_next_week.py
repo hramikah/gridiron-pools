@@ -124,7 +124,10 @@ def run():
             for pool in POOLS:
                 db.session.add(Game(
                     week_id=weeks[pool].id, pool=pool, sport="nfl",
-                    away_team=away.name, home_team=home.name,
+                    # Full "City Nickname", the way publisher.py and the odds
+                    # feed spell it -- see helpers.game_team_name.
+                    away_team=f"{away.city} {away.name}".strip(),
+                    home_team=f"{home.city} {home.name}".strip(),
                     away_team_id=away.id, home_team_id=home.id,
                     favorite=favorite if pool == "gridiron" else None,
                     spread=spread if pool == "gridiron" else None,

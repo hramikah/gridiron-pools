@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from flask import abort, current_app, request
 from flask_login import current_user
 
-from models import POOLS, PRESEASON_OFFSET, ActivityLog, ContactMessage, Game, Setting, Week, db
+from models import POOLS, PRESEASON_OFFSET, ActivityLog, ContactMessage, Game, Setting, Team, Week, db
 from testbed_guard import TESTBED_MARKER
 
 EASTERN = ZoneInfo("America/New_York")
@@ -94,6 +94,46 @@ def _testbed_clock():
         # No app context, no Setting table yet, or a value someone typed by
         # hand: fall through to the real clock rather than break the page.
         return None
+
+
+# ---------------------------------------------------------------------------
+# How a Game row spells a team
+# ---------------------------------------------------------------------------
+# There is exactly one correct answer and it is not ours to choose: the odds
+# feed sends "Dallas Cowboys", publisher.py stores that string verbatim, and
+# two separate jobs then match on it letter for letter --
+#
+#   * publisher.py dedupes on (week_id, home_team, away_team), so a game
+#     spelled differently is not recognised as already present and gets
+#     added a second time;
+#   * score_fetcher.py keys results on (away_team, home_team), so a game
+#     spelled differently never receives its final score.
+#
+# The admin forms used to write Team.name, which is the nickname alone
+# ("Cowboys"). Anything hand-added was therefore invisible to both jobs.
+# Every path that creates a Game now goes through these two.
+# ---------------------------------------------------------------------------
+
+def game_team_name(team):
+    """The full "City Nickname" a Game row stores for an NFL team."""
+    if team is None:
+        return ""
+    return f"{team.city} {team.name}".strip() if team.city else team.name
+
+
+def normalize_nfl_team_name(name):
+    """Expand a bare nickname typed into an admin form to the full name.
+
+    "Ravens" -> "Baltimore Ravens". Anything that is not exactly an NFL
+    nickname is returned untouched, so a full name stays as it is and a
+    college side ("Clemson Tigers") passes straight through. Callers apply
+    this to NFL games only.
+    """
+    typed = (name or "").strip()
+    if not typed:
+        return typed
+    team = Team.query.filter(db.func.lower(Team.name) == typed.lower()).first()
+    return game_team_name(team) if team else typed
 
 
 def now_eastern():

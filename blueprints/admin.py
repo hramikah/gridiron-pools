@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from helpers import admin_required, deadline_passed, get_current_week, get_setting, log_activity, send_async, set_setting, week_label
+from helpers import admin_required, deadline_passed, game_team_name, get_current_week, get_setting, log_activity, normalize_nfl_team_name, send_async, set_setting, week_label
 from mailer import send_invite_link_emails, send_password_reset_email, send_password_reset_link_email, send_player_message_email
 from models import DEFAULT_MAX_TEAMS, DEFAULT_SITE_URL, ActivityLog, Announcement, BuyBack, ContactMessage, Entry, Game, GridironMiss, Invite, LoserPoolPoints, PRESEASON_OFFSET, PasswordReset, POOLS, POOL_ENTRY_FEES, POOL_LABELS, Pick, Team, User, Week, db, default_buyback_open, name_key, name_order, now
 from publisher import publish_week
@@ -406,17 +406,24 @@ def _read_game_fields(form, pool):
         favorite = form.get("favorite") or None
         spread = form.get("spread") or None
         over_under = form.get("over_under") or None
+        # These two are free text on the Gridiron pool-week form. A typed
+        # nickname is expanded to the full name the odds feed uses, so a
+        # hand-added game dedupes against the publisher and can auto-score.
+        # College names are not nicknames and pass through untouched.
+        if sport == "nfl":
+            away_team = normalize_nfl_team_name(away_team)
+            home_team = normalize_nfl_team_name(home_team)
     else:
         sport = "nfl"
         favorite = spread = over_under = None
         if away_team_id:
             t = Team.query.get(int(away_team_id))
             if t:
-                away_team = t.name
+                away_team = game_team_name(t)
         if home_team_id:
             t = Team.query.get(int(home_team_id))
             if t:
-                home_team = t.name
+                home_team = game_team_name(t)
 
     return {
         "sport": sport,
@@ -617,7 +624,7 @@ def game_creator_add():
     if gw:
         db.session.add(Game(
             week_id=gw.id, pool="gridiron", sport="nfl",
-            home_team=home.name, away_team=away.name,
+            home_team=game_team_name(home), away_team=game_team_name(away),
             home_team_id=home.id, away_team_id=away.id,
             favorite=favorite, spread=spread_val, over_under=ou_val,
             is_mnf=is_mnf, kickoff=kickoff,
@@ -629,7 +636,7 @@ def game_creator_add():
         if pw:
             db.session.add(Game(
                 week_id=pw.id, pool=pool, sport="nfl",
-                home_team=home.name, away_team=away.name,
+                home_team=game_team_name(home), away_team=game_team_name(away),
                 home_team_id=home.id, away_team_id=away.id,
                 is_mnf=(is_mnf if pool == "loser" else False),
                 kickoff=kickoff,
@@ -637,7 +644,7 @@ def game_creator_add():
             created.append(POOL_LABELS[pool])
 
     db.session.commit()
-    flash(f"{away.name} @ {home.name} added to: {', '.join(created)}.", "success")
+    flash(f"{game_team_name(away)} @ {game_team_name(home)} added to: {', '.join(created)}.", "success")
     return redirect(url_for("admin.game_creator", week=number))
 
 

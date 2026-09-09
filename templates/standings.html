@@ -3,7 +3,7 @@
 {% block container_class %}container-fluid px-4{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">🏆</span>Master Standings</h2></div>
-<p class="text-muted">One tab per pool. Week-by-week detail for a past week is on the Week History tab.</p>
+<p class="text-muted no-print">One tab per pool. Week-by-week detail for a past week is on the Week History tab.</p>
 
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item" role="presentation">
@@ -28,6 +28,18 @@
 
 <div class="tab-content">
   <div class="tab-pane fade show active" id="gridiron-pane" role="tabpanel">
+    {# Print. Bootstrap shows only the active tab pane, so window.print()
+       prints whichever pool the reader is looking at and nothing else -- see
+       the Print section of style.css. #}
+    <div class="d-flex justify-content-end mb-2 no-print">
+      <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">
+        &#128424; Print Gridiron Investments standings
+      </button>
+    </div>
+    <div class="print-only print-sheet-head">
+      <div class="print-sheet-title">&#127944; Gridiron Investments &mdash; Master Standings</div>
+      <div class="print-sheet-meta">{{ season_year }} season {%- if gridiron_last_week %} &middot; through {{ week_label(gridiron_last_week) }}{% endif %} &middot; {{ gridiron_rows|length }} entries &middot; {% include "_print_stamp.html" %}</div>
+    </div>
     <table class="table table-striped standings bg-white">
       <thead><tr><th>#</th><th>Player</th><th>Won</th><th>Lost</th><th>Ties</th>
         <th>{% if gridiron_last_week %}{{ week_label(gridiron_last_week) }}{% else %}Last week{% endif %} W-L-T</th>
@@ -123,6 +135,18 @@
   </div>
 
   <div class="tab-pane fade" id="dropdead-pane" role="tabpanel">
+    {# Print. Bootstrap shows only the active tab pane, so window.print()
+       prints whichever pool the reader is looking at and nothing else -- see
+       the Print section of style.css. #}
+    <div class="d-flex justify-content-end mb-2 no-print">
+      <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">
+        &#128424; Print Drop Dead Pool standings
+      </button>
+    </div>
+    <div class="print-only print-sheet-head">
+      <div class="print-sheet-title">&#128128; Drop Dead Pool &mdash; Master Standings</div>
+      <div class="print-sheet-meta">{{ season_year }} season &middot; {{ dropdead_entries|length }} entries &middot; {% include "_print_stamp.html" %}</div>
+    </div>
     <table class="table table-striped standings bg-white">
       <thead><tr><th>#</th><th>Player</th><th>Status</th></tr></thead>
       <tbody>
@@ -145,6 +169,9 @@
       {% endfor %}
       </tbody>
     </table>
+    {# Screen only. One column per unlocked week by 150 rows is unreadable on
+       Letter, and Hunter asked for the standings table alone on paper. #}
+    <div class="no-print">
     <h5 class="mt-4">Week by week</h5>
     <div class="table-responsive mb-4">
     <table class="table table-striped standings bg-white standings-name-first">
@@ -187,9 +214,22 @@
       </tbody>
     </table>
     </div>
+    </div>
   </div>
 
   <div class="tab-pane fade" id="loser-pane" role="tabpanel">
+    {# Print. Bootstrap shows only the active tab pane, so window.print()
+       prints whichever pool the reader is looking at and nothing else -- see
+       the Print section of style.css. #}
+    <div class="d-flex justify-content-end mb-2 no-print">
+      <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">
+        &#128424; Print Loser Pool standings
+      </button>
+    </div>
+    <div class="print-only print-sheet-head">
+      <div class="print-sheet-title">&#128201; Loser Pool &mdash; Master Standings</div>
+      <div class="print-sheet-meta">{{ season_year }} season &middot; {{ loser_rows|length }} entries &middot; {% include "_print_stamp.html" %}</div>
+    </div>
     <table class="table table-striped standings bg-white">
       <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead>
       <tbody>

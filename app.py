@@ -15,6 +15,7 @@ from helpers import (
     deadline_epoch_ms,
     game_started,
     get_setting,
+    now_eastern,
     short_week_label,
     week_label,
     unread_message_count,
@@ -285,6 +286,10 @@ def create_app():
     # Every view that colours a result as text reads this one map, so a
     # colour change can't reach some pages and miss others.
     app.jinja_env.globals["result_class"] = RESULT_CLASS
+    # Server-side fallback for the "Printed ..." line on every print sheet.
+    # The script in base.html overwrites it with the browser clock just before
+    # the print dialog opens; this is what shows if scripts are blocked.
+    app.jinja_env.globals["now_eastern"] = now_eastern
 
     def ordinal(n):
         """1 -> 1st, 2 -> 2nd, 11 -> 11th. Used for standings places."""

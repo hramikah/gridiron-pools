@@ -16,3 +16,8 @@ _scratch/
 
 # Files replaced by a newer version, kept until Hunter deletes the folder.
 _to_delete/
+
+# Where the Claude desktop app drops files it delivers into the chat. Sample
+# print PDFs and the like -- not part of the app, and commit-work.command
+# does `git add -A`, so without this they land in the repo.
+Claude outputs/

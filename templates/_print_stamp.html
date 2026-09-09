@@ -1,0 +1,12 @@
+{# The "Printed ..." line every printed sheet carries.
+
+   The server-rendered value is a FALLBACK only. A player can open the
+   standings at nine in the morning and print them at six; what has to appear
+   on the paper is when it was printed, not when the page was fetched. The
+   script in base.html rewrites every .print-timestamp from the browser clock
+   on load, on beforeprint, and when the print media query goes live -- so the
+   server value only survives if scripts are blocked entirely.
+
+   On a frozen-clock testbed the two disagree on purpose: the server is
+   pretending it is Thursday evening, the browser is not. #}
+<span class="print-timestamp">Printed {{ now_eastern().strftime('%a %b %-d, %Y at %-I:%M %p') }} Eastern</span>

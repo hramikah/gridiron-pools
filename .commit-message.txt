@@ -1,111 +1,73 @@
-Standings settle missed weeks first; a Gridiron preseason week acts like a real one
+Printing: pick sheets and Master Standings for all three pools
 
-1. The Make a Pick badge and the Master Standings could show a player two
-   different places. They run identical code -- the difference was timing.
-   process_due_weeks() writes down a past-deadline week's penalties, and it was
-   wired into the three pick pages, the admin pages and the two-hourly
-   update_scores job, but not into /standings, the three per-pool standings
-   pages, or the home page carrying the "Nth of N" badge beside Make Picks.
-   Those pages only displayed whatever the last of the others had left behind.
-   All five now call it as their FIRST statement -- first because
-   helpers._read_cache() memoises reads for the rest of a GET on the assumption
-   nothing writes during one, so the write has to land before any cached read.
+Adds a Print button to the Gridiron, Loser and Drop Dead pick pages and the
+@media print rules behind it. Nothing on screen changes.
 
-2. A Gridiron preseason week now behaves end to end like a regular one.
-   process_missed_picks records a GridironMiss for a preseason week an entry sat
-   out. That single row is what makes the rest work: Rule 8 forgives a FIRST
-   failure, so the record stays 0-0-0 rather than 0-5, the standings' Penalties
-   column can name the week, and the 8-pick makeup week follows. Recorded but
-   never fatal -- the bench check stays gated on counts_for_season(), so a trial
-   week cannot end anyone's season. Drop Dead elimination, the spent-team rule
-   and the Loser auto-pick are all untouched.
+- static/css/style.css: a Print section at the end. Site furniture (nav, the
+  frozen-clock and LOCAL TEST banners, the countdown, the floating save bar,
+  every button and pick control) is dropped; sticky table headers unstick;
+  win/loss/push keep their colour via print-color-adjust: exact; one entry per
+  sheet when a player controls more than one team.
+- templates/gridiron/pick.html, templates/loser/pick.html,
+  templates/dropdead/pick.html: the Print button, a print-only sheet header
+  (pool, week, deadline, player, entry label, and per pool: picks used and
+  penalty losses / running points total / Alive or Eliminated), and a
+  print-only board of the week's games.
+- templates/base.html: no-print on the two site banners, which are inline-styled
+  divs with no class of their own.
 
-   Empty slots are charged in preseason too, which they always were everywhere
-   except the season Won/Lost columns: the "last week W-L-T" column beside them,
-   the weekly picks grid and the pick page all call _gridiron_week_empty_losses
-   directly and never had that filter, so one row read 0-0 on the left and 0-5
-   on the right. A full no-show still costs nothing, because a forgiven first
-   miss returns 0 -- what is charged is a part-filled week, exactly as in the
-   regular season.
+The board is print-only and separate from the pick table on purpose: the pick
+table is not rendered at all once the deadline passes, once a Gridiron entry
+has used all its picks, or -- in Loser and Drop Dead -- the moment a pick is
+locked in. That is exactly when someone reaches for Print, so the table cannot
+be relied on to carry the week's games onto paper. The screen table is hidden
+in print so the two can never both appear.
 
-3. Two orderings keyed off the raw week number, which sorts preseason weeks
-   (101+) AFTER week 18 even though they happen before week 1:
+Each board carries what its pool picks on: Gridiron lists kickoff, spread and
+O/U per game; Loser puts each team's point value beside its name; Drop Dead
+marks teams the entry has already spent. All three mark the entry's own picks,
+with WIN/LOSS/PUSH once scored.
 
-   - gridiron_first_miss_week() let any regular-season miss beat a preseason
-     one, forgiving the wrong week and hanging the makeup off the wrong week.
-   - due_weeks() settled week 1 before Preseason Week 4, despite "oldest first"
-     being the entire point of that ordering.
+Verified by rendering the pages headlessly against a 150-player copy of the
+testbed database and producing real PDFs: Gridiron in four states (open week
+part picked, scored past week, makeup week at 8/8 with 2 penalty losses,
+nothing picked) and Loser and Drop Dead with and without a pick in. A 24-game
+NFL slate plus the college board fits two sheets; Loser and Drop Dead fit one.
 
-   Both now sort in Python with helpers.week_sort_key.
+Master Standings (templates/standings.html) gets the same treatment: a Print
+button and a print-only header inside each of the three pool tabs. Bootstrap
+shows only the active tab pane, so printing gives that pool's table and nothing
+else; the tab strip itself does not print. Drop Dead's "Week by week" grid is
+marked no-print -- one column per unlocked week by 150 rows does not fit Letter,
+and the standings table is what was asked for.
 
-4. gridiron_makeup_week() returns the next week ON THE SCHEDULE instead of
-   first_miss + 1. A miss in Preseason Week 4 (104) is followed by Week 1, not
-   by a week 105 that will never exist -- which would have granted the makeup
-   allowance for a week nobody could ever play.
+The standings tables carry no .table-responsive wrapper, so the phone
+breakpoint turns them into their own scroll containers with sticky rank and
+name columns. At print width that breakpoint is live, and without undoing it
+the table printed as a clipped block. The green gradient header is swapped for
+flat grey, and Alive / Out keep distinguishable colour the way win/loss do.
+150 entries print as 4 sheets with the column header repeated on each.
 
-Verified against a 124-entry replica of the live Preseason Week 4: the 58
-non-pickers show 0-0-0, "Preseason Week 4" in Penalties, 8 picks and 2 penalty
-slots waiting in Week 1, and none of them benched. 54 tests pass.
+Every printed sheet carries a "Printed <day> <date> at <time> Eastern" line in
+its header -- pick sheets and standings alike. templates/_print_stamp.html
+renders the server clock as a fallback and app.py exposes helpers.now_eastern
+to Jinja for it, but a script in base.html rewrites every .print-timestamp from
+the BROWSER clock on load, on beforeprint, and when the print media query goes
+live. That matters: someone opens the standings in the morning and prints at
+six, and the paper has to say six. Verified both paths -- the beforeprint
+rewrite restamps a deliberately staled node, and a scripts-disabled context
+falls back to the server value.
 
-5. The makeup week's 2 penalty losses are charged as soon as that week is
-   known, instead of waiting for its deadline. They were already shown as slots
-   on the pick page from the moment the week opened, so an entry read 0-0-0 on
-   the Thursday and 0-2-0 at Saturday noon while the page in front of them said
-   2 losses the whole time. Same disagreement as everything else in this commit,
-   one function further along. (Commissioner's call, 2026-08-30: on entering the
-   makeup week the record already reads 0-2-0.)
+The Weekly Picks reports (templates/week_report.html) get the same button and
+header, for all three pools. Those tables are plain Bootstrap .table rather
+than .standings, so the print block squeezes them too. The Gridiron report is a
+150-player by 5-pick grid whose cells carry their own padding (.p-0 on the td,
+.px-2.py-2 on a div inside) and an inline min-height for makeup rows; left
+alone it printed 11 players to a page, 17 sheets. Author !important beats an
+inline style, which is how the min-height and the .72rem matchup line come
+down -- 11 sheets now, still legible. Loser and Drop Dead reports are 4 each.
 
-   Charged when the league ENTERS the makeup week, via a new
-   helpers.week_started() -- the same boundary get_current_week() moves on.
-   Not on the week row existing: all 18 regular weeks are created at once, so
-   that would have shown the penalty weeks before the week could be played.
+56 tests pass.
 
-   New _week_order() puts bare week NUMBERS in schedule order -- preseason
-   weeks are stored at 101+ but come before week 1 -- and gridiron_counted_picks
-   and gridiron_penalty_losses now use it, so preseason picks and penalties stop
-   dropping out of every through-week view.
-
-Confirmed against the live shape with Preseason Week 5 created and PW4 closed:
-a PW4 no-show reads 0-2-0 in the Master Standings, "Preseason Week 4" in the
-Penalties column, 0-0-0 in the PW4 column, and gets 8 picks plus 2 penalty loss
-slots on the PW5 pick page.
-
-6. A week now opens 72 hours before its deadline instead of 48
-   (WEEK_OPENS_DAYS_BEFORE_DEADLINE 2 -> 3), so it becomes the current week at
-   noon on the WEDNESDAY before its Saturday-noon deadline rather than the
-   Thursday. 2026 Week 1 has a Thursday game, and opening the same day left
-   almost no room. The constant drives get_current_week() and week_started()
-   together, so the pick pages, the current-week label and the makeup week's
-   2 penalty losses all move on the same instant.
-
-7. A preseason Loser Pool week now assigns the no-show auto-pick, and waits for
-   its Monday night game like any other week.
-
-   process_missed_picks short-circuited on every preseason week, so an entry
-   that forgot a preseason Loser week was left with no pick at all -- pressing
-   Process Missed Picks handed out nothing. Preseason weeks now settle down the
-   same path as the rest; the pools that must not act on one say so inside
-   process_missed_picks instead of at the door.
-
-   Drop Dead keeps its exemption, moved into the branch that needs it:
-   elimination ends a season with no way back, so a preseason no-show is left
-   alone there, exactly as score_dropdead_pick already leaves a losing preseason
-   pick alone. Benching in Gridiron stays gated the same way.
-
-   The MNF wait now applies to preseason too, which is the point: a week whose
-   MNF game is missing, unflagged, or carries only typed-in team names (no
-   away_team_id) stays owed and visibly unsettled rather than closing quietly
-   with the no-shows left pickless.
-
-   diagnose-loser-mnf.command (new, read-only) reports, per Loser week, which
-   game is flagged MNF, whether it is linked to real Team rows, how many entries
-   have no pick, and which team would be handed out.
-
-8. Settling past-deadline weeks no longer rides on the score fetch succeeding.
-
-   update_scores.py ran update_scores() and sys.exit(1)'d on any exception,
-   before it ever reached process_due_weeks(). Since that timer is the only
-   thing that settles a week when nobody is on the site, one bad Odds API call
-   -- expired key, timeout, monthly credits gone -- left every past-deadline
-   week owed until an admin happened to open a page. The two jobs now run, log
-   and fail independently; the exit code still reports if either did.
+Known gap: an eliminated Drop Dead entry prints its header, teams used and the
+buy-back notice, but no board -- the board sits inside the active-entry branch.

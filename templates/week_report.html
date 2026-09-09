@@ -2,8 +2,23 @@
 {% block title %}{{ pool_label }} {{ week.label }} Picks{% endblock %}
 {% block content %}
 <div class="page-header"><h2><span class="pool-icon">📋</span>{{ pool_label }} &mdash; {{ week.label }} Picks</h2></div>
-<p class="text-muted">Pick deadline: {{ week.pick_deadline.strftime('%A %b %d, %Y %I:%M %p') }} Eastern &mdash; all picks below are locked in.</p>
-<p class="mb-4"><a href="{{ url_for('main.reports') }}">&larr; Back to Weekly Picks Reports</a></p>
+<p class="text-muted no-print">Pick deadline: {{ week.pick_deadline.strftime('%A %b %d, %Y %I:%M %p') }} Eastern &mdash; all picks below are locked in.</p>
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+  <a href="{{ url_for('main.reports') }}">&larr; Back to Weekly Picks Reports</a>
+  {# Print. Same window.print() as the pick pages and the standings; the Print
+     section of style.css strips the nav, the banners and this bar itself. #}
+  <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">
+    &#128424; Print this report
+  </button>
+</div>
+<div class="print-only print-sheet-head">
+  <div class="print-sheet-title">{{ pool_label }} &mdash; {{ week.label }} Picks</div>
+  <div class="print-sheet-meta">
+    {{ season_year }} season &middot; picks locked {{ week.pick_deadline.strftime('%a %b %-d, %Y at %-I:%M %p') }} Eastern
+    &middot; {% if picks_grid is defined %}{{ picks_grid|length }}{% else %}{{ rows|length }}{% endif %} entries
+    &middot; {% include "_print_stamp.html" %}
+  </div>
+</div>
 
 {% if picks_grid is defined %}
 {# ---- Gridiron: same picks-grid style as the admin weekly view ---- #}

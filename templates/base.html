@@ -17,13 +17,13 @@
      frozen-clock testbed database and vanishes on its own when the live
      site goes back to instance/pools.db. #}
   {% if frozen_clock %}
-  <div class="text-center fw-bold py-2 px-3"
+  <div class="text-center fw-bold py-2 px-3 no-print"
        style="background:#0d3b66;color:#fff;letter-spacing:.03em;line-height:1.35;">
     ⏸ Site is frozen to simulate what it would look like at 7:30PM on a Thursday.
   </div>
   {% endif %}
   {% if is_local_test %}
-  <div class="text-center fw-bold py-2" style="background:#ffc107;color:#000;letter-spacing:.05em;">
+  <div class="text-center fw-bold py-2 no-print" style="background:#ffc107;color:#000;letter-spacing:.05em;">
     ⚠️ LOCAL TEST COPY &mdash; not the live site. Nothing here affects real players.  </div>
   {% endif %}
   <nav class="navbar navbar-expand-xl navbar-dark bg-dark mb-4">
@@ -202,6 +202,37 @@
         e.preventDefault();
         e.returnValue = '';
       });
+    })();
+  </script>
+  <script>
+    // Printed-at stamp. Every print sheet carries when it was PRINTED, not
+    // when the page was loaded -- someone can leave the standings open all
+    // afternoon and hit Cmd-P at six. The server renders a fallback into
+    // templates/_print_stamp.html; this rewrites it from the browser clock on
+    // load, again on beforeprint, and again when the print media query goes
+    // live (Safari has historically fired one but not the other).
+    (function () {
+      var nodes = document.querySelectorAll('.print-timestamp');
+      if (!nodes.length) return;
+      var fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', weekday: 'short', month: 'short',
+        day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+        hour12: true
+      });
+      function stamp() {
+        // Eastern, like every other time on the site, whatever zone the
+        // person printing happens to be sitting in.
+        var text = 'Printed ' + fmt.format(new Date()).replace(/,([^,]*)$/, ' at$1') + ' Eastern';
+        nodes.forEach(function (el) { el.textContent = text; });
+      }
+      stamp();
+      window.addEventListener('beforeprint', stamp);
+      if (window.matchMedia) {
+        var mq = window.matchMedia('print');
+        var onChange = function (e) { if (e.matches) stamp(); };
+        if (mq.addEventListener) { mq.addEventListener('change', onChange); }
+        else if (mq.addListener) { mq.addListener(onChange); }
+      }
     })();
   </script>
   <!-- Page-load feedback. Standings is the heavy page (150 players x every

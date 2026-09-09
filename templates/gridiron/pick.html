@@ -4,12 +4,24 @@
 <div class="page-header header-gridiron"><h2><span class="pool-icon">🏈</span>Gridiron Investments</h2></div>
 {% include "_clock.html" %}
 
+{% if entries %}
+{# Print. Deliberately a plain window.print() rather than a separate printable
+   route: one page to keep correct, and what he prints is exactly what he is
+   looking at. Everything interactive is stripped by the @media print block in
+   style.css -- see the "Print" section there. #}
+<div class="d-flex justify-content-end mb-3 no-print">
+  <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">
+    &#128424; Print picks &amp; slate
+  </button>
+</div>
+{% endif %}
+
 {% if not entries %}
 <p>You don't have an entry yet. <a href="{{ url_for('gridiron.rules') }}">Join here.</a></p>
 {% else %}
 
 {% if week %}
-<p class="text-muted">{{ week.label }} &mdash; Picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
+<p class="text-muted no-print">{{ week.label }} &mdash; Picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
   {% if locked %}<span class="badge bg-danger">Deadline passed</span>{% endif %}
 </p>
 {# `games` is the *pickable* set, which is empty once the deadline passes even
@@ -24,8 +36,24 @@
 {% for entry in entries %}
 {% set limit = pick_limits.get(entry.id, 5) %}
 {% set remaining = remaining_by_entry.get(entry.id, 0) %}
-<div class="card mb-4">
+<div class="card mb-4 gridiron-print-entry">
   <div class="card-body">
+    {# Paper header. On screen the week, the deadline and whose entry this is
+       come from the page header, the countdown box and the account menu --
+       none of which print -- so the sheet restates them, or it prints as an
+       anonymous list of teams. Print-only; invisible on screen. #}
+    {% set printed_picks = picks_this_week.get(entry.id, {}) %}
+    {% set printed_penalty = penalty_slots_by_entry.get(entry.id, 0) %}
+    <div class="print-only print-sheet-head">
+      <div class="print-sheet-title">Gridiron Investments{% if week %} &mdash; {{ week.label }}{% endif %}</div>
+      <div class="print-sheet-meta">
+        {{ current_user.username }}{% if entry.label and entry.label != 'Entry 1' %} &middot; {{ entry.label }}{% endif %}
+        {%- if week %} &middot; Picks due {{ week.pick_deadline.strftime('%a %b %d, %Y %I:%M %p') }} Eastern{% endif %}
+        &middot; {{ printed_picks|length }} of {{ limit }} picks used
+        {%- if printed_penalty %} &middot; {{ printed_penalty }} penalty {{ 'loss' if printed_penalty == 1 else 'losses' }}{% endif %}
+        &middot; {% include "_print_stamp.html" %}
+      </div>
+    </div>
     {% if not entry.is_active %}
     <h5 class="card-title"><span class="badge badge-eliminated">Benched (missed 5+ weeks)</span></h5>
     {% endif %}
@@ -151,6 +179,52 @@
       </div>
       {% endif %}
 
+      {# ---- Print-only board -------------------------------------------
+         The interactive table below is not rendered at all once the deadline
+         passes, or once an entry has used every pick -- which is exactly when
+         someone reaches for Print. So paper gets its own copy of the week's
+         board, identical in every state, with this entry's picks marked on
+         it. The screen table is hidden in print (see style.css) so the two
+         can never both appear. #}
+      {% if week and all_games %}
+      {% set printed_results = picks_results_this_week.get(entry.id, {}) %}
+      {% macro print_slate_game(g, my_picks, printed_results) %}
+        <div class="print-slate-game">
+          <div class="print-slate-matchup">{{ g.away_team }} @ {{ g.home_team }}{% if g.is_mnf %} (MNF){% endif %}</div>
+          <div class="print-slate-line">
+            {%- if g.kickoff %}{{ g.kickoff.strftime('%a %b %d, %I:%M %p') }} Eastern &middot; {% endif %}
+            {%- if g.favorite == 'home' %}{{ g.home_team }} -{{ g.spread }} / {{ g.away_team }} +{{ g.spread }}
+            {%- elif g.favorite == 'away' %}{{ g.away_team }} -{{ g.spread }} / {{ g.home_team }} +{{ g.spread }}
+            {%- else %}Pick'em{% endif %}
+            {%- if g.over_under %} &middot; O/U {{ g.over_under }}{% endif %}
+          </div>
+          {% for market in ['spread', 'total'] %}
+            {% if my_picks.get((g.id, market)) %}
+              {% set r = printed_results.get((g.id, market)) %}
+              <div class="print-slate-pick">
+                <span class="badge {% if r == 'win' %}pick-win{% elif r == 'loss' %}pick-loss{% elif r == 'push' %}pick-push{% else %}bg-secondary{% endif %}">Your pick:
+                  {%- if market == 'spread' %} {{ spread_label(g, my_picks[(g.id, 'spread')]) }}
+                  {%- else %} {{ my_picks[(g.id, 'total')]|capitalize }} {{ g.over_under }}{% endif %}
+                  {%- if r in ['win', 'loss', 'push'] %} &mdash; {{ r|upper }}{% endif %}</span>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endmacro %}
+      <div class="print-only print-slate">
+        {% set print_nfl = all_games|selectattr('sport', 'equalto', 'nfl')|list %}
+        {% set print_college = all_games|selectattr('sport', 'equalto', 'college')|list %}
+        {% if print_nfl %}
+        <div class="print-slate-head">NFL</div>
+        {% for g in print_nfl %}{{ print_slate_game(g, my_picks, printed_results) }}{% endfor %}
+        {% endif %}
+        {% if print_college %}
+        <div class="print-slate-head">College</div>
+        {% for g in print_college %}{{ print_slate_game(g, my_picks, printed_results) }}{% endfor %}
+        {% endif %}
+      </div>
+      {% endif %}
+
       {% if not week %}
         {# top-level "No weeks have been set up yet" message already covers this #}
       {% elif locked %}
@@ -266,7 +340,7 @@
       </div>
       {% endif %}
       {% if not locked %}
-      <p class="text-muted small mb-2">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>
+      <p class="text-muted small mb-2 no-print">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>
       {% endif %}
 
       {% set nfl_games = display_games|selectattr('sport', 'equalto', 'nfl')|list %}

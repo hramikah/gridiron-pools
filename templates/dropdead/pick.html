@@ -4,12 +4,21 @@
 <div class="page-header header-dropdead"><h2><span class="pool-icon">💀</span>Drop Dead Pool</h2></div>
 {% include "_clock.html" %}
 
+{% if entries %}
+{# Print. Same pattern as Gridiron and Loser. #}
+<div class="d-flex justify-content-end mb-3 no-print">
+  <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">
+    &#128424; Print pick &amp; slate
+  </button>
+</div>
+{% endif %}
+
 {% if not entries %}
 <p>You don't have an entry yet. <a href="{{ url_for('dropdead.rules') }}">Join here.</a></p>
 {% else %}
 
 {% if week %}
-<p class="text-muted">{{ week.label }} &mdash; picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
+<p class="text-muted no-print">{{ week.label }} &mdash; picks due {{ week.pick_deadline.strftime('%a %b %d, %I:%M %p') }} Eastern
   {% if locked %}<span class="badge bg-danger">Deadline passed</span>{% endif %}
 </p>
 {% else %}
@@ -17,8 +26,19 @@
 {% endif %}
 
 {% for entry in entries %}
-<div class="card mb-3">
+<div class="card mb-3 pool-print-entry">
   <div class="card-body">
+    {# Paper header. The nav, the page header and the countdown all carry this
+       on screen and none of them print. #}
+    <div class="print-only print-sheet-head">
+      <div class="print-sheet-title">Drop Dead Pool{% if week %} &mdash; {{ week.label }}{% endif %}</div>
+      <div class="print-sheet-meta">
+        {{ current_user.username }}{% if entry.label and entry.label != 'Entry 1' %} &middot; {{ entry.label }}{% endif %}
+        {%- if week %} &middot; Pick due {{ week.pick_deadline.strftime('%a %b %d, %Y %I:%M %p') }} Eastern{% endif %}
+        &middot; {% if entry.is_active %}Alive{% else %}Eliminated ({{ week_label(entry.eliminated_week) }}){% endif %}
+        &middot; {% include "_print_stamp.html" %}
+      </div>
+    </div>
     <h5 class="card-title">
       {% if entry.is_active %}<span class="badge badge-alive">Alive</span>
       {% else %}<span class="badge badge-eliminated">Eliminated ({{ week_label(entry.eliminated_week) }})</span>{% endif %}
@@ -110,6 +130,34 @@
 
         <button type="submit" class="btn btn-dropdead" {% if locked %}disabled{% endif %}>Save Pick</button>
       </form>
+      {% endif %}
+
+      {# Print-only board. The pick table above vanishes the moment a pick is
+         locked in -- and once the deadline passes -- which is exactly when
+         someone prints, so paper gets its own copy of the week's games, with
+         teams this entry has already spent marked as such and its pick for
+         the week marked on it. The screen table never prints (see the Print
+         section of style.css). #}
+      {% if games %}
+      {% set printed_used = entry.used_team_ids() %}
+      <div class="print-only print-slate">
+        <div class="print-slate-head">{{ week.label }} &mdash; pick one team to WIN outright</div>
+        {% for g in games %}
+        <div class="print-slate-game">
+          <div class="print-slate-matchup">
+            {{ g.away_team }}{% if g.away_team_id in printed_used %} (used){% endif %}
+            @ {{ g.home_team }}{% if g.home_team_id in printed_used %} (used){% endif %}
+          </div>
+          {% if g.kickoff %}<div class="print-slate-line">{{ g.kickoff.strftime('%a %b %d, %I:%M %p') }} Eastern</div>{% endif %}
+          {% if current_pick and current_pick.team_id in [g.away_team_id, g.home_team_id] %}
+          <div class="print-slate-pick">
+            <span class="badge {% if current_pick.result == 'win' %}pick-win{% elif current_pick.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">Your pick to WIN: {{ current_pick.team.city }} {{ current_pick.team.name }}
+              {%- if current_pick.result in ['win', 'loss'] %} &mdash; {{ current_pick.result|upper }}{% endif %}</span>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
       {% endif %}
     {% elif entry.id in buyback_available %}
       <form method="post" action="{{ url_for('dropdead.buyback', entry_id=entry.id) }}"

@@ -1081,3 +1081,282 @@ body.has-pick-save-bar { padding-bottom: 5.5rem; }
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+/* ==========================================================================
+   Print
+   --------------------------------------------------------------------------
+   The Gridiron pick page is the first customer: a player prints their locked
+   picks plus that week's slate as a paper record. Nothing interactive
+   survives -- the radio buttons, the clear x, the remove x, Save, the
+   floating save bar and the countdown are all controls, and a control on
+   paper is a lie. The Game column already prints the matchup, kickoff,
+   spread and O/U in full, so an unpicked game reads as plain reference and
+   its pick cells are simply blank.
+   ========================================================================== */
+
+/* Paper only. Off the screen entirely, so it costs nothing to leave in. */
+.print-only { display: none !important; }
+
+@media print {
+  @page { size: letter portrait; margin: 0.5in; }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10pt;
+  }
+  body.has-pick-save-bar { padding-bottom: 0 !important; }
+
+  .print-only { display: block !important; }
+
+  /* Chrome and Safari drop background colour on paper by default. On this
+     page the win/loss/push colour IS the information, so force it through. */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Site furniture. None of it belongs on a printed sheet. */
+  .no-print,
+  nav.navbar,
+  #nav-progress,
+  .modal,
+  .modal-backdrop,
+  .alert-dismissible,
+  .deadline-countdown,
+  .pick-save-bar,
+  .btn-close,
+  button,
+  .btn,
+  input[type="submit"] { display: none !important; }
+
+  .container,
+  .container-fluid {
+    width: 100% !important;
+    max-width: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Cards flatten: no shadow, no rounded box, no wasted margin. */
+  .card {
+    border: none !important;
+    box-shadow: none !important;
+    margin-bottom: 0 !important;
+  }
+  .card-body { padding: 0 !important; }
+  .page-header { border-left-width: 4pt !important; }
+
+  /* One entry per sheet when a player controls more than one team. */
+  .gridiron-print-entry + .gridiron-print-entry { break-before: page; page-break-before: always; }
+
+  /* Tables scroll sideways on screen; on paper they have to lie flat, and
+     the header has to repeat when a slate runs past one page. */
+  .table-responsive { overflow: visible !important; }
+  .table-pick-sticky th,
+  .table-pick-sticky td,
+  .table-pick-sticky th:first-child,
+  .table-pick-sticky td:first-child { position: static !important; }
+  table { width: 100% !important; }
+  thead { display: table-header-group; }
+  tr, .locked-pick, .locked-pick-list li { break-inside: avoid; page-break-inside: avoid; }
+
+  /* Bootstrap prints link URLs after the text in some stylesheets; not here. */
+  a[href]::after { content: "" !important; }
+  a { color: #000 !important; text-decoration: none !important; }
+
+  /* Every pick control disappears; only what was actually chosen remains. */
+  .pick-choice-group,
+  .pick-clear,
+  .gridiron-pick-count { display: none !important; }
+
+  /* The pill shape eats ink and reads badly at 10pt. Keep the colour, drop
+     the pill. */
+  .badge {
+    color: #000 !important;
+    background: transparent !important;
+    border: 1pt solid #767676;
+    border-radius: 2pt;
+    font-size: 9.5pt;
+    font-weight: 500;
+    padding: 1pt 3pt;
+    white-space: normal;
+  }
+  .badge.pick-win  { border-color: #1a7f37; background: #d8f0de !important; }
+  .badge.pick-loss { border-color: #b42318; background: #fbdcd9 !important; }
+  .badge.pick-push { border-color: #6b3fa0; background: #e9ddf7 !important; }
+  /* Drop Dead's Alive / Out badges are the whole Status column -- they have
+     to read as different at a glance on paper too. */
+  .badge.badge-alive { border-color: #1a7f37; background: #d8f0de !important; }
+  .badge.badge-eliminated { border-color: #b42318; background: #fbdcd9 !important; }
+
+  /* The paper header, restating what the nav and the countdown carried. */
+  .print-sheet-head {
+    border-bottom: 1.5pt solid #000;
+    margin-bottom: 8pt;
+    padding-bottom: 4pt;
+  }
+  .print-sheet-title {
+    font-family: 'Oswald', system-ui, sans-serif;
+    font-size: 14pt;
+    font-weight: 700;
+    letter-spacing: .01em;
+  }
+  .print-sheet-meta { font-size: 9.5pt; }
+}
+
+/* --- Print, continued: tightening the pick sheet -------------------------
+   The slate renders in its stacked "card per game" form on paper, because
+   the printed page is narrower than the table breakpoint. That reads well;
+   it is just loose. Squeezing the padding and dropping the shadows takes a
+   24-game NFL slate plus the college board from three sheets to two. The
+   duplicate title lines go too -- the print header above already carries
+   the pool, the week and the deadline. */
+@media print {
+  .page-header { display: none !important; }
+
+  .pick-table tbody tr {
+    border: 0 !important;
+    border-bottom: 0.5pt solid #ccc !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 2pt 0 3pt !important;
+    margin-bottom: 0 !important;
+    background: transparent !important;
+  }
+  .pick-table .matchup { font-size: 10.5pt; }
+  .pick-table td + td { margin-top: 1pt !important; }
+
+  /* The locked badge sits in its own cell, which the stacked layout centres.
+     On paper it belongs under the matchup it answers. */
+  .pick-table td .d-flex { justify-content: flex-start !important; }
+
+  h6 { margin-top: 8pt !important; margin-bottom: 3pt !important; }
+
+  /* The "locked in so far" box: keep the accent rule, lose the fill. */
+  .locked-pick-list li { margin-bottom: 1pt !important; }
+}
+
+/* --- Print, continued: the board --------------------------------------
+   The pick form never prints. It is a form -- and worse, it disappears
+   from the page entirely once the deadline passes or the entry is full,
+   so it cannot be relied on to carry the week's games onto paper. The
+   print-only board in gridiron/pick.html does that instead, in every
+   state, and it is the only slate a printed sheet ever shows. */
+@media print {
+  .table-responsive:has(.pick-table),
+  .gridiron-pick-form h6,
+  .gridiron-pick-form .alert,
+  .pick-heading,
+  .form-text { display: none !important; }
+
+  /* One entry per sheet in Loser and Drop Dead too. */
+  .pool-print-entry + .pool-print-entry { break-before: page; page-break-before: always; }
+
+  /* The running-total / Alive / Eliminated badge that heads these cards is
+     already restated in the print header line above it. */
+  .pool-print-entry .card-title { display: none !important; }
+
+  .print-slate-head {
+    font-family: 'Oswald', system-ui, sans-serif;
+    font-size: 10.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-bottom: 1pt solid #000;
+    margin: 9pt 0 3pt;
+    padding-bottom: 1pt;
+  }
+  .print-slate-game {
+    border-bottom: .5pt solid #ccc;
+    padding: 2.5pt 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-slate-matchup { font-weight: 700; font-size: 10pt; line-height: 1.2; }
+  .print-slate-line { font-size: 8.5pt; color: #333 !important; line-height: 1.25; }
+  .print-slate-pick { margin-top: 1.5pt; }
+}
+
+/* --- Print, continued: standings ----------------------------------------
+   Master Standings is a tab strip. Bootstrap shows only the active pane, so
+   window.print() from any pool prints that pool's table and nothing else --
+   the rules below only make it explicit and take the tab strip itself off
+   the paper. The standings tables also have no .table-responsive wrapper, so
+   the phone breakpoint turns them into their own scroll containers with
+   sticky rank and name columns; at print width that breakpoint is live and
+   has to be undone or the table prints as a clipped block. */
+@media print {
+  .nav-tabs { display: none !important; }
+  .tab-pane { display: none !important; }
+  .tab-pane.active,
+  .tab-pane.show.active { display: block !important; }
+
+  table.standings,
+  .table-scroll-x {
+    display: table !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    width: 100% !important;
+  }
+  table.standings th,
+  table.standings td {
+    position: static !important;
+    box-shadow: none !important;
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 1.5pt 4pt !important;
+    font-size: 9pt;
+  }
+  /* The green gradient header does not survive a mono printer legibly. */
+  table.standings thead th {
+    background: none !important;
+    background-color: #e8e8e8 !important;
+    color: #000 !important;
+    border-bottom: 1pt solid #000 !important;
+  }
+  .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: #f4f4f4 !important;
+  }
+  table.standings tbody tr { break-inside: avoid; page-break-inside: avoid; }
+}
+
+/* --- Print, continued: the Weekly Picks reports -------------------------
+   week_report.html uses plain Bootstrap .table, not .standings, so it needs
+   the same squeeze: tighter cells, a header that survives a mono printer,
+   and no row split across a page break. */
+@media print {
+  .table {
+    font-size: 9pt;
+    width: 100% !important;
+  }
+  .table th,
+  .table td { padding: 1.5pt 4pt !important; }
+  .table thead th {
+    background: none !important;
+    background-color: #e8e8e8 !important;
+    color: #000 !important;
+    border-bottom: 1pt solid #000 !important;
+  }
+  .table tbody tr { break-inside: avoid; page-break-inside: avoid; }
+}
+
+/* The Gridiron weekly report is a 150-player by 5-pick grid, and its cells
+   carry their own padding (.p-0 on the td, .px-2.py-2 on a div inside) plus
+   an inline min-height for makeup rows. Left alone it printed at 11 players
+   a page. Author !important beats an inline style, which is how the
+   min-height and the .72rem matchup line come down. */
+@media print {
+  .table td.p-0 > div {
+    padding: 1pt 3pt !important;
+    min-height: 0 !important;
+  }
+  .table td.p-0 > div > div {
+    font-size: 8pt !important;
+    line-height: 1.15 !important;
+  }
+  .table td.p-0 .text-muted {
+    font-size: 7pt !important;
+    line-height: 1.05 !important;
+  }
+}

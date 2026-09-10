@@ -485,6 +485,182 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 {% endif %}
 
+{% if pool in ['dropdead', 'loser'] %}
+{# ---- Player picks, straight-up pools ----------------------------------
+   Drop Dead and the Loser Pool are one pick per entry per week, chosen by
+   team, so this is a flat row per entry rather than Gridiron's slot grid.
+   Same controls as Gridiron: Change re-picks for the player, Delete hands
+   the week back to them, Add fills a week they never turned in. #}
+<h5 class="mt-4">Player Picks</h5>
+<p class="text-muted small mb-2">
+  <span class="text-success fw-bold">Green = win</span>,
+  <span class="text-danger fw-bold">red = loss</span>, black = not yet final.
+  Delete returns the pick to the player; Change lets you reselect for them.
+  {% if pool == 'dropdead' %}Teams the entry has already spent this season are greyed out in the picker, and a corrected pick revives an entry this week's result knocked out.{% else %}An entry with no pick is auto-assigned the Monday night visiting team when the week is processed.{% endif %}
+</p>
+
+<div class="table-responsive">
+<table class="table table-bordered bg-white align-middle small">
+  <thead class="table-light">
+    <tr>
+      <th style="min-width:9rem">Player</th>
+      {% if pool == 'dropdead' %}<th style="min-width:6rem">Status</th>{% endif %}
+      <th style="min-width:10rem">{{ week.label }} pick &mdash; to {{ 'WIN' if pool == 'dropdead' else 'LOSE' }}</th>
+      <th style="min-width:10rem">Matchup</th>
+      {% if pool == 'loser' %}<th class="text-center">Points</th>{% endif %}
+      <th style="min-width:11rem">Change</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for row in team_rows %}
+    {% set p = row.pick %}
+    <tr>
+      <td>
+        {{ row.entry.user.username }}
+        {% if row.entry.label and row.entry.label != 'Entry 1' %}<span class="text-muted">({{ row.entry.label }})</span>{% endif %}
+      </td>
+      {% if pool == 'dropdead' %}
+      <td>
+        {% if row.entry.is_active %}<span class="badge badge-alive">Alive</span>
+        {% else %}<span class="badge badge-eliminated">Out{% if row.entry.eliminated_week %} &mdash; {{ week_label(row.entry.eliminated_week) }}{% endif %}</span>{% endif %}
+      </td>
+      {% endif %}
+      <td>
+        {% if p %}
+          <div class="fw-bold {{ result_class.get(p.result, '') }}">{{ p.team.city }} {{ p.team.name }}</div>
+        {% elif deadline_passed %}
+          <div class="text-danger fw-bold">No pick</div>
+          <div class="text-muted" style="font-size:.72rem; line-height:1.1">{% if pool == 'dropdead' %}eliminated{% else %}gets the MNF visitor{% endif %}</div>
+        {% else %}
+          <div class="text-muted fst-italic">Not selected yet</div>
+        {% endif %}
+      </td>
+      <td class="text-muted">
+        {% if p and p.team_id in team_matchups %}{{ team_matchups[p.team_id] }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+      </td>
+      {% if pool == 'loser' %}
+      <td class="text-center">{% if row.points is not none %}{{ row.points }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}</td>
+      {% endif %}
+      <td>
+        <div class="btn-group btn-group-sm">
+          {% if p %}
+          <button type="button" class="btn btn-outline-primary team-pick-btn"
+                  data-action="{{ url_for('admin.change_team_pick', pick_id=p.id) }}"
+                  data-current="{{ p.team_id }}"
+                  data-used="{{ row.used_ids|join(',') }}">Change</button>
+          <form method="post" action="{{ url_for('admin.delete_pick', pick_id=p.id) }}" class="d-inline"
+                onsubmit="return confirm('Delete this pick and return it to the player?')">
+            <button type="submit" class="btn btn-outline-danger">Delete</button>
+          </form>
+          {% else %}
+          <button type="button" class="btn btn-outline-success team-pick-btn"
+                  data-action="{{ url_for('admin.add_team_pick', entry_id=row.entry.id, week_id=week.id) }}"
+                  data-current=""
+                  data-used="{{ row.used_ids|join(',') }}">Add pick</button>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="{{ 6 if pool == 'dropdead' else 6 }}" class="text-muted">No players have joined {{ pool_label }} yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{# ---- Change-pick modal (shared; each button sets its target, its
+       preselection, and which teams to grey out) ---- #}
+<div class="modal fade" id="teamPickModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <form method="post" id="teamPickForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Pick a team to {{ 'WIN' if pool == 'dropdead' else 'LOSE' }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        {# Same explicit max-height as the Gridiron dialog: the option list
+           scrolls inside the body so "Save pick" is always on screen. #}
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          <p class="text-muted small mb-2">Pick one team, then <strong>Save pick</strong> at the bottom.{% if pool == 'dropdead' %} Teams this entry has already used this season are greyed out.{% endif %}</p>
+          {% if team_games %}
+          {% for g in team_games %}
+            <div class="fw-semibold mt-2">{{ g.away_team }} @ {{ g.home_team }}
+              {% if g.kickoff %}<span class="text-muted small">{{ g.kickoff.strftime('%a %b %d, %I:%M %p') }}</span>{% endif %}
+              {% if g.is_mnf %}<span class="badge bg-dark">MNF</span>{% endif %}
+            </div>
+            {% for side in ['away', 'home'] %}
+            {% set tid = g.away_team_id if side == 'away' else g.home_team_id %}
+            {% set tname = g.away_team if side == 'away' else g.home_team %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="selection" value="{{ tid }}" id="tsel_{{ g.id }}_{{ side }}">
+              <label class="form-check-label" for="tsel_{{ g.id }}_{{ side }}">
+                {{ tname }}
+                <span class="text-muted small">({{ side }}{% if pool == 'loser' %} &middot; {{ loser_points.get(tid, '?') }} pts{% endif %})</span>
+              </label>
+            </div>
+            {% endfor %}
+          {% endfor %}
+          {% else %}
+          <p class="text-muted mb-0">This week has no games with both NFL teams set, so there is nothing to pick yet.</p>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save pick</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ---- Blocking error pop-up: the team was already spent this season ---- #}
+{% if request.args.get('pick_error') == 'used' %}
+<div class="modal fade" id="teamPickErrorModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger border-2">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">&#9888;&#65039; Pick not changed</h5>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0"><strong>Error:</strong> that entry has already used that team this season.</p>
+        <p class="text-muted small mb-0 mt-2">The pick was left unchanged. Each team may be picked once all season in Drop Dead.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var errEl = document.getElementById('teamPickErrorModal');
+  if (errEl) bootstrap.Modal.getOrCreateInstance(errEl).show();
+
+  var modalEl = document.getElementById('teamPickModal');
+  if (!modalEl) return;
+  var form = document.getElementById('teamPickForm');
+  document.querySelectorAll('.team-pick-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      form.action = btn.dataset.action;
+      // Teams this entry has already spent. Greyed out here as well as
+      // refused by the server, so the mistake is visible before it is made.
+      var used = (btn.dataset.used || '').split(',').filter(function (v) { return v !== ''; });
+      form.querySelectorAll('input[name="selection"]').forEach(function (r) {
+        r.checked = (r.value === btn.dataset.current);
+        var spent = used.indexOf(r.value) !== -1;
+        r.disabled = spent;
+        var lab = form.querySelector('label[for="' + r.id + '"]');
+        if (lab) lab.classList.toggle('text-muted', spent);
+      });
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  });
+});
+</script>
+{% endif %}
+
 {% if pool != 'gridiron' %}
 <script>
   // Straight-up pools store the matchup by NFL team; mirror the selected

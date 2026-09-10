@@ -92,6 +92,15 @@ def pool_week(pool, week_id):
     if pool == "gridiron":
         picks_grid, max_slots = gridiron_picks_grid(week)
 
+    # Drop Dead and the Loser Pool: one pick per entry per week, by team, so
+    # they get a flat one-row-per-entry grid instead of Gridiron's slot grid.
+    team_rows = None
+    team_games = []
+    team_matchups = {}
+    loser_points = {}
+    if pool in ("dropdead", "loser"):
+        team_rows, team_games, team_matchups, loser_points = _team_pool_rows(week)
+
     return render_template(
         "admin/pool_week.html",
         pool=pool,
@@ -102,6 +111,10 @@ def pool_week(pool, week_id):
         deadline_passed=deadline_passed(week),
         picks_grid=picks_grid,
         max_slots=max_slots,
+        team_rows=team_rows,
+        team_games=team_games,
+        team_matchups=team_matchups,
+        loser_points=loser_points,
         # Fixed-width grid: entries with a bigger allowance wrap onto a second
         # line rather than stretching the table to 10 columns for everyone.
         columns=min(GRIDIRON_GRID_COLUMNS, max_slots) or GRIDIRON_GRID_COLUMNS,
@@ -798,6 +811,191 @@ def add_pick(entry_id, week_id):
     db.session.commit()
     if game.is_final:
         score_game(game)
+    flash("Pick added for the player.", "success")
+    return back
+
+
+def _team_pool_rows(week):
+    """Player-picks grid for a straight-up pool (Drop Dead, Loser Pool).
+
+    These pools are one pick per entry per week, chosen by team, so the
+    Gridiron slot grid does not apply -- this is a flat row per entry with
+    that entry's pick for the week.
+
+    Returns (rows, games, matchups, loser_points).
+    """
+    pool = week.pool
+    entries = (
+        Entry.query.join(User, Entry.user_id == User.id)
+        .filter(Entry.pool == pool, Entry.season_year == week.season_year)
+        .order_by(name_order(User.username), Entry.id)
+        .all()
+    )
+    picks = {
+        p.entry_id: p
+        for p in Pick.query.filter_by(pool=pool, week_id=week.id).all()
+    }
+
+    loser_points = {}
+    if pool == "loser":
+        loser_points = {
+            lp.team_id: lp.points
+            for lp in LoserPoolPoints.query.filter_by(season_year=week.season_year).all()
+        }
+
+    # Only a game carrying BOTH team FKs can be picked here: Drop Dead and the
+    # Loser Pool score by team_id, and a game with nulls there scores nothing
+    # at all. A college game never has them, which is also why it is never
+    # mirrored into these two pools.
+    games = [
+        g for g in Game.query.filter_by(week_id=week.id, pool=pool)
+        .order_by(Game.kickoff, Game.id).all()
+        if g.home_team_id and g.away_team_id
+    ]
+    matchups = {}
+    for g in games:
+        matchups[g.away_team_id] = f"{g.away_team} @ {g.home_team}"
+        matchups[g.home_team_id] = f"{g.away_team} @ {g.home_team}"
+
+    rows = []
+    for entry in entries:
+        pick = picks.get(entry.id)
+        # Teams this entry has spent, minus whatever it is holding for THIS
+        # week -- that one has to stay selectable or the admin could not
+        # re-pick the same team after opening the dialog. Drop Dead only; the
+        # Loser Pool lets a team come up again.
+        used = set()
+        if pool == "dropdead":
+            used = entry.used_team_ids()
+            if pick and pick.team_id in used:
+                used = used - {pick.team_id}
+        rows.append({
+            "entry": entry,
+            "pick": pick,
+            "used_ids": sorted(used),
+            "points": loser_points.get(pick.team_id) if pick else None,
+        })
+    return rows, games, matchups, loser_points
+
+
+def _team_selection(week, entry, exclude_pick_id=None):
+    """Validate a team posted from the admin pick editor for a straight-up
+    pool. Returns (team_id, game, error_code); error_code is None on success
+    and otherwise one of nochoice / notplaying / used."""
+    try:
+        team_id = int(request.form.get("selection", ""))
+    except (TypeError, ValueError):
+        return None, None, "nochoice"
+
+    game = Game.query.filter(
+        Game.week_id == week.id,
+        Game.pool == week.pool,
+        db.or_(Game.home_team_id == team_id, Game.away_team_id == team_id),
+    ).first()
+    # A team on a bye has no game this week -- nothing to win or lose, so it
+    # is not a legal pick. Same rule the player pages enforce.
+    if game is None:
+        return None, None, "notplaying"
+
+    if week.pool == "dropdead":
+        used = {
+            p.team_id for p in entry.picks
+            if p.team_id is not None
+            and p.id != exclude_pick_id
+            and p.week is not None
+            and not p.week.is_preseason
+        }
+        if team_id in used:
+            return None, None, "used"
+    return team_id, game, None
+
+
+def _dropdead_revive_if_week_clear(entry, week):
+    """Undo an elimination that THIS week's pick caused, once the admin has
+    corrected that pick to something that is not a loss.
+
+    score_dropdead_pick eliminates but never revives, so without this an
+    admin fixing a mis-entered pick -- or filling in a pick for someone who
+    was knocked out for not turning one in -- left the player dead with a
+    winning pick on the board.
+
+    Deliberately narrow. It acts only on an entry that is currently inactive
+    AND whose elimination is recorded against this very week, so an entry
+    eliminated in an earlier week is untouched, and an entry that BOUGHT BACK
+    (is_active with eliminated_week still set, which is how buy-backs record
+    themselves) keeps its history intact.
+    """
+    if week.pool != "dropdead":
+        return
+    if entry.is_active or entry.eliminated_week != week.number:
+        return
+    pick = Pick.query.filter_by(
+        entry_id=entry.id, week_id=week.id, pool="dropdead"
+    ).first()
+    if pick is None or pick.result == "loss":
+        return
+    entry.is_active = True
+    entry.eliminated_week = None
+    db.session.commit()
+
+
+@bp.route("/picks/<int:pick_id>/change-team", methods=["POST"])
+def change_team_pick(pick_id):
+    """Admin re-picks a Drop Dead / Loser Pool week for a player."""
+    pick = Pick.query.get_or_404(pick_id)
+    week = pick.week
+    back = redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
+    if week.pool not in ("dropdead", "loser"):
+        flash("Gridiron picks are changed on the Gridiron grid.", "error")
+        return back
+
+    team_id, game, err = _team_selection(week, pick.entry, exclude_pick_id=pick.id)
+    if err == "used":
+        # Blocking pop-up, not a flash at the top of a long page: spending a
+        # team twice is the one mistake Drop Dead cannot recover from.
+        return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id, pick_error="used"))
+    if err:
+        flash("Choose a team that is playing this week.", "error")
+        return back
+
+    pick.team_id = team_id
+    pick.result = "pending"
+    pick.points = 0
+    db.session.commit()
+    if game.is_final:
+        score_game(game)  # re-grade against the new team
+    _dropdead_revive_if_week_clear(pick.entry, week)
+    flash("Pick updated.", "success")
+    return back
+
+
+@bp.route("/entries/<int:entry_id>/weeks/<int:week_id>/team-pick", methods=["POST"])
+def add_team_pick(entry_id, week_id):
+    """Admin fills an empty Drop Dead / Loser Pool week for a player."""
+    entry = Entry.query.get_or_404(entry_id)
+    week = Week.query.get_or_404(week_id)
+    back = redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id))
+    if week.pool not in ("dropdead", "loser") or entry.pool != week.pool:
+        flash("That entry doesn't belong to this pool.", "error")
+        return back
+    if Pick.query.filter_by(entry_id=entry.id, week_id=week.id, pool=week.pool).first():
+        flash("That entry already has a pick for this week.", "error")
+        return back
+
+    team_id, game, err = _team_selection(week, entry)
+    if err == "used":
+        return redirect(url_for("admin.pool_week", pool=week.pool, week_id=week.id, pick_error="used"))
+    if err:
+        flash("Choose a team that is playing this week.", "error")
+        return back
+
+    db.session.add(
+        Pick(entry_id=entry.id, week_id=week.id, pool=week.pool, team_id=team_id)
+    )
+    db.session.commit()
+    if game.is_final:
+        score_game(game)
+    _dropdead_revive_if_week_clear(entry, week)
     flash("Pick added for the player.", "success")
     return back
 

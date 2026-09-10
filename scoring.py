@@ -829,8 +829,12 @@ def standings_gridiron(season_year):
         losses += gridiron_penalty_losses(e)  # makeup week is 8 of 10
         pushes = sum(1 for p in picks if p.result == "push")
         rows.append((e, wins, losses, pushes))
-    rows.sort(key=lambda r: (-r[1], r[2]))
-    return _assign_ranks(rows, key_func=lambda r: (r[1], r[2]))
+    # Ties break the tie. Two entries on the same W-L are not level: a push
+    # is a slot played to a standstill, so 0-0-1 sits above 0-0-0 and 5-3-1
+    # above 5-3-0. Ties must be in the rank key as well as the sort order,
+    # or the rows move but both still print the same place number.
+    rows.sort(key=lambda r: (-r[1], r[2], -r[3]))
+    return _assign_ranks(rows, key_func=lambda r: (r[1], r[2], r[3]))
 
 
 def dropdead_status_through_week(season_year, week_number):
@@ -907,7 +911,8 @@ def gridiron_record_through_week(season_year, week_number):
             week_picks.append({"label": label, "result": p.result})
 
         rows.append((e, wins, losses, ties, week_picks))
-    rows.sort(key=lambda r: (-r[1], r[2]))
+    # Same ordering as standings_gridiron: -wins, losses, then most ties.
+    rows.sort(key=lambda r: (-r[1], r[2], -r[3]))
     return rows
 
 
@@ -1075,10 +1080,12 @@ def gridiron_matrix(season_year, week_numbers):
     # Placed on the season record, not on the most recent week -- the pool is
     # won over 18 weeks. Standard competition ranking, so equal records share
     # a place and the next distinct record takes its 1-based position.
-    rows.sort(key=lambda r: (-r["wins"], r["losses"]))
+    # Ties are part of the record: most ties wins a level W-L, which is what
+    # keeps 0-0-1 entries above 0-0-0 ones instead of shuffled among them.
+    rows.sort(key=lambda r: (-r["wins"], r["losses"], -r["ties"]))
     prev_key, prev_rank = object(), 0
     for position, row in enumerate(rows, start=1):
-        key = (row["wins"], row["losses"])
+        key = (row["wins"], row["losses"], row["ties"])
         if key != prev_key:
             prev_rank, prev_key = position, key
         row["rank"] = prev_rank

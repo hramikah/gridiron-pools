@@ -1,42 +1,36 @@
-Loser Pool rules: read the points table DOWN the columns
+Standings: a tie ranks above no record at all
 
-The 32 teams were laid out in a single Bootstrap .row of col-md-3 cells, which
-fills left to right, row by row -- so the four cheapest teams sat side by side
-on the top row. The printed sheet reads down its columns instead: Cardinals,
-Dolphins, Jets, Raiders down the far left, and the value climbing as you move
-right.
+Hunter reported 0-0-1 entries scattered among the 0-0-0 ones on Master
+Standings -- some above, some below, no pattern.
 
-The grid is now four explicit columns, cut with |batch(per_col) from the same
-points-ascending list, so column 1 is the cheapest eight and column 4 the
-dearest eight. per_col is a ceiling division rather than a hard 8, so a season
-with a different number of teams still balances, and an empty list gets a
-message instead of a division by zero.
+Gridiron scores a push as neither a win nor a loss, and the three Gridiron
+sorts keyed on wins and losses only:
 
-Also: .loser-points-grid .badge gets a min-width, because one- and two-digit
-point values otherwise left the team names on two different left edges down a
-column.
+    rows.sort(key=lambda r: (-r["wins"], r["losses"]))
 
-Checked at 1200px (four columns of eight) and at 390px (two of eight, then two
-more), reading correctly down each column in both.
+So 0-0-1 and 0-0-0 produced the identical key (0, 0). Python's sort is
+stable, which means neither one was ordered against the other at all -- they
+came out in whatever order the Entry query returned, roughly entry id, with
+the pushed rows sitting wherever their id happened to fall. The same two
+columns were also the whole rank key, so both records printed the same place
+number.
 
-Also adds add-opener-game.command -- pulls the Wednesday season opener's real
-line from The Odds API and adds it to Week 1 in all three pools. Unused if the
-game is entered by hand instead; kept because the same thing happens whenever
-the opener falls outside the Thu-Wed window.
+Ties are now the last tiebreak, in the sort order and in the rank key:
+most ties wins a level W-L. 0-0-1 above 0-0-0, and 5-3-1 above 5-3-0.
+Applied in all three places that order Gridiron entries, so the season
+table, the All Weeks grid and the per-week history agree:
 
-And publish-week-now.command -- runs the ordinary publish against the LIVE
-database on demand, aimed at the COMING Thursday (run today, the plain
-publisher picks the week about to end). Dry run first, refuses if that resolves
-to a preseason week, backs up, then prints the resulting slate. This is what
-put Week 1's 15 NFL and 85 college games up.
+  standings_gridiron          sort + _assign_ranks key
+  gridiron_matrix             sort + inline rank key
+  gridiron_record_through_week    sort
 
-And pause-droplet-publish.command / resume-droplet-publish.command -- stop and
-start the LIVE site's Thursday publish timer. The publisher only skips a game
-it can still SEE in the week, so a college game deleted by hand is simply
-re-added on the next run; pausing is the only way to make a hand-pruned slate
-stick. Scores keep running either way. The pause script says loudly that the
-next week will not publish itself until the resume is run.
+Wins and losses still come first -- a tie never outranks a win, and 0-0-3
+still finishes behind 1-0-0 and ahead of 0-1-0.
 
-Note the existing pause-publishweek.command / resume-publishweek.command target
-a launchd agent on the Mac from before the droplet existed. They do nothing to
-the live site.
+Left alone deliberately: gridiron_awards(). Its Last Place tiebreak is
+(wins, -losses, -ties) with best="min", which is Hunter's confirmed reading
+of the printed rule and orders ties the other way on purpose.
+
+tests/test_standings_tie_order.py covers all three call sites plus the
+ordering-vs-record precedence; four of its five cases fail on the old key.
+61 tests pass.

@@ -1,36 +1,74 @@
-Standings: a tie ranks above no record at all
+Standings: hold the current week until its deadline
 
-Hunter reported 0-0-1 entries scattered among the 0-0-0 ones on Master
-Standings -- some above, some below, no pattern.
+Two changes to how the standings are ordered and what they are allowed to
+show. Both are player-facing and both are on every pool.
 
-Gridiron scores a push as neither a win nor a loss, and the three Gridiron
-sorts keyed on wins and losses only:
+1. NOTHING FROM A WEEK REACHES THE STANDINGS UNTIL ITS DEADLINE PASSES
 
-    rows.sort(key=lambda r: (-r["wins"], r["losses"]))
+Games kick off Thursday; picks stay open until Saturday noon. Until now the
+season tables counted every scored pick the moment it was graded, so a
+Thursday-night final moved the table and anyone watching it could read how
+the field was doing while their own picks were still open. Drop Dead was
+worse than the numbers: dropdead/standings.html prints every entry's picks
+with win/loss colouring, and the By Player tab on Master Standings listed
+any selected player's current picks outright.
 
-So 0-0-1 and 0-0-0 produced the identical key (0, 0). Python's sort is
-stable, which means neither one was ordered against the other at all -- they
-came out in whatever order the Entry query returned, roughly entry id, with
-the pushed rows sitting wherever their id happened to fall. The same two
-columns were also the whole rank key, so both records printed the same place
-number.
+Scoring is untouched -- picks are still graded the moment a game goes final,
+eliminations still land, the admin pages and the diagnose scripts still see
+live data. It is only the release to shared views that waits.
 
-Ties are now the last tiebreak, in the sort order and in the rank key:
-most ties wins a level W-L. 0-0-1 above 0-0-0, and 5-3-1 above 5-3-0.
-Applied in all three places that order Gridiron entries, so the season
-table, the All Weeks grid and the per-week history agree:
+  standings_visible_weeks(season, pool) -> (week_ids, week_numbers)
 
-  standings_gridiron          sort + _assign_ranks key
-  gridiron_matrix             sort + inline rank key
-  gridiron_record_through_week    sort
+is the one definition, keyed on week_unlocked() so it draws the same line
+picks already do. Weeks are per-pool, so each pool holds and releases on its
+own deadline. Applied in standings_gridiron, standings_loser,
+standings_dropdead, gridiron_matrix, dropdead_matrix, loser_matrix,
+player_pick_history and gridiron_award_rows.
 
-Wins and losses still come first -- a tie never outranks a win, and 0-0-3
-still finishes behind 1-0-0 and ahead of 0-1-0.
+Drop Dead needed more than a filter: is_active and eliminated_week live on
+the Entry and are written the moment a game goes final. _VisibleEntry wraps
+an entry with the held-back status AND a picks list already cut to the
+released weeks, so a template that reaches for either cannot render this
+week by accident. Fail-closed on purpose -- that is what the leaking picks
+column was.
 
-Left alone deliberately: gridiron_awards(). Its Last Place tiebreak is
-(wins, -losses, -ties) with best="min", which is Hunter's confirmed reading
-of the printed rule and orders ties the other way on purpose.
+An entry knocked out on Thursday is still told immediately on its own home
+card, so the buy-back window is not eaten. It is the shared table that
+waits.
 
-tests/test_standings_tie_order.py covers all three call sites plus the
-ordering-vs-record precedence; four of its five cases fail on the old key.
-61 tests pass.
+The makeup week's 2-game penalty now waits with the rest of its week rather
+than appearing on the Thursday (gridiron_penalty_losses(visible_only=True)).
+The pick page still shows those two slots from the moment the week opens --
+that is where the player needs to see them, and it was never the leak. This
+narrows the 2026-08-30 timing call to the pick page only.
+
+Every standings page now carries a notice naming the held week and when it
+lands, so a table that hasn't moved since Monday doesn't read as broken.
+
+2. A TIE RANKS ABOVE NO RECORD AT ALL
+
+Reported separately: 0-0-1 entries scattered among the 0-0-0 ones. A push is
+neither a win nor a loss, and all three Gridiron sorts keyed on wins and
+losses only, so both records produced the key (0, 0) -- equal as far as the
+sort was concerned, and Python's stable sort then left them in entry-id
+order. The same two columns were the whole rank key, so both printed the
+same place number.
+
+Ties are now the last tiebreak in the sort order and in the rank key: most
+ties wins a level W-L. 0-0-1 above 0-0-0, 5-3-1 above 5-3-0. Wins and losses
+still come first. gridiron_awards is deliberately untouched -- its Last
+Place tiebreak orders ties the other way, per the 2026-08-23 reading of the
+printed rule.
+
+Still visible after change 1: the window runs from Saturday noon, when a
+week is released, until the last game goes final on Monday night.
+
+TESTS
+
+68 pass. tests/test_standings_hold.py (7) covers the gridiron hold, the
+per-pool independence of it, the penalty timing, a held Drop Dead
+elimination that the player is still told about, the Drop Dead picks column,
+By Player, and the notice. tests/test_standings_tie_order.py (5) covers the
+ordering. All 53 parameterless GET routes plus the week reports, PDFs, pick
+pages and admin week pages render with zero 5xx, both mid-week and after the
+deadline.

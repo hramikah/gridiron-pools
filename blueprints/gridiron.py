@@ -20,6 +20,7 @@ from scoring import (
     gridiron_penalty_slots,
     gridiron_pick_limit,
     standings_gridiron,
+    standings_hold_week,
 )
 
 bp = Blueprint("gridiron", __name__)
@@ -251,4 +252,8 @@ def standings():
     # any cached read does.
     process_due_weeks(season_year, "gridiron")
     rows = standings_gridiron(season_year)
-    return render_template("gridiron/standings.html", rows=rows)
+    return render_template(
+        "gridiron/standings.html",
+        rows=rows,
+        hold=standings_hold_week(season_year, "gridiron"),
+    )

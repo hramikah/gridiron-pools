@@ -26,6 +26,8 @@ from scoring import (
     counts_for_season,
     gridiron_first_miss_week,
     gridiron_makeup_week,
+    gridiron_penalty_losses,
+    gridiron_penalty_slots,
     gridiron_pick_limit,
     process_due_weeks,
     score_dropdead_pick,
@@ -150,7 +152,7 @@ def test_playing_a_preseason_week_never_ranks_below_sitting_it_out(app, make_wee
     assert rows[played.id][0] == rows[sat_out.id][0], "so they tie, instead of the no-show ranking above"
 
 
-def test_a_sat_out_preseason_week_is_a_forgiven_first_miss(app, make_week, make_entry):
+def test_a_sat_out_preseason_week_is_a_forgiven_first_miss(app, make_week, make_entry, submit):
     """A preseason week an entry sat out behaves exactly like a regular one.
 
     Rule 8 forgives a FIRST failure and pays for it with the makeup week, so
@@ -172,9 +174,25 @@ def test_a_sat_out_preseason_week_is_a_forgiven_first_miss(app, make_week, make_
     (_, _, wins, losses, ties), = standings_gridiron(SEASON)
     assert (wins, losses, ties) == (0, 0, 0), "a first miss costs nothing on its own"
 
-    # Once the league enters the makeup week, its 2-game penalty is already on
-    # the record -- the entry starts that week 0-2-0.
+    # Entering the makeup week does NOT put its 2-game penalty on the shared
+    # standings yet: nothing from a week reaches the table until that week's
+    # own deadline passes, so the whole field moves at one moment instead of
+    # this entry's total shifting on the Thursday (commissioner's call,
+    # 2026-09-10, superseding the 2026-08-30 timing for the standings only).
     regular.pick_deadline = now_eastern() + timedelta(days=1)
+    db.session.commit()
+    (_, _, wins, losses, ties), = standings_gridiron(SEASON)
+    assert (wins, losses, ties) == (0, 0, 0), "held until the makeup week's deadline"
+
+    # The pick page is the exception, and always was: the player has to see
+    # the 2 slots they are playing without while they still have picks to make.
+    assert gridiron_penalty_slots(entry, regular) == 2
+    assert gridiron_penalty_losses(entry) == 2, "charged on the record from week_started"
+
+    # At the deadline it lands. The entry turns its 8 makeup picks in (none
+    # graded yet), so the only thing charged is the 2-game penalty: 0-2-0.
+    submit(entry, regular, 8, result=None)
+    regular.pick_deadline = now_eastern() - timedelta(minutes=1)
     db.session.commit()
     (_, _, wins, losses, ties), = standings_gridiron(SEASON)
     assert (wins, losses, ties) == (0, 2, 0)

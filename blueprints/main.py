@@ -19,6 +19,7 @@ from scoring import (
     loser_totals_through_week,
     player_pick_history,
     standings_dropdead,
+    standings_hold_week,
     standings_gridiron,
     standings_loser,
 )
@@ -318,6 +319,10 @@ def standings():
         gridiron_last_week_records=gridiron_last_week_records,
         gridiron_first_miss=gridiron_first_miss,
         awards=gridiron_awards(season_year),
+        # The week each pool is holding back, so every tab can say so rather
+        # than looking stalled. Weeks are per-pool: Gridiron can be released
+        # while the Loser Pool is still waiting on its own deadline.
+        standings_hold={p: standings_hold_week(season_year, p) for p in POOLS},
     )
 
 

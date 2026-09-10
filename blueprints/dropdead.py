@@ -4,7 +4,13 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, game_pickable, get_current_week, log_activity, pool_signup_deadline, pool_signups_open, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
 from models import DROPDEAD_BUYBACK_FEE, BuyBack, Entry, Game, Pick, Team, Week, db, name_order
-from scoring import dropdead_buyback_available, dropdead_eliminated_for_no_pick, process_due_weeks, standings_dropdead
+from scoring import (
+    dropdead_buyback_available,
+    dropdead_eliminated_for_no_pick,
+    process_due_weeks,
+    standings_dropdead,
+    standings_hold_week,
+)
 
 bp = Blueprint("dropdead", __name__)
 
@@ -257,4 +263,8 @@ def standings():
     # any cached read does.
     process_due_weeks(season_year, "dropdead")
     entries = standings_dropdead(season_year)
-    return render_template("dropdead/standings.html", entries=entries)
+    return render_template(
+        "dropdead/standings.html",
+        entries=entries,
+        hold=standings_hold_week(season_year, "dropdead"),
+    )

@@ -1,0 +1,28 @@
+{# The "this week isn't in here yet" notice.
+
+   Shown from the moment a week's betting window opens until its deadline
+   passes. Without it, 150 players watch a table that hasn't moved since
+   Monday and conclude the site is broken -- the Thursday and Friday games
+   really are scored, they are just not released yet.
+
+   Takes `hold`: the Week being held back, or None. See
+   scoring.standings_hold_week. #}
+{% macro standings_hold_notice(hold) %}
+  {% if hold %}
+  {% set d = hold.pick_deadline %}
+  {# The printed rules say "Saturday at noon", so say noon rather than
+     12:00 p.m. Any other deadline (a preseason or hand-made week) prints
+     its real time. #}
+  {% set at = 'noon' if d.hour == 12 and d.minute == 0
+              else d.strftime('%-I:%M %p').lower() %}
+  <div class="alert alert-info d-flex align-items-start gap-2 py-2 px-3 no-print" role="status">
+    <span aria-hidden="true">🔒</span>
+    <div class="small">
+      <strong>{{ week_label(hold.number) }} isn't in these standings yet.</strong>
+      Results are held until picks lock, so nobody can see how the field is
+      doing while there are still picks to make. They appear
+      {{ d.strftime('%A') }} at {{ at }}.
+    </div>
+  </div>
+  {% endif %}
+{% endmacro %}

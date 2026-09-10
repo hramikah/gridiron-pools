@@ -6,22 +6,25 @@ standings sorted on (-wins, losses) alone, which made those two keys
 identical -- the rows landed in whatever order the query returned and both
 printed the same place number. Most ties now breaks a level W-L.
 
-Every week here is left OPEN on purpose (future=True). That is the state
-this actually shows up in: mid-week, some games final and some not, empty
-slots not yet charged as losses. Once a week closes, wins + losses + ties
-is fixed at the pick allowance, so a level W-L forces a level tie count and
-the ordering can no longer be observed.
+Every week here is CLOSED (deadline passed) with every slot filled and only
+some picks graded. That is the window this is visible in: from Saturday
+noon, when the week's results are released to the standings, until the last
+game goes final on Monday night. Before the deadline the whole week is held
+back (standings_visible_weeks), and once every game is final wins + losses
++ ties is pinned to the pick allowance, so a level W-L forces a level tie
+count and the ordering can no longer be observed.
 """
 
 from conftest import SEASON
 from models import Pick, db
 
+ALLOWANCE = 5  # GRIDIRON_NORMAL_PICKS -- fill every slot, or empties score as losses
+
 
 def place(entry, week, results):
-    """Give an entry one pick per entry in `results`, each on its own game."""
-    games = week.games
-    assert len(results) <= len(games), "week needs more games than picks"
-    for game, result in zip(games, results):
+    """Fill all five slots, each pick graded as given. None means pending."""
+    assert len(results) == ALLOWANCE, "fill the week, or empty slots become losses"
+    for game, result in zip(week.games, results):
         db.session.add(
             Pick(
                 entry_id=entry.id,
@@ -35,6 +38,10 @@ def place(entry, week, results):
             )
         )
     db.session.commit()
+
+
+def pending(n):
+    return [None] * n
 
 
 def names(rows):
@@ -53,13 +60,15 @@ def test_a_tie_ranks_above_no_record(app, make_week, make_entry):
     """0-0-1 sits above 0-0-0, and takes a distinct place number."""
     from scoring import standings_gridiron
 
-    week = make_week(1, future=True)
+    week = make_week(1)
     # Created in the order that used to leave them shuffled: the two entries
     # with nothing graded bracket the one that pushed.
-    make_entry("nothing_a")
+    nothing_a = make_entry("nothing_a")
     pushed = make_entry("pushed")
-    make_entry("nothing_b")
-    place(pushed, week, ["push"])
+    nothing_b = make_entry("nothing_b")
+    place(pushed, week, ["push"] + pending(4))
+    place(nothing_a, week, pending(5))
+    place(nothing_b, week, pending(5))
 
     rows = standings_gridiron(SEASON)
 
@@ -74,11 +83,13 @@ def test_ties_break_a_level_record_generally(app, make_week, make_entry):
     """Not just at 0-0: 5-3-1 outranks 5-3-0 too."""
     from scoring import standings_gridiron
 
-    week = make_week(1, games=10, future=True)
+    w1, w2 = make_week(1), make_week(2)
     plain = make_entry("plain")
     tied = make_entry("tied")
-    place(plain, week, ["win"] * 5 + ["loss"] * 3)
-    place(tied, week, ["win"] * 5 + ["loss"] * 3 + ["push"])
+    for e in (plain, tied):
+        place(e, w1, ["win"] * 5)
+    place(plain, w2, ["loss"] * 3 + pending(2))
+    place(tied, w2, ["loss"] * 3 + ["push"] + pending(1))
 
     rows = standings_gridiron(SEASON)
 
@@ -91,13 +102,13 @@ def test_wins_and_losses_still_outrank_ties(app, make_week, make_entry):
     """Ties are the last tiebreak, never ahead of the record itself."""
     from scoring import standings_gridiron
 
-    week = make_week(1, future=True)
+    week = make_week(1)
     winner = make_entry("winner")
     tie_only = make_entry("tie_only")
     loser = make_entry("loser")
-    place(winner, week, ["win"])
-    place(tie_only, week, ["push"] * 3)
-    place(loser, week, ["loss"])
+    place(winner, week, ["win"] + pending(4))
+    place(tie_only, week, ["push"] * 3 + pending(2))
+    place(loser, week, ["loss"] + pending(4))
 
     assert names(standings_gridiron(SEASON)) == ["winner", "tie_only", "loser"]
 
@@ -106,10 +117,11 @@ def test_matrix_agrees_with_the_standings_table(app, make_week, make_entry):
     """The All Weeks grid ranks the same way the season table does."""
     from scoring import gridiron_matrix, standings_gridiron
 
-    week = make_week(1, future=True)
-    make_entry("nothing")
+    week = make_week(1)
+    nothing = make_entry("nothing")
     pushed = make_entry("pushed")
-    place(pushed, week, ["push", "push"])
+    place(nothing, week, pending(5))
+    place(pushed, week, ["push", "push"] + pending(3))
 
     table = ranks(standings_gridiron(SEASON))
     grid = {r["entry"].user.username: r["rank"] for r in gridiron_matrix(SEASON, [1])}
@@ -121,10 +133,11 @@ def test_through_week_view_agrees_too(app, make_week, make_entry):
     """The per-week history view uses the same ordering."""
     from scoring import gridiron_record_through_week
 
-    week = make_week(1, future=True)
-    make_entry("nothing")
+    week = make_week(1)
+    nothing = make_entry("nothing")
     pushed = make_entry("pushed")
-    place(pushed, week, ["push"])
+    place(nothing, week, pending(5))
+    place(pushed, week, ["push"] + pending(4))
 
     rows = gridiron_record_through_week(SEASON, 1)
     assert [r[0].user.username for r in rows] == ["pushed", "nothing"]

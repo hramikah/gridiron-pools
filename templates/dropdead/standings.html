@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_standings_hold.html" import standings_hold_notice %}
 {% block title %}Drop Dead Pool - Standings{% endblock %}
 {% block content %}
 <div class="page-header header-dropdead"><h2><span class="pool-icon">💀</span>Drop Dead Pool Standings</h2></div>
+{{ standings_hold_notice(hold) }}
 <div class="table-responsive">
 <table class="table table-striped standings bg-white">
   <thead><tr><th>#</th><th>Player</th><th>Status</th><th>Picks</th></tr></thead>

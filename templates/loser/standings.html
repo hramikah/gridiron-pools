@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_standings_hold.html" import standings_hold_notice %}
 {% block title %}Loser Pool - Standings{% endblock %}
 {% block content %}
 <div class="page-header header-loser"><h2><span class="pool-icon">📉</span>Loser Pool Standings</h2></div>
+{{ standings_hold_notice(hold) }}
 <div class="table-responsive">
 <table class="table table-striped standings bg-white">
   <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead>

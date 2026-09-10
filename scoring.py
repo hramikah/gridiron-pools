@@ -4,9 +4,11 @@ actions and any future batch/cron processing can share the same code."""
 from helpers import (
     _read_cache,
     deadline_passed,
+    get_current_week,
     week_is_complete,
     week_sort_key,
     week_started,
+    week_unlocked,
 )
 from models import (
     DROPDEAD_BUYBACK_FEE,
@@ -504,7 +506,7 @@ def gridiron_pick_limit(entry, week):
     return GRIDIRON_MAKEUP_PICKS
 
 
-def gridiron_penalty_losses(entry, through_week=None):
+def gridiron_penalty_losses(entry, through_week=None, visible_only=False):
     """The 2-game penalty attached to the makeup week (8 picks out of 10).
 
     Charged from the moment the league ENTERS the makeup week -- not when that
@@ -534,7 +536,14 @@ def gridiron_penalty_losses(entry, through_week=None):
     week = Week.query.filter_by(
         season_year=entry.season_year, pool="gridiron", number=makeup
     ).first()
-    if not week_started(week):
+    if week is None:
+        return 0
+    # visible_only is the standings asking: hold the 2 losses until the
+    # makeup week's deadline, so the whole table moves at one moment rather
+    # than this one entry's total shifting on the Thursday. The pick page
+    # still shows the 2 penalty slots from the moment the week opens
+    # (gridiron_penalty_slots), which is where the player needs to see them.
+    if not (week_unlocked(week) if visible_only else week_started(week)):
         return 0
     return GRIDIRON_MAKEUP_PENALTY_LOSSES
 
@@ -799,34 +808,150 @@ def _assign_ranks(items, key_func):
     return ranked
 
 
+def standings_visible_weeks(season_year, pool):
+    """The weeks whose results may appear in the standings yet.
+
+    Nothing from a week reaches the standings until that week's own pick
+    deadline has passed -- the same Saturday-noon boundary week_unlocked()
+    already draws for picks. Games kick off on Thursday while picks stay
+    open until Saturday noon, so before this the table moved on Thursday
+    night and anyone watching it could read off how the field was doing
+    while their own picks were still open. Scoring itself is untouched:
+    results are graded the moment a game goes final, they just don't reach
+    a player-facing page until the deadline. (Commissioner's call,
+    2026-09-10.)
+
+    Weeks are per-pool, so each pool holds and releases on its own deadline.
+
+    Returns (week_ids, week_numbers): ids filter Pick rows, numbers test the
+    week-number fields stored on Entry (eliminated_week, buyback_week).
+    """
+    cache = _read_cache()
+    ck = ("standings_visible", season_year, pool)
+    if cache is not None and ck in cache:
+        return cache[ck]
+    visible = [
+        w for w in Week.query.filter_by(season_year=season_year, pool=pool).all()
+        if week_unlocked(w)
+    ]
+    out = ({w.id for w in visible}, {w.number for w in visible})
+    if cache is not None:
+        cache[ck] = out
+    return out
+
+
+def standings_hold_week(season_year, pool):
+    """The week the standings are currently holding back, or None.
+
+    The current week from the moment its betting window opens until its
+    deadline passes -- exactly the window in which the tables are showing
+    less than the database knows. What the notice on the standings names.
+    """
+    week = get_current_week(season_year, pool)
+    if week is None or not week_started(week) or deadline_passed(week):
+        return None
+    return week
+
+
+class _VisibleEntry:
+    """A read-only view of an Entry as the standings are allowed to show it.
+
+    Deliberately fail-closed. ``picks`` is already cut down to the weeks
+    whose deadline has passed, and ``is_active`` / ``eliminated_week`` /
+    ``buyback_week`` are the held-back values, so a template that reaches
+    for any of them cannot render this week's result by accident -- which is
+    how the Drop Dead standings were showing every entry's current pick.
+    Everything else (``id``, ``user``, ``label``) passes through to the real
+    Entry untouched.
+    """
+
+    __slots__ = ("_entry", "picks", "is_active", "eliminated_week", "buyback_week")
+
+    def __init__(self, entry, picks, is_active, eliminated_week, buyback_week):
+        self._entry = entry
+        self.picks = picks
+        self.is_active = is_active
+        self.eliminated_week = eliminated_week
+        self.buyback_week = buyback_week
+
+    def __getattr__(self, name):
+        # _entry is set first in __init__; without this guard an attribute
+        # looked up before that point recurses forever.
+        if name == "_entry":
+            raise AttributeError(name)
+        return getattr(self._entry, name)
+
+    def __repr__(self):
+        return f"<VisibleEntry entry={self._entry.id}>"
+
+
+def _dropdead_as_shown(entry, visible_ids, visible_numbers):
+    """Drop Dead alive/out as of the last week whose deadline has passed.
+
+    An entry knocked out by a Thursday game reads Alive here until Saturday
+    noon. Its own home card still says otherwise -- the player is told
+    straight away so the buy-back window isn't eaten (commissioner's call,
+    2026-09-10); it's the shared table that waits.
+    """
+    # A buy-back always lands on the week of the elimination it reversed, so
+    # eliminated_week == buyback_week means this entry is back on its feet.
+    # A later, separate elimination moves eliminated_week past buyback_week.
+    revived = entry.buyback_week is not None and entry.eliminated_week == entry.buyback_week
+    out = (
+        not revived
+        and entry.eliminated_week is not None
+        and entry.eliminated_week in visible_numbers
+    )
+    return _VisibleEntry(
+        entry,
+        [p for p in entry.picks if p.week_id in visible_ids],
+        is_active=not out,
+        eliminated_week=entry.eliminated_week if out else None,
+        buyback_week=(
+            entry.buyback_week
+            if entry.buyback_week is not None and entry.buyback_week in visible_numbers
+            else None
+        ),
+    )
+
+
 def standings_dropdead(season_year):
-    entries = Entry.query.filter_by(pool="dropdead", season_year=season_year).all()
+    visible_ids, visible_numbers = standings_visible_weeks(season_year, "dropdead")
+    entries = [
+        _dropdead_as_shown(e, visible_ids, visible_numbers)
+        for e in Entry.query.filter_by(pool="dropdead", season_year=season_year).all()
+    ]
     entries.sort(key=lambda e: (not e.is_active, -(e.eliminated_week or 999)))
     return _assign_ranks(entries, key_func=lambda e: (not e.is_active, e.eliminated_week))
 
 
 def standings_loser(season_year):
+    visible_ids, _ = standings_visible_weeks(season_year, "loser")
     entries = Entry.query.filter_by(pool="loser", season_year=season_year).all()
     totals = []
     for e in entries:
         # Preseason points count toward the displayed total, which also makes
         # this agree with the pick page's running total -- the two used to
-        # disagree, one filtering and one not.
-        total = sum(p.points or 0 for p in e.picks)
+        # disagree, one filtering and one not. The current week is held back
+        # until its deadline; see standings_visible_weeks.
+        total = sum(p.points or 0 for p in e.picks if p.week_id in visible_ids)
         totals.append((e, total))
     totals.sort(key=lambda t: -t[1])
     return _assign_ranks(totals, key_func=lambda t: t[1])
 
 
 def standings_gridiron(season_year):
+    visible_ids, _ = standings_visible_weeks(season_year, "gridiron")
     entries = Entry.query.filter_by(pool="gridiron", season_year=season_year).all()
     rows = []
     for e in entries:
-        picks = gridiron_counted_picks(e)  # skips bought-back and post-bench weeks
+        # Held back to the weeks whose deadline has passed. _gridiron_empty_losses
+        # needs no filter -- it already charges nothing before a deadline.
+        picks = [p for p in gridiron_counted_picks(e) if p.week_id in visible_ids]
         wins = sum(1 for p in picks if p.result == "win")
         losses = sum(1 for p in picks if p.result == "loss")
         losses += _gridiron_empty_losses(e)  # empty slots after deadline = losses
-        losses += gridiron_penalty_losses(e)  # makeup week is 8 of 10
+        losses += gridiron_penalty_losses(e, visible_only=True)  # makeup week is 8 of 10
         pushes = sum(1 for p in picks if p.result == "push")
         rows.append((e, wins, losses, pushes))
     # Ties break the tie. Two entries on the same W-L are not level: a push
@@ -922,9 +1047,14 @@ def player_pick_history(season_year, user_id):
     complete -- otherwise shown as pending)."""
     rows = []
     for pool_name in ("dropdead", "loser", "gridiron"):
+        # Anyone can select any player here, so this is the most direct way
+        # to read another entry's current picks. Held to the weeks whose
+        # deadline has passed, same as every other shared view.
+        visible_ids, visible_numbers = standings_visible_weeks(season_year, pool_name)
         entries = Entry.query.filter_by(pool=pool_name, season_year=season_year, user_id=user_id).all()
         for e in entries:
-            for p in sorted(e.picks, key=lambda p: p.week.number):
+            for p in sorted((p for p in e.picks if p.week_id in visible_ids),
+                            key=lambda p: p.week.number):
                 if pool_name in ("dropdead", "loser"):
                     team_label = f"{p.team.city} {p.team.name}" if p.team else "—"
                 elif p.market == "spread":
@@ -945,6 +1075,8 @@ def player_pick_history(season_year, user_id):
                 )
             if pool_name == "gridiron":
                 for w in Week.query.filter_by(season_year=season_year, pool="gridiron").order_by(Week.number).all():
+                    if w.id not in visible_ids:
+                        continue
                     empty = _gridiron_week_empty_losses(e, w)
                     if empty > 0:
                         rows.append(
@@ -971,7 +1103,11 @@ def player_pick_history(season_year, user_id):
                                 "points": None,
                             }
                         )
-            elif pool_name == "dropdead" and e.eliminated_week is not None:
+            elif (
+                pool_name == "dropdead"
+                and e.eliminated_week is not None
+                and e.eliminated_week in visible_numbers
+            ):
                 # Elimination with no Pick row for that week means the entry
                 # never submitted a pick that week (auto-eliminated for a
                 # no-show, same as picking a loser) -- show it explicitly
@@ -994,7 +1130,11 @@ def player_pick_history(season_year, user_id):
 
 def dropdead_matrix(season_year, week_numbers):
     """Every entry's pick for every unlocked week, side by side."""
-    entries = Entry.query.filter_by(pool="dropdead", season_year=season_year).all()
+    visible_ids, visible_numbers = standings_visible_weeks(season_year, "dropdead")
+    entries = [
+        _dropdead_as_shown(e, visible_ids, visible_numbers)
+        for e in Entry.query.filter_by(pool="dropdead", season_year=season_year).all()
+    ]
     rows = []
     for e in entries:
         cells = {wn: next((p for p in e.picks if p.week.number == wn), None) for wn in week_numbers}
@@ -1013,11 +1153,13 @@ def dropdead_matrix(season_year, week_numbers):
 
 def loser_matrix(season_year, week_numbers):
     """Every entry's pick + running point total for every unlocked week."""
+    visible_ids, _ = standings_visible_weeks(season_year, "loser")
     entries = Entry.query.filter_by(pool="loser", season_year=season_year).all()
     rows = []
     for e in entries:
-        cells = {wn: next((p for p in e.picks if p.week.number == wn), None) for wn in week_numbers}
-        total = sum(p.points or 0 for p in e.picks)
+        picks = [p for p in e.picks if p.week_id in visible_ids]
+        cells = {wn: next((p for p in picks if p.week.number == wn), None) for wn in week_numbers}
+        total = sum(p.points or 0 for p in picks)
         rows.append({"entry": e, "cells": cells, "total": total})
     rows.sort(key=lambda r: -r["total"])
     return rows
@@ -1026,6 +1168,7 @@ def loser_matrix(season_year, week_numbers):
 def gridiron_matrix(season_year, week_numbers):
     """Every entry's per-week W-L-T record for every unlocked week, plus a
     season total. A missed week shows as a 0-5 penalty cell."""
+    visible_ids, _ = standings_visible_weeks(season_year, "gridiron")
     entries = Entry.query.filter_by(pool="gridiron", season_year=season_year).all()
     weeks_by_num = {
         w.number: w
@@ -1060,10 +1203,10 @@ def gridiron_matrix(season_year, week_numbers):
                 "free_miss": free_miss,
                 "penalty": penalty,
             }
-        picks = gridiron_counted_picks(e)
+        picks = [p for p in gridiron_counted_picks(e) if p.week_id in visible_ids]
         wins = sum(1 for p in picks if p.result == "win")
         losses = sum(1 for p in picks if p.result == "loss") + _gridiron_empty_losses(e)
-        losses += gridiron_penalty_losses(e)  # same total standings_gridiron shows
+        losses += gridiron_penalty_losses(e, visible_only=True)  # same total standings_gridiron shows
         ties = sum(1 for p in picks if p.result == "push")
         rows.append({
             "entry": e,
@@ -1166,12 +1309,15 @@ GRIDIRON_SECOND_HALF_WEEKS = (10, 18)
 
 def gridiron_award_rows(season_year):
     """Every Gridiron entry with the numbers the special awards turn on."""
+    visible_ids, _ = standings_visible_weeks(season_year, "gridiron")
     entries = Entry.query.filter_by(pool="gridiron", season_year=season_year).all()
-    weeks = (
-        Week.query.filter_by(season_year=season_year, pool="gridiron")
-        .order_by(Week.number)
-        .all()
-    )
+    # Held to the weeks whose deadline has passed, so an award leader can't
+    # shift on a Thursday night while picks are still open.
+    weeks = [
+        w for w in Week.query.filter_by(season_year=season_year, pool="gridiron")
+        .order_by(Week.number).all()
+        if w.id in visible_ids
+    ]
     rows = []
     for entry in entries:
         missed = {
@@ -1257,7 +1403,7 @@ def gridiron_awards(season_year):
     played = {
         w.number
         for w in Week.query.filter_by(season_year=season_year, pool="gridiron").all()
-        if week_is_complete(w)
+        if week_unlocked(w) and week_is_complete(w)
     }
 
     def leader_list(leaders, detail):

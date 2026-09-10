@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_standings_hold.html" import standings_hold_notice %}
 {% block title %}Master Standings{% endblock %}
 {% block container_class %}container-fluid px-4{% endblock %}
 {% block content %}
@@ -28,6 +29,7 @@
 
 <div class="tab-content">
   <div class="tab-pane fade show active" id="gridiron-pane" role="tabpanel">
+    {{ standings_hold_notice(standings_hold.gridiron) }}
     {# Print. Bootstrap shows only the active tab pane, so window.print()
        prints whichever pool the reader is looking at and nothing else -- see
        the Print section of style.css. #}
@@ -73,6 +75,7 @@
   </div>
 
   <div class="tab-pane fade" id="awards-pane" role="tabpanel">
+    {{ standings_hold_notice(standings_hold.gridiron) }}
     <p class="text-muted">The five specialty awards, decided on their own terms. Place money is 12% of paid entries
     and is settled on the <a href="#" onclick="new bootstrap.Tab(document.getElementById('gridiron-tab')).show(); return false;">Gridiron Investments</a> table, not here.
     Amounts are set by the Rules Committee each year.</p>
@@ -135,6 +138,7 @@
   </div>
 
   <div class="tab-pane fade" id="dropdead-pane" role="tabpanel">
+    {{ standings_hold_notice(standings_hold.dropdead) }}
     {# Print. Bootstrap shows only the active tab pane, so window.print()
        prints whichever pool the reader is looking at and nothing else -- see
        the Print section of style.css. #}
@@ -218,6 +222,7 @@
   </div>
 
   <div class="tab-pane fade" id="loser-pane" role="tabpanel">
+    {{ standings_hold_notice(standings_hold.loser) }}
     {# Print. Bootstrap shows only the active tab pane, so window.print()
        prints whichever pool the reader is looking at and nothing else -- see
        the Print section of style.css. #}
@@ -339,6 +344,7 @@
   </div>
 
   <div class="tab-pane fade" id="player-pane" role="tabpanel">
+    {{ standings_hold_notice(standings_hold.gridiron) }}
     <p class="text-muted">Pick a player to see every team they've picked this season &mdash; green for a win, red for a loss,
       <span class="text-push fw-bold">purple for a push</span> (the result landed exactly on the line, so it counts as neither).</p>
     <form method="get" action="{{ url_for('main.standings') }}#player-pane" class="mb-4">

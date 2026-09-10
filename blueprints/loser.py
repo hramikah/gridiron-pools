@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from helpers import deadline_passed, game_pickable, get_current_week, log_activity, pool_signup_deadline, pool_signups_open, team_game_this_week, team_matchups_for_week
 from team_colors import styles_for
 from models import Entry, Game, LoserPoolPoints, Pick, Team, db, name_order
-from scoring import process_due_weeks, standings_loser
+from scoring import process_due_weeks, standings_hold_week, standings_loser
 
 bp = Blueprint("loser", __name__)
 
@@ -196,4 +196,8 @@ def standings():
     # any cached read does.
     process_due_weeks(season_year, "loser")
     rows = standings_loser(season_year)
-    return render_template("loser/standings.html", rows=rows)
+    return render_template(
+        "loser/standings.html",
+        rows=rows,
+        hold=standings_hold_week(season_year, "loser"),
+    )

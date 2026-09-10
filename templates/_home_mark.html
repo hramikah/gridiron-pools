@@ -1,0 +1,10 @@
+{#- The little house that marks the HOME team on a pick button.
+
+    It is positioned absolutely in the button's bottom-right corner (see
+    .home-mark in style.css), deliberately: an inline icon would add to the
+    label's width and could push a team name onto another line, which made
+    some buttons taller than others down the page. Out of the flow, every
+    button keeps exactly the size it would have had without it.
+
+    Include it INSIDE the <label>, after the label's text. -#}
+<span class="home-mark" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.35 0.9 7.5h1.9V14.4h3.55v-3.9h3.3v3.9h3.55V7.5h1.9z"/></svg></span><span class="visually-hidden">Home team.</span>

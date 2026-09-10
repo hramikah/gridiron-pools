@@ -1368,3 +1368,57 @@ body.has-pick-save-bar { padding-bottom: 5.5rem; }
   min-width: 2.1rem;
   text-align: center;
 }
+
+/* ===================================================================
+   Home-team marker on the pick buttons
+   ===================================================================
+   A small house in the bottom-right corner of the HOME team's button, in
+   every pool's pick screen. See templates/_home_mark.html.
+
+   It is absolutely positioned ON PURPOSE. The first cut put the glyph
+   inline, ahead of the team name, and that added to the label's width:
+   in a narrow column it re-wrapped a name onto a second line, so home
+   buttons came out a different size from away buttons and rows were
+   different heights down the page. Out of the flow, the house costs the
+   label nothing and every button keeps the size it had before.
+
+   It inherits the button's text colour, so it is the club colour on an
+   unpicked button, white on a selected one, and greys out with
+   everything else on a locked or already-used team. */
+.pick-option {
+  position: relative;
+}
+.home-mark {
+  position: absolute;
+  right: .3rem;
+  bottom: .2rem;
+  width: .72em;
+  height: .72em;
+  opacity: .5;
+  pointer-events: none;
+}
+.home-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+/* A selected button is a saturated block of club colour, so the glyph needs
+   a little more presence there to stay visible. */
+.btn-check:checked + .pick-option .home-mark,
+.pick-option.team-tinted:hover .home-mark {
+  opacity: .75;
+}
+/* Drop Dead and Loser buttons are a single line, sized to their own label,
+   so the bottom-right corner is exactly where the last letter sits -- the
+   house clipped "Ravens" and "Eagles" there. Every button in those two
+   tables, away as well as home, gets the same wider side padding: the
+   labels stay centred, all the buttons stay identical to each other, and
+   the corner is left clear. Gridiron needs none of this -- its buttons are
+   already two lines with the spread centred underneath, so the corner is
+   empty. */
+.dropdead-pick-table .pick-option,
+.loser-pick-table .pick-option {
+  padding-left: 1.35em;
+  padding-right: 1.35em;
+}

@@ -1,10 +1,9 @@
 import importlib
 import os
 import re
-from datetime import datetime, timedelta
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
-from flask_login import LoginManager, current_user, logout_user
+from flask_login import LoginManager, current_user
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError
 
@@ -26,11 +25,9 @@ from testbed_guard import TESTBED_MARKER
 
 csrf = CSRFProtect()
 
-# Auto-logout after this long with no requests, enforced server-side and
-# independent of the session cookie's own lifetime (which stays a
-# browser-session cookie -- no Expires/Max-Age -- so it's still cleared on
-# browser close for browsers that don't restore their previous session).
-INACTIVITY_TIMEOUT = timedelta(minutes=30)
+# The 30-minute inactivity auto-logout was removed by request. A signed-in
+# session now lasts until the user signs out or the browser session ends
+# (the cookie is still a browser-session cookie -- no Expires/Max-Age).
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -175,9 +172,8 @@ def create_app():
     # HTTPS (Cloudflare terminates TLS in front of it), so Secure is safe.
     # Flask-WTF expires CSRF tokens after an hour by default, which on a
     # phone means any tab left open past that logs you out with a cryptic
-    # 400. The token is stored in the session, and the session is already
-    # bounded by the 30-minute inactivity logout above, so tying the token's
-    # life to the session's is no weaker and far less confusing.
+    # 400. The token is stored in the session, so tying the token's life to
+    # the session's is no weaker and far less confusing.
     app.config["WTF_CSRF_TIME_LIMIT"] = None
 
     # Secure means the browser only ever sends the cookie over HTTPS, which is
@@ -348,22 +344,6 @@ def create_app():
                 forwarded = "http"
         if forwarded == "http":
             return redirect(request.url.replace("http://", "https://", 1), code=301)
-        return None
-
-    @app.before_request
-    def enforce_inactivity_timeout():
-        if not current_user.is_authenticated:
-            return None
-        now = datetime.utcnow()
-        last_seen_raw = session.get("_last_seen")
-        if last_seen_raw:
-            last_seen = datetime.fromisoformat(last_seen_raw)
-            if now - last_seen > INACTIVITY_TIMEOUT:
-                logout_user()
-                session.clear()
-                flash("You were logged out after 30 minutes of inactivity.", "error")
-                return redirect(url_for("auth.login"))
-        session["_last_seen"] = now.isoformat()
         return None
 
     @app.before_request

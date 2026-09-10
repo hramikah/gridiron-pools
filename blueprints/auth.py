@@ -319,9 +319,8 @@ def logout():
     log_activity("logout", "Signed out")
     logout_user()
     # logout_user() only drops Flask-Login's own keys; everything else the app
-    # stashed (seen announcements, invite token, last-seen stamp) would survive
-    # into the next login on this browser. Clear the lot, as the inactivity
-    # timeout already does.
+    # stashed (seen announcements, invite token) would survive into the next
+    # login on this browser. Clear the lot.
     session.clear()
     flash("Logged out.", "success")
     return redirect(url_for("main.index"))

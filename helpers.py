@@ -424,13 +424,32 @@ def week_is_complete(week):
     return bool(games) and all(g.is_final for g in games)
 
 
+def _is_saturday_noon_game(game):
+    """True for a game that kicks off in the Saturday noon window.
+
+    The week's overall deadline is Saturday at noon, so the usual 1-hour
+    lock would shut these games at 11:00 -- an hour before the deadline the
+    rules promise players. Saturday noon games are therefore exempt: they
+    stay pickable right up to kickoff. (Commissioner's call, 2026-09-12.)
+    """
+    k = game.kickoff if game is not None else None
+    return k is not None and k.weekday() == 5 and k.hour == 12
+
+
 def game_pickable(game):
     """A game can be picked until 1 hour before its own kickoff, even if the
     week's overall Saturday-noon deadline hasn't hit yet -- per the printed
-    rules, this applies to every pool, not just Gridiron."""
+    rules, this applies to every pool, not just Gridiron.
+
+    The one exception is a Saturday noon game, which locks at its kickoff
+    instead, so it can always be picked up to the week's deadline."""
     if game is None:
         return True
-    return game.kickoff is None or now_eastern() < game.kickoff - timedelta(hours=1)
+    if game.kickoff is None:
+        return True
+    if _is_saturday_noon_game(game):
+        return now_eastern() < game.kickoff
+    return now_eastern() < game.kickoff - timedelta(hours=1)
 
 
 def game_started(game):

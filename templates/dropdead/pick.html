@@ -84,7 +84,7 @@
             data-pick-bar data-pick-max="1" data-pick-label="{{ entry.label }}">
         <input type="hidden" name="entry_id" value="{{ entry.id }}">
         <div class="pick-heading">{{ week.label }} &mdash; pick one team to <span style="color:var(--pick-accent)">WIN</span> outright</div>
-        <p class="form-text mt-0 mb-2">No point spread. Each team may be used only once all season, so teams you've already picked are greyed out. Teams also lock 1 hour before their own kickoff.</p>
+        <p class="form-text mt-0 mb-2">No point spread. Each team may be used only once all season, so teams you've already picked are greyed out. Teams also lock 1 hour before their own kickoff, except Saturday noon games, which stay open until kickoff.</p>
 
         {% if games %}
         <div class="table-responsive">

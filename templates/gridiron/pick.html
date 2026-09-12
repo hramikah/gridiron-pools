@@ -235,7 +235,7 @@
         <p class="text-muted mb-0">All {{ limit }} picks are locked in for this week.</p>
       {% else %}
         {% if not games %}
-        <p class="text-muted mb-0">No more games are available to pick right now &mdash; picks close 1 hour before each game's kickoff.</p>
+        <p class="text-muted mb-0">No more games are available to pick right now &mdash; picks close 1 hour before each game's kickoff (Saturday noon games stay open until kickoff).</p>
         {% endif %}
         {# Every game is rendered. One past its own 1-hour cutoff comes
            through disabled with a note, the same as Loser and Drop Dead --
@@ -340,7 +340,7 @@
       </div>
       {% endif %}
       {% if not locked %}
-      <p class="text-muted small mb-2 no-print">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff, and all picks must be in by the week's overall deadline above.</p>
+      <p class="text-muted small mb-2 no-print">You can submit picks over several visits &mdash; each game locks 1 hour before its own kickoff (Saturday noon games stay open right up to kickoff), and all picks must be in by the week's overall deadline above.</p>
       {% endif %}
 
       {% set nfl_games = display_games|selectattr('sport', 'equalto', 'nfl')|list %}

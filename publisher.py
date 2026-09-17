@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 import requests
 
+from fbs import is_fbs, unrecognized
 from helpers import EASTERN, get_setting, now_eastern
 from models import PRESEASON_OFFSET, Game, Team, Week, db, default_buyback_open
 
@@ -168,6 +169,7 @@ def publish_week(app, reference=None):
         team_lookup = _team_lookup()
         created, already_published = 0, 0
         unmatched = set()
+        skipped_college, non_fbs = 0, set()
 
         for sport in ("nfl", "college"):
             events = fetch_odds(sport, api_key, preseason=is_preseason)
@@ -178,6 +180,18 @@ def publish_week(app, reference=None):
 
                 home_name = event["home_team"]
                 away_name = event["away_team"]
+
+                # FBS vs FBS only. The NCAAF feed prices FBS-vs-FCS games too,
+                # and a board full of 40-point mismatches is not a pool. Both
+                # sides have to be on the list in fbs.py or the game is
+                # skipped -- and the names that caused a skip are reported, so
+                # a school missing from the list shows up instead of silently
+                # dropping a real game.
+                if sport == "college" and not (is_fbs(home_name) and is_fbs(away_name)):
+                    skipped_college += 1
+                    non_fbs.update(unrecognized([home_name, away_name]))
+                    continue
+
                 spread_by_team, total = _extract_lines(event)
 
                 favorite, spread_value = None, None
@@ -286,4 +300,6 @@ def publish_week(app, reference=None):
             "created": created,
             "already_published": already_published,
             "unmatched": sorted(unmatched),
+            "skipped_college": skipped_college,
+            "non_fbs_names": sorted(non_fbs),
         }

@@ -9,7 +9,6 @@ from scoring import (
     process_due_weeks,
     GRIDIRON_GRID_COLUMNS,
     dropdead_buyback_available,
-    dropdead_matrix,
     dropdead_status_through_week,
     gridiron_awards,
     gridiron_first_miss_week,
@@ -279,14 +278,12 @@ def standings():
     if selected_player_id is not None and any(p.id == selected_player_id for p in players):
         player_history = player_pick_history(season_year, selected_player_id)
 
-    unlocked_week_numbers = union_numbers
-    # Only Drop Dead still shows a week-by-week grid on this page. The Gridiron
-    # and Loser grids were dropped (the per-pool standings pages and Week
-    # History cover the same ground), so their matrices are not built either --
-    # each one walked every pick of every entry for every unlocked week.
-    all_weeks_data = {
-        "dropdead": dropdead_matrix(season_year, unlocked_by_pool["dropdead"]),
-    }
+    # No pool shows a week-by-week grid on this page any more. The Gridiron and
+    # Loser grids went first, and Drop Dead's followed on 2026-09-10 -- Week
+    # History and the per-pool standings pages cover the same ground. None of
+    # the three matrices is built here now: each one walked every pick of every
+    # entry for every unlocked week, which was the most expensive thing on the
+    # richest page of the site.
 
     # Last completed Gridiron week, for the "last week" column on the standings.
     gridiron_last_week = max(unlocked_by_pool["gridiron"]) if unlocked_by_pool["gridiron"] else None
@@ -313,8 +310,6 @@ def standings():
         players=players,
         selected_player_id=selected_player_id,
         player_history=player_history,
-        unlocked_week_numbers=unlocked_week_numbers,
-        all_weeks_data=all_weeks_data,
         gridiron_last_week=gridiron_last_week,
         gridiron_last_week_records=gridiron_last_week_records,
         gridiron_first_miss=gridiron_first_miss,

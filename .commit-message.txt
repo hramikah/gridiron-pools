@@ -1,74 +1,56 @@
-Standings: hold the current week until its deadline
+FBS-only college filter, and drop the Drop Dead week-by-week grid
 
-Two changes to how the standings are ordered and what they are allowed to
-show. Both are player-facing and both are on every pool.
+## FBS vs FBS only (the reason the publish timer can come back on)
 
-1. NOTHING FROM A WEEK REACHES THE STANDINGS UNTIL ITS DEADLINE PASSES
+The college odds feed is americanfootball_ncaaf, which prices FBS-vs-FCS
+games alongside the real slate -- Week 1 came back with 85 college games,
+most of them 30-to-56-point mismatches. That is why the Thursday publish
+timer has been off since early September: re-enabling it without a filter
+would flood the board again and re-create any college game deleted by hand.
 
-Games kick off Thursday; picks stay open until Saturday noon. Until now the
-season tables counted every scored pick the moment it was graded, so a
-Thursday-night final moved the table and anyone watching it could read how
-the field was doing while their own picks were still open. Drop Dead was
-worse than the numbers: dropdead/standings.html prints every entry's picks
-with win/loss colouring, and the By Player tab on Master Standings listed
-any selected player's current picks outright.
+New fbs.py holds the 136-team FBS list plus the spelling variants a book
+might send ("Hawai'i", "Southern California", "North Carolina State"), and
+matches on a normalized form so accents and punctuation cannot miss.
+publisher.py skips a college game unless BOTH teams are on the list.
 
-Scoring is untouched -- picks are still graded the moment a game goes final,
-eliminations still land, the admin pages and the diagnose scripts still see
-live data. It is only the release to shared views that waits.
+A whitelist can only fail by being out of date, and an out-of-date whitelist
+loses a real game quietly. So every name that caused a skip is reported:
+publish_week() returns skipped_college and non_fbs_names, publish_week.py
+writes them to logs/publish_week.log, and publish_this_weekend.py prints
+them. A real FBS school appearing there means fbs.py needs its name.
 
-  standings_visible_weeks(season, pool) -> (week_ids, week_numbers)
+New scripts/check_fbs_filter.py + check-fbs-filter.command pull the live
+college feed and print what would be published, what would be skipped, and
+every unrecognized name -- read only, writes nothing. Run it before turning
+the timer back on.
 
-is the one definition, keyed on week_unlocked() so it draws the same line
-picks already do. Weeks are per-pool, so each pool holds and releases on its
-own deadline. Applied in standings_gridiron, standings_loser,
-standings_dropdead, gridiron_matrix, dropdead_matrix, loser_matrix,
-player_pick_history and gridiron_award_rows.
+NFL is untouched: the filter is gated on sport == "college", so Drop Dead
+and Loser (straight-up NFL, never college) cannot be affected.
 
-Drop Dead needed more than a filter: is_active and eliminated_week live on
-the Entry and are written the moment a game goes final. _VisibleEntry wraps
-an entry with the held-back status AND a picks list already cut to the
-released weeks, so a template that reaches for either cannot render this
-week by accident. Fail-closed on purpose -- that is what the leaking picks
-column was.
+Verified: 75 tests pass, including 7 new ones in tests/test_fbs_filter.py --
+FCS games skipped, the FBS side of a mismatch not reported as a whitelist
+gap, NFL published to all three pools unchanged, and a re-publish that does
+not resurrect a skipped game.
 
-An entry knocked out on Thursday is still told immediately on its own home
-card, so the buy-back window is not eaten. It is the shared table that
-waits.
+## Master Standings: drop the Drop Dead week-by-week grid
 
-The makeup week's 2-game penalty now waits with the rest of its week rather
-than appearing on the Thursday (gridiron_penalty_losses(visible_only=True)).
-The pick page still shows those two slots from the moment the week opens --
-that is where the player needs to see them, and it was never the leak. This
-narrows the 2026-08-30 timing call to the pick page only.
+Removed at Hunter's request. It was the last of the three per-week grids on
+that page -- the Gridiron and Loser ones went earlier -- and the only caller
+of dropdead_matrix(), so the standings route no longer builds any matrix at
+all. Each one walked every pick of every entry for every unlocked week, which
+was the most expensive work on the richest page of the site.
 
-Every standings page now carries a notice naming the held week and when it
-lands, so a table that hasn't moved since Monday doesn't read as broken.
+The Drop Dead tab keeps its standings table (place, player, alive/out,
+bought-back badge). Week History and /dropdead/standings cover the same
+week-by-week ground for anyone who wants it.
 
-2. A TIE RANKS ABOVE NO RECORD AT ALL
+Also drops the now-unused unlocked_week_numbers and all_weeks_data from the
+template context.
 
-Reported separately: 0-0-1 entries scattered among the 0-0-0 ones. A push is
-neither a win nor a loss, and all three Gridiron sorts keyed on wins and
-losses only, so both records produced the key (0, 0) -- equal as far as the
-sort was concerned, and Python's stable sort then left them in entry-id
-order. The same two columns were the whole rank key, so both printed the
-same place number.
+dropdead_matrix() itself stays in scoring.py, unused, alongside
+gridiron_matrix() and loser_matrix() -- which have been in exactly that state
+since their own grids were dropped.
 
-Ties are now the last tiebreak in the sort order and in the rank key: most
-ties wins a level W-L. 0-0-1 above 0-0-0, 5-3-1 above 5-3-0. Wins and losses
-still come first. gridiron_awards is deliberately untouched -- its Last
-Place tiebreak orders ties the other way, per the 2026-08-23 reading of the
-printed rule.
-
-Still visible after change 1: the window runs from Saturday noon, when a
-week is released, until the last game goes final on Monday night.
-
-TESTS
-
-68 pass. tests/test_standings_hold.py (7) covers the gridiron hold, the
-per-pool independence of it, the penalty timing, a held Drop Dead
-elimination that the player is still told about, the Drop Dead picks column,
-By Player, and the notice. tests/test_standings_tie_order.py (5) covers the
-ordering. All 53 parameterless GET routes plus the week reports, PDFs, pick
-pages and admin week pages render with zero 5xx, both mid-week and after the
-deadline.
+Verified: /standings renders 200 with all six tabs intact and the page
+well-formed (tag stack balanced, 39 divs open and closed), the Drop Dead pane
+down to its one table, mid-week and after the deadline.

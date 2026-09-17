@@ -23,6 +23,11 @@ if __name__ == "__main__":
             summary["created"],
             summary["already_published"],
         )
+        logging.info(
+            "College: skipped %s non-FBS game(s); teams not on the FBS list: %s",
+            summary["skipped_college"],
+            ", ".join(summary["non_fbs_names"]) or "none",
+        )
         if summary["unmatched"]:
             logging.warning(
                 "Unmatched NFL team names (check against the Team table): %s",

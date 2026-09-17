@@ -59,6 +59,9 @@ def main(apply=False):
     summary = publish_week(app, reference=target)
     print(f"  {summary['week_label']}: {summary['created']} games added, "
           f"{summary['already_published']} already there")
+    print(f"  college: {summary.get('skipped_college', 0)} non-FBS game(s) skipped")
+    if summary.get("non_fbs_names"):
+        print(f"  not on the FBS list: {', '.join(summary['non_fbs_names'])}")
     if summary.get("unmatched"):
         print(f"  unmatched team names: {', '.join(sorted(summary['unmatched']))}")
     if not summary["created"] and not summary["already_published"]:

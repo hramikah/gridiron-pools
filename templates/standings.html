@@ -173,52 +173,6 @@
       {% endfor %}
       </tbody>
     </table>
-    {# Screen only. One column per unlocked week by 150 rows is unreadable on
-       Letter, and Hunter asked for the standings table alone on paper. #}
-    <div class="no-print">
-    <h5 class="mt-4">Week by week</h5>
-    <div class="table-responsive mb-4">
-    <table class="table table-striped standings bg-white standings-name-first">
-      <thead>
-        <tr>
-          <th>Player</th>
-          {% for wn in unlocked_week_numbers %}<th>{{ short_week_label(wn) }}</th>{% endfor %}
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for row in all_weeks_data.dropdead %}
-        <tr>
-          <td>{{ row.entry.user.username }}</td>
-          {% for wn in unlocked_week_numbers %}
-            {% set p = row.cells[wn] %}
-            {# Out before this week ever started, as opposed to having failed
-               to submit for it -- two very different things to say. #}
-            {% set already_out = not p and row.entry.eliminated_week and row.entry.eliminated_week < wn %}
-            <td>
-              {% if p %}
-              <span class="badge {% if p.result == 'win' %}pick-win{% elif p.result == 'loss' %}pick-loss{% else %}bg-secondary{% endif %}">
-                {{ p.team.name if p.team else '?' }}
-              </span>
-              {% elif already_out %}<span class="text-muted">&mdash;</span>
-              {% else %}<span class="badge bg-secondary">No Pick</span>{% endif %}
-              {% if wn == row.bought_back_into %}
-              <div class="text-muted" style="font-size:.7rem; line-height:1.1">bought back in</div>
-              {% endif %}
-            </td>
-          {% endfor %}
-          <td>
-            {% if row.entry.is_active %}<span class="badge badge-alive">Alive</span>
-            {% else %}<span class="badge badge-eliminated">Out - {{ short_week_label(row.entry.eliminated_week) }}</span>{% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr><td colspan="{{ unlocked_week_numbers|length + 2 }}" class="text-muted">No entries yet.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    </div>
-    </div>
   </div>
 
   <div class="tab-pane fade" id="loser-pane" role="tabpanel">

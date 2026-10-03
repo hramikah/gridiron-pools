@@ -1433,7 +1433,12 @@ def gridiron_awards(season_year):
         "second_half": half("second_half", *GRIDIRON_SECOND_HALF_WEEKS),
         "last_place": {
             "leaders": leader_list(
-                _leaders(rows, key=lambda r: r["wins"], best="min",
+                # Rule 12: fewest wins, then the tie is broken by the MOST
+                # losses, then by the most ties -- so 1-9-0 takes it over
+                # 1-8-1 rather than sharing it.
+                _leaders(rows,
+                         key=lambda r: (r["wins"], -r["losses"], -r["ties"]),
+                         best="min",
                          require=lambda r: r["last_place_eligible"]),
                 lambda r: f"{r['wins']}-{r['losses']}-{r['ties']}",
             ),

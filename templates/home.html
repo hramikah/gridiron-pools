@@ -26,6 +26,11 @@
           <a href="{{ url_for(rules_ep) }}" class="btn btn-outline-dark btn-sm">Rules</a>
           <a href="{{ url_for(standings_ep) }}" class="btn btn-outline-dark btn-sm">Standings</a>
           <a href="{{ url_for('main.help_page', pool=pool) }}" class="btn btn-outline-secondary btn-sm">How to Play</a>
+          {# Only pools with a published schedule get the button; Drop Dead has
+             none while buy-backs are open. See PAYOUT_POOLS in blueprints/main.py. #}
+          {% if pool in payout_pools %}
+          <a href="{{ url_for('main.payouts', pool=pool) }}" class="btn btn-outline-success btn-sm">Payouts</a>
+          {% endif %}
         </div>
 
         <div class="mt-auto">

@@ -1,56 +1,18 @@
-FBS-only college filter, and drop the Drop Dead week-by-week grid
+Payout pages for Gridiron Investments and the Loser Pool
 
-## FBS vs FBS only (the reason the publish timer can come back on)
+New /payouts/<pool> route with the approved 2026 schedules as constants in
+blueprints/main.py: 16 Gridiron places ($11,900) plus the five awards and the
+admin line ($1,200), totalling $13,100 against 131 entries at $100; the Loser
+pot at 81 x $20 = $1,620 less $50 admin = $1,570, split 70/20/10 as
+$1,099 / $314 / $157.
 
-The college odds feed is americanfootball_ncaaf, which prices FBS-vs-FCS
-games alongside the real slate -- Week 1 came back with 85 college games,
-most of them 30-to-56-point mismatches. That is why the Thursday publish
-timer has been off since early September: re-enabling it without a filter
-would flood the board again and re-create any college game deleted by hand.
+A Payouts button sits right of How to Play on the home pool cards, gated on
+PAYOUT_POOLS, so Drop Dead stays without one while its buy-backs are TBD.
 
-New fbs.py holds the 136-team FBS list plus the spelling variants a book
-might send ("Hawai'i", "Southern California", "North Carolina State"), and
-matches on a normalized form so accents and punctuation cannot miss.
-publisher.py skips a college game unless BOTH teams are on the list.
+Also carries the Last Place Award tie-break: gridiron_awards() decided on
+fewest wins alone, so 1-8-1 and 1-9-0 shared it. Rule 12 breaks that tie on
+the most losses; the key is now (wins, -losses, -ties) with best="min", so the
+1-9-0 takes it outright. Adds tests/test_last_place_award.py.
 
-A whitelist can only fail by being out of date, and an out-of-date whitelist
-loses a real game quietly. So every name that caused a skip is reported:
-publish_week() returns skipped_college and non_fbs_names, publish_week.py
-writes them to logs/publish_week.log, and publish_this_weekend.py prints
-them. A real FBS school appearing there means fbs.py needs its name.
-
-New scripts/check_fbs_filter.py + check-fbs-filter.command pull the live
-college feed and print what would be published, what would be skipped, and
-every unrecognized name -- read only, writes nothing. Run it before turning
-the timer back on.
-
-NFL is untouched: the filter is gated on sport == "college", so Drop Dead
-and Loser (straight-up NFL, never college) cannot be affected.
-
-Verified: 75 tests pass, including 7 new ones in tests/test_fbs_filter.py --
-FCS games skipped, the FBS side of a mismatch not reported as a whitelist
-gap, NFL published to all three pools unchanged, and a re-publish that does
-not resurrect a skipped game.
-
-## Master Standings: drop the Drop Dead week-by-week grid
-
-Removed at Hunter's request. It was the last of the three per-week grids on
-that page -- the Gridiron and Loser ones went earlier -- and the only caller
-of dropdead_matrix(), so the standings route no longer builds any matrix at
-all. Each one walked every pick of every entry for every unlocked week, which
-was the most expensive work on the richest page of the site.
-
-The Drop Dead tab keeps its standings table (place, player, alive/out,
-bought-back badge). Week History and /dropdead/standings cover the same
-week-by-week ground for anyone who wants it.
-
-Also drops the now-unused unlocked_week_numbers and all_weeks_data from the
-template context.
-
-dropdead_matrix() itself stays in scoring.py, unused, alongside
-gridiron_matrix() and loser_matrix() -- which have been in exactly that state
-since their own grids were dropped.
-
-Verified: /standings renders 200 with all six tabs intact and the page
-well-formed (tag stack balanced, 39 divs open and closed), the Drop Dead pane
-down to its one table, mid-week and after the deadline.
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WtFapL7yksBMuivN9gBHMq

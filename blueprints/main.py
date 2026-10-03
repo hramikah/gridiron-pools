@@ -99,6 +99,8 @@ def index():
         # card shows a closed badge instead of a Join button.
         signups_open={p: pool_signups_open(season_year, p) for p in POOLS},
         signup_deadline={p: pool_signup_deadline(season_year, p) for p in POOLS},
+        # Which cards get a Payouts button -- see PAYOUT_POOLS below.
+        payout_pools=PAYOUT_POOLS,
     )
 
 
@@ -231,6 +233,69 @@ def help_page(pool):
     if template not in current_app.jinja_env.list_templates():
         template = "help.html"
     return render_template(template, pool=pool, pool_label=POOL_LABELS[pool])
+
+
+# ---------------------------------------------------------------------------
+# Payout schedules (approved 2026 figures)
+#
+# Hard-coded on purpose, exactly like POOL_ENTRY_FEES and the admin Payments
+# page: the schedule is set once a season by the commissioners off the
+# proposed-payout sheet, not derived from the live entry count. If the field
+# changes, edit here -- the two templates read these and nothing else.
+#
+# Gridiron: 16 paid places + the five awards + the admin line = $13,100, which
+# balances against 131 paid entries at $100.
+# ---------------------------------------------------------------------------
+PAYOUTS_GRIDIRON_PLACES = [
+    ("1st", 2800), ("2nd", 2100), ("3rd", 1800), ("4th", 1400),
+    ("5th", 1000), ("6th", 600), ("7th", 400), ("8th", 300),
+    ("9th", 275), ("10th", 250), ("11th", 225), ("12th", 200),
+    ("13th", 175), ("14th", 150), ("15th", 125), ("16th", 100),
+]
+PAYOUTS_GRIDIRON_AWARDS = [
+    ("1st Half", 200), ("2nd Half", 200), ("Most Ties", 200),
+    ("Most 0-5", 200), ("Last Place", 200), ("Admin Fees", 200),
+]
+PAYOUTS_GRIDIRON_TOTAL = 13100
+
+PAYOUTS_LOSER = {
+    "players": 81,
+    "gross": 1620,
+    "admin_fees": 50,
+    "net": 1570,
+    "splits": [("70%", 1099), ("20%", 314), ("10%", 157)],
+}
+
+# Drop Dead is deliberately absent: its pot depends on buy-backs, which are
+# still open, so there is no schedule to show yet. Add it here and extend
+# PAYOUT_POOLS when there is.
+PAYOUT_POOLS = ("gridiron", "loser")
+
+
+@bp.route("/payouts/<pool>")
+def payouts(pool):
+    """Player-facing payout schedule for a pool that has one published."""
+    if pool not in PAYOUT_POOLS:
+        flash("No payout schedule has been published for that pool yet.", "error")
+        return redirect(url_for("main.index"))
+    season_year = current_app.config["CURRENT_SEASON"]
+    if pool == "gridiron":
+        return render_template(
+            "payouts_gridiron.html",
+            pool=pool,
+            pool_label=POOL_LABELS[pool],
+            season_year=season_year,
+            places=PAYOUTS_GRIDIRON_PLACES,
+            awards=PAYOUTS_GRIDIRON_AWARDS,
+            total=PAYOUTS_GRIDIRON_TOTAL,
+        )
+    return render_template(
+        "payouts_loser.html",
+        pool=pool,
+        pool_label=POOL_LABELS[pool],
+        season_year=season_year,
+        **PAYOUTS_LOSER,
+    )
 
 
 @bp.route("/standings")

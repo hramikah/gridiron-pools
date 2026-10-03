@@ -28,6 +28,10 @@
                 <td class="text-end">${{ '{:,.2f}'.format(amount) }}</td>
               </tr>
               {% endfor %}
+              <tr class="border-top">
+                <th scope="row" class="fw-normal">Admin Fees</th>
+                <td class="text-end">${{ '{:,.2f}'.format(admin_fee) }}</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -65,10 +69,6 @@
     <h5 class="mb-0">${{ '{:,.2f}'.format(total) }}</h5>
   </div>
 </div>
-
-<p class="text-muted small mt-3">For anything binding &mdash; payouts, awards,
-penalties &mdash; the <a href="{{ url_for('gridiron.rules') }}">official
-rules</a> are the last word.</p>
 
 <p class="mt-4">
   <a href="{{ url_for('gridiron.pick') }}" class="btn btn-gridiron">Go make my picks</a>

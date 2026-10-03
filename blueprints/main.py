@@ -243,7 +243,7 @@ def help_page(pool):
 # proposed-payout sheet, not derived from the live entry count. If the field
 # changes, edit here -- the two templates read these and nothing else.
 #
-# Gridiron: 16 paid places + the five awards + the admin line = $13,100, which
+# Gridiron: 16 paid places + the admin line + the five awards = $13,100, which
 # balances against 131 paid entries at $100.
 # ---------------------------------------------------------------------------
 PAYOUTS_GRIDIRON_PLACES = [
@@ -254,8 +254,11 @@ PAYOUTS_GRIDIRON_PLACES = [
 ]
 PAYOUTS_GRIDIRON_AWARDS = [
     ("1st Half", 200), ("2nd Half", 200), ("Most Ties", 200),
-    ("Most 0-5", 200), ("Last Place", 200), ("Admin Fees", 200),
+    ("Most 0-5", 200), ("Last Place", 200),
 ]
+# Not an award and not a place -- it rides at the foot of the finishing-position
+# table, where Hunter wants it, but it is still part of the $13,100.
+PAYOUTS_GRIDIRON_ADMIN_FEE = 200
 PAYOUTS_GRIDIRON_TOTAL = 13100
 
 PAYOUTS_LOSER = {
@@ -287,6 +290,7 @@ def payouts(pool):
             season_year=season_year,
             places=PAYOUTS_GRIDIRON_PLACES,
             awards=PAYOUTS_GRIDIRON_AWARDS,
+            admin_fee=PAYOUTS_GRIDIRON_ADMIN_FEE,
             total=PAYOUTS_GRIDIRON_TOTAL,
         )
     return render_template(

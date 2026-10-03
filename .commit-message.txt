@@ -1,8 +1,9 @@
 Payout pages for Gridiron Investments and the Loser Pool
 
 New /payouts/<pool> route with the approved 2026 schedules as constants in
-blueprints/main.py: 16 Gridiron places ($11,900) plus the five awards and the
-admin line ($1,200), totalling $13,100 against 131 entries at $100; the Loser
+blueprints/main.py: 16 Gridiron places ($11,900) plus the $200 admin line at the
+foot of that table and the five awards ($1,000), totalling $13,100 against
+131 entries at $100; the Loser
 pot at 81 x $20 = $1,620 less $50 admin = $1,570, split 70/20/10 as
 $1,099 / $314 / $157.
 

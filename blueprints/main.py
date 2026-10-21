@@ -1,9 +1,12 @@
-from flask import Blueprint, current_app, flash, redirect, render_template, request, send_file, url_for
+import hmac
+
+from flask import Blueprint, current_app, flash, redirect, render_template, request, send_file, session, url_for
 from flask_login import current_user, login_required
 
-from helpers import get_current_week, pool_signup_deadline, pool_signups_open, week_sort_key, week_unlocked
+from helpers import get_current_week, get_setting, pool_signup_deadline, pool_signups_open, week_sort_key, week_unlocked
 from models import ActivityLog, POOL_ENTRY_FEES, POOL_LABELS, POOLS, Entry, Game, User, Week, db, name_order
 from pdf_report import build_week_pdf
+from wrapped import league_week, next_pending_week, week_menu, your_week
 from scoring import (
     DROPDEAD_BUYBACK_FEE,
     process_due_weeks,
@@ -314,6 +317,61 @@ def payouts(pool):
         pool_label=POOL_LABELS[pool],
         season_year=season_year,
         **PAYOUTS_LOSER,
+    )
+
+
+# The Data page sits behind a passcode while it's being previewed. The
+# "data_passcode" Setting overrides this; set it to an empty value (or make
+# this "" and deploy) to open the page to every signed-in player.
+DATA_PASSCODE_DEFAULT = "2222"
+
+
+@bp.route("/data", methods=["GET", "POST"])
+@bp.route("/data/<int:number>", methods=["GET", "POST"])
+@login_required
+def data(number=None):
+    """Weekly Wrapped: a card-by-card recap of one finished week across all
+    three pools. Read-only -- every number comes from wrapped.py, which only
+    reads. A week appears here on its own once its last game is final; see
+    wrapped.week_publish_state for the exact rule."""
+    season_year = current_app.config["CURRENT_SEASON"]
+
+    passcode = (get_setting("data_passcode", DATA_PASSCODE_DEFAULT) or "").strip()
+    if passcode and not session.get("data_passcode_ok") == passcode:
+        if request.method == "POST":
+            given = (request.form.get("passcode") or "").strip()
+            if hmac.compare_digest(given.encode(), passcode.encode()):
+                session["data_passcode_ok"] = passcode
+                return redirect(request.path)
+            flash("That passcode isn't right.", "error")
+        return render_template("data_locked.html"), (401 if request.method == "POST" else 200)
+    if request.method == "POST":
+        return redirect(request.path)
+    # Same settle step as every other results page, so a week's missed-pick
+    # penalties are in before its recap is read.
+    process_due_weeks(season_year)
+
+    # While the passcode is on, everyone past it is a previewer and sees a
+    # week as soon as its deadline has passed, like an admin does. Once the
+    # passcode is removed, players only see weeks whose games are all final.
+    menu = week_menu(season_year, include_preview=current_user.is_admin or bool(passcode))
+    states = {n: state for n, _label, state in menu}
+    if number is None:
+        # The most recent week whose deadline has passed.
+        number = menu[-1][0] if menu else None
+    elif number not in states:
+        flash("That week's Wrapped isn't out yet -- it drops once the week's last game is final.", "error")
+        return redirect(url_for("main.data"))
+
+    league = league_week(season_year, number, use_cache=states.get(number) == "published") if number else None
+    return render_template(
+        "data.html",
+        menu=menu,
+        number=number,
+        state=states.get(number),
+        league=league,
+        mine=your_week(season_year, league, current_user) if league else None,
+        next_week=next_pending_week(season_year),
     )
 
 

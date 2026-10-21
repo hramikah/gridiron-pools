@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Data{% endblock %}
+{# Passcode screen in front of the Data page while it's in preview. The
+   passcode itself lives in blueprints/main.py (DATA_PASSCODE_DEFAULT). #}
+{% block content %}
+<div class="page-header header-gridiron">
+  <h2><span class="pool-icon">📊</span>Data</h2>
+</div>
+<div class="row justify-content-center">
+  <div class="col-sm-9 col-md-6 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body p-4 text-center">
+        <div class="display-6 mb-2">🔒</div>
+        <h5 class="mb-1">Weekly Wrapped is in preview</h5>
+        <p class="text-muted small mb-3">Enter the passcode to take a look.</p>
+        <form method="post" action="{{ request.path }}">
+          <input type="password" name="passcode" class="form-control form-control-lg text-center mb-3"
+                 inputmode="numeric" autocomplete="off" placeholder="Passcode" required autofocus>
+          <button type="submit" class="btn btn-primary w-100">Open</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

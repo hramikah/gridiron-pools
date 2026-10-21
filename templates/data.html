@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+{% block title %}Data{% if league %} - {{ league.label }} Wrapped{% endif %}{% endblock %}
+{#
+  Weekly Wrapped. Every number on this page comes from wrapped.py, which only
+  reads the database. Cards are a horizontal scroll-snap strip: swipe on a
+  phone, arrow buttons / keyboard arrows / dots on desktop. A card whose data
+  doesn't exist (a pool with no picks that week, week 1 has no "movers") is
+  simply left out.
+#}
+{% block content %}
+
+{% macro chip(c, big=false) -%}
+  {%- if c -%}
+  <span class="wr-chip{% if big %} wr-chip-big{% endif %}"{% if c.fill %} style="background:{{ c.fill }};color:{{ c.ink }};"{% endif %}>{{ c.name }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro result(r) -%}
+  {%- if r == 'win' -%}<span class="wr-res wr-win">Hit</span>
+  {%- elif r == 'loss' -%}<span class="wr-res wr-loss">Miss</span>
+  {%- elif r == 'push' -%}<span class="wr-res wr-push">Push</span>
+  {%- else -%}<span class="wr-res wr-pend">Pending</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro names(n) -%}
+  {%- if n and n.count -%}
+  <span class="wr-names">{% for u in n.shown %}<b>{{ u }}</b>{% if not loop.last %}, {% endif %}{% endfor %}{% if n.more %} <span class="wr-more">+{{ n.more }} more</span>{% endif %}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro plural(n, word, words=None) -%}{{ n }} {{ word if n == 1 else (words or word ~ 's') }}{%- endmacro %}
+
+<div class="page-header header-gridiron d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <h2><span class="pool-icon">📊</span>Data</h2>
+  {% if menu %}
+  <form class="wr-picker" method="get" onsubmit="return false;">
+    <label for="wr-week" class="visually-hidden">Week</label>
+    <select id="wr-week" class="form-select form-select-sm"
+            onchange="window.location='{{ url_for('main.data') }}/' + this.value;">
+      {% for n, label, st in menu|reverse %}
+      <option value="{{ n }}" {% if n == number %}selected{% endif %}>{{ label }} Wrapped{% if st == 'preview' %} (in progress){% endif %}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+{% if not league %}
+  <div class="wr-empty card">
+    <div class="card-body text-center py-5">
+      <div class="display-6 mb-2">📊</div>
+      <h4 class="mb-2">The first Wrapped isn't out yet</h4>
+      <p class="text-muted mb-0">
+        {% if next_week %}{{ next_week.label }}'s recap drops here automatically once its last game goes final.
+        {% else %}Each week's recap drops here automatically once that week's last game goes final.{% endif %}
+      </p>
+    </div>
+  </div>
+{% else %}
+
+{% if state == 'preview' %}
+<div class="alert alert-warning py-2 small mb-3">
+  <b>Preview.</b> Not every game for {{ league.label }} is final yet, so some results may still read "Pending".
+</div>
+{% endif %}
+
+{% set gd = league.gridiron %}
+{% set dd = league.dropdead %}
+{% set ld = league.loser %}
+
+<div class="wr" id="wr">
+  <button type="button" class="wr-nav wr-prev" aria-label="Previous card">&#8249;</button>
+  <div class="wr-track" id="wr-track" tabindex="0" aria-label="{{ league.label }} Wrapped cards">
+
+    {# ---------------- Intro ---------------- #}
+    <section class="wr-card wr-intro">
+      <div class="wr-kicker">Gridiron Investment</div>
+      <h3 class="wr-poster">{{ league.label }}<br><span>Wrapped</span></h3>
+      <div class="wr-stats3">
+        <div><div class="wr-num">{{ league.totals.players }}</div><div class="wr-lbl">players</div></div>
+        <div><div class="wr-num">{{ league.totals.picks }}</div><div class="wr-lbl">picks</div></div>
+        <div><div class="wr-num">{{ league.totals.games }}</div><div class="wr-lbl">games</div></div>
+      </div>
+      <p class="wr-foot">Here's how the league played it. Swipe through &rarr;</p>
+    </section>
+
+    {# ---------------- Your week ---------------- #}
+    {% if mine %}
+    <section class="wr-card wr-you">
+      <div class="wr-kicker">Your week &middot; {{ current_user.username }}</div>
+      {% if mine.gridiron %}{% set yg = mine.gridiron %}
+      <div class="wr-you-block">
+        <div class="wr-you-pool">🏈 Gridiron</div>
+        {% if yg.record %}
+        <div class="wr-big">{{ yg.record.w }}-{{ yg.record.l }}{% if yg.record.t %}-{{ yg.record.t }}{% endif %}</div>
+        <div class="wr-sub">{% if yg.picks %}{{ ordinal(yg.place) }} of {{ yg.field }} this week{% else %}No picks this week{% endif %}</div>
+        {% endif %}
+        {% if yg.picks %}
+        <ul class="wr-mini">
+          {% for p in yg.picks %}
+          <li><span>{% if p.chip %}{{ chip(p.chip) }} {{ p.line }}{% else %}{{ p.title }} <small>{{ p.matchup }}</small>{% endif %}</span>
+              <span class="wr-mini-r"><small>{{ p.pct }}% had it</small> {{ result(p.result) }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if yg.contrarian %}
+        <div class="wr-note">🐺 Off the beaten path: only {{ plural(yg.contrarian.count, 'player') }} took {{ yg.contrarian.title }}.</div>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if mine.dropdead %}{% set ydd = mine.dropdead %}
+      <div class="wr-you-block">
+        <div class="wr-you-pool">💀 Drop Dead</div>
+        <div class="wr-line">{{ chip(ydd.chip) }} {{ result(ydd.result) }}
+          <small>{% if ydd.same %}with {{ plural(ydd.same, 'other') }} ({{ ydd.pct }}%){% else %}&mdash; you were the only one{% endif %}</small></div>
+      </div>
+      {% endif %}
+      {% if mine.loser %}{% set yl = mine.loser %}
+      <div class="wr-you-block">
+        <div class="wr-you-pool">📉 Loser Pool</div>
+        <div class="wr-line">{{ chip(yl.chip) }} {{ result(yl.result) }}
+          <b class="{{ 'wr-pos' if yl.points > 0 else 'wr-neg' }}">{{ '%+d'|format(yl.points) }}</b>
+          <small>{{ ordinal(yl.place) }} of {{ yl.field }}</small></div>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {# ---------------- Gridiron ---------------- #}
+    {% if gd %}
+    {% if gd.popular %}{% set p = gd.popular %}
+    <section class="wr-card wr-gridiron" data-pool="gridiron">
+      <div class="wr-kicker">🏈 Gridiron &middot; The crowd's favorite</div>
+      <div class="wr-hero">{% if p.chip %}{{ chip(p.chip, true) }} <span class="wr-line-big">{{ p.line }}</span>{% else %}<span class="wr-line-big">{{ p.title }}</span>{% endif %}</div>
+      <div class="wr-sub">{{ p.matchup }}</div>
+      <div class="wr-big">{{ p.count }}</div>
+      <div class="wr-sub">players rode it &mdash; {{ (100 * p.count / gd.players)|round|int }}% of the field</div>
+      <div class="wr-verdict">{{ result(p.result) }}{% if p.score %} <span>{{ p.score }}</span>{% endif %}</div>
+      <p class="wr-foot">{% if p.result == 'win' %}The chalk cashed. Nobody gained ground on this one.{% elif p.result == 'loss' %}When the crowd goes down, it goes down together.{% else %}A wash for everyone on it.{% endif %}</p>
+    </section>
+    {% endif %}
+
+    <section class="wr-card wr-gridiron" data-pool="gridiron">
+      <div class="wr-kicker">🏈 Gridiron &middot; How the league leaned</div>
+      <div class="wr-big">{{ gd.overall.pct }}%</div>
+      <div class="wr-sub">league-wide hit rate &middot; {{ gd.overall.w }}-{{ gd.overall.l }}{% if gd.overall.p %}-{{ gd.overall.p }}{% endif %} on {{ gd.pick_count }} picks</div>
+      {% if gd.fav.n or gd.dog.n %}
+      <div class="wr-split">
+        <div class="wr-split-head"><span>Favorites {{ gd.fav_share }}%</span><span>Underdogs {{ 100 - gd.fav_share }}%</span></div>
+        <div class="wr-bar"><i style="width:{{ gd.fav_share }}%"></i></div>
+        <div class="wr-split-head wr-dim"><span>{{ gd.fav.w }}-{{ gd.fav.l }} &middot; {{ gd.fav.pct }}%</span><span>{{ gd.dog.w }}-{{ gd.dog.l }} &middot; {{ gd.dog.pct }}%</span></div>
+      </div>
+      {% endif %}
+      {% if gd.over.n or gd.under.n %}
+      <div class="wr-split">
+        <div class="wr-split-head"><span>Overs {{ gd.over_share }}%</span><span>Unders {{ 100 - gd.over_share }}%</span></div>
+        <div class="wr-bar"><i style="width:{{ gd.over_share }}%"></i></div>
+        <div class="wr-split-head wr-dim"><span>{{ gd.over.w }}-{{ gd.over.l }} &middot; {{ gd.over.pct }}%</span><span>{{ gd.under.w }}-{{ gd.under.l }} &middot; {{ gd.under.pct }}%</span></div>
+      </div>
+      {% endif %}
+      {% if gd.college %}
+      <p class="wr-foot">{{ gd.nfl_pct }}% of picks were NFL, {{ 100 - gd.nfl_pct }}% college.</p>
+      {% endif %}
+    </section>
+
+    {% if gd.hot %}{% set h = gd.hot %}
+    <section class="wr-card wr-gridiron" data-pool="gridiron">
+      <div class="wr-kicker">🏈 Gridiron &middot; Game of the week</div>
+      <div class="wr-hero"><span class="wr-line-big">{{ h.matchup }}</span></div>
+      {% if h.score %}<div class="wr-sub">Final: {{ h.score }}</div>{% endif %}
+      <div class="wr-big">{{ h.count }}</div>
+      <div class="wr-sub">picks landed on this one game</div>
+      <ul class="wr-rows">
+        {% for s in h.split %}
+        <li><span>{{ s.title }}</span><span class="wr-rowbar"><i style="width:{{ s.pct }}%"></i></span><span>{{ s.count }}</span><span>{{ result(s.result) }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if gd.lone_wolf %}{% set p = gd.lone_wolf %}
+    <section class="wr-card wr-gridiron wr-alt" data-pool="gridiron">
+      <div class="wr-kicker">{% if p.solo %}🐺 Gridiron &middot; The Lone Wolf{% else %}🧭 Gridiron &middot; Road less traveled{% endif %}</div>
+      <div class="wr-hero">{% if p.chip %}{{ chip(p.chip, true) }} <span class="wr-line-big">{{ p.line }}</span>{% else %}<span class="wr-line-big">{{ p.title }}</span>{% endif %}</div>
+      <div class="wr-sub">{{ p.matchup }}{% if p.score %} &middot; {{ p.score }}{% endif %}</div>
+      <div class="wr-verdict">{{ result('win') }}</div>
+      <p class="wr-say">{% if p.count == 1 %}Only one player in the league took it:{% elif p.solo %}Only {{ p.count }} players in the league took it:{% else %}The least-picked winner of the week &mdash; {{ p.count }} players cashed it:{% endif %}</p>
+      <div class="wr-who">{{ names(p.names) }}</div>
+    </section>
+    {% endif %}
+
+    {% if gd.shock %}{% set x = gd.shock %}
+    <section class="wr-card wr-gridiron" data-pool="gridiron">
+      <div class="wr-kicker">{% if x.kind == 'upset' %}🚨 Gridiron &middot; Upset of the week{% else %}📏 Gridiron &middot; Biggest cover{% endif %}</div>
+      <div class="wr-hero">{{ chip(x.chip, true) }} <span class="wr-line-big">{{ x.line }}</span></div>
+      <div class="wr-sub">{% if x.score %}{{ x.score }}{% endif %}</div>
+      <div class="wr-big">{{ x.margin|round|int if x.kind == 'upset' else x.margin }}</div>
+      <div class="wr-sub">{% if x.kind == 'upset' %}point outright win as the underdog over the {{ x.opponent }}{% else %}points past the number against the {{ x.opponent }}{% endif %}</div>
+      <div class="wr-split">
+        <div class="wr-split-head"><span>Called it {{ x.count }}</span><span>Faded it {{ x.against }}</span></div>
+        <div class="wr-bar"><i style="width:{{ (100 * x.count / (x.count + x.against)) if (x.count + x.against) else 0 }}%"></i></div>
+      </div>
+      {% if x.count %}<div class="wr-who wr-small">{{ names(x.names) }}</div>{% else %}<p class="wr-say">Nobody saw it coming.</p>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if gd.bust %}{% set p = gd.bust %}
+    <section class="wr-card wr-gridiron wr-dark" data-pool="gridiron">
+      <div class="wr-kicker">💥 Gridiron &middot; Biggest bust</div>
+      <div class="wr-hero">{% if p.chip %}{{ chip(p.chip, true) }} <span class="wr-line-big">{{ p.line }}</span>{% else %}<span class="wr-line-big">{{ p.title }}</span>{% endif %}</div>
+      <div class="wr-sub">{{ p.matchup }}{% if p.score %} &middot; {{ p.score }}{% endif %}</div>
+      <div class="wr-big">{{ p.count }}</div>
+      <div class="wr-sub">players went down with it</div>
+      <div class="wr-verdict">{{ result('loss') }}</div>
+    </section>
+    {% endif %}
+
+    {% if gd.best %}
+    <section class="wr-card wr-gridiron" data-pool="gridiron">
+      <div class="wr-kicker">🏆 Gridiron &middot; Top of the week</div>
+      <div class="wr-big">{{ gd.best.w }}-{{ gd.best.l }}{% if gd.best.t %}-{{ gd.best.t }}{% endif %}</div>
+      <div class="wr-sub">best record this week</div>
+      <div class="wr-who">{{ names(gd.best.names) }}</div>
+      {% if gd.perfect.count %}
+      <p class="wr-say">🔥 {{ plural(gd.perfect.count, 'perfect week') }}.</p>
+      {% endif %}
+      {% if gd.goose.count %}
+      <div class="wr-sep"></div>
+      <div class="wr-kicker">🥚 The 0-5 club</div>
+      <div class="wr-sub">{{ plural(gd.goose.count, 'member') }} this week</div>
+      <div class="wr-who wr-small">{{ names(gd.goose) }}</div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if gd.leaders %}
+    <section class="wr-card wr-gridiron wr-dark" data-pool="gridiron">
+      <div class="wr-kicker">👑 Gridiron &middot; Season leaderboard</div>
+      <h3 class="wr-poster wr-poster-sm">After {{ league.label }}</h3>
+      <ol class="wr-board">
+        {% for r in gd.leaders.rows %}
+        <li><span class="wr-board-pl">{{ ordinal(r.place) }}</span><b>{{ r.user }}</b><span>{{ r.label }}</span></li>
+        {% endfor %}
+      </ol>
+      {% if gd.leaders.more %}<p class="wr-say">+{{ gd.leaders.more }} more in the top three places.</p>{% endif %}
+      <p class="wr-foot">Full table on Master Standings.</p>
+    </section>
+    {% endif %}
+
+    {% if gd.movers %}
+    <section class="wr-card wr-gridiron wr-alt" data-pool="gridiron">
+      <div class="wr-kicker">📈 Gridiron &middot; On the move</div>
+      {% if gd.movers.up %}{% set m = gd.movers.up %}
+      <div class="wr-move up"><div class="wr-move-n">&#9650; {{ m.by }}</div>
+        <div><b>{{ m.user }}</b><br><small>{{ ordinal(m.from) }} &rarr; {{ ordinal(m.to) }} &middot; {{ m.label }}</small></div></div>
+      {% endif %}
+      {% if gd.movers.down %}{% set m = gd.movers.down %}
+      <div class="wr-move down"><div class="wr-move-n">&#9660; {{ m.by }}</div>
+        <div><b>{{ m.user }}</b><br><small>{{ ordinal(m.from) }} &rarr; {{ ordinal(m.to) }} &middot; {{ m.label }}</small></div></div>
+      {% endif %}
+      <p class="wr-foot">Biggest jump and slide in the season standings this week.</p>
+    </section>
+    {% endif %}
+    {% endif %}
+
+    {# ---------------- Drop Dead ---------------- #}
+    {% if dd and dd.in_play %}
+    <section class="wr-card wr-dropdead" data-pool="dropdead">
+      <div class="wr-kicker">💀 Drop Dead &middot; Body count</div>
+      <div class="wr-big">{{ dd.fell + dd.no_shows.count }}</div>
+      <div class="wr-sub">{% if dd.preseason %}would have been knocked out (preseason &mdash; nobody's out){% else %}knocked out of {{ dd.in_play }} in play{% endif %}</div>
+      <div class="wr-split">
+        <div class="wr-split-head"><span>Survived {{ dd.survival_pct }}%</span><span>Out {{ 100 - dd.survival_pct }}%</span></div>
+        <div class="wr-bar wr-bar-life"><i style="width:{{ dd.survival_pct }}%"></i></div>
+      </div>
+      {% if not dd.preseason %}
+      <div class="wr-stats3">
+        <div><div class="wr-num">{{ dd.standing }}</div><div class="wr-lbl">still standing</div></div>
+        <div><div class="wr-num">{{ dd.teams_used }}</div><div class="wr-lbl">teams used</div></div>
+        <div><div class="wr-num">{{ dd.buybacks }}</div><div class="wr-lbl">buy-backs</div></div>
+      </div>
+      {% endif %}
+      {% if dd.no_shows.count %}<p class="wr-foot">👻 No pick, no pulse: {{ names(dd.no_shows) }}</p>{% endif %}
+      {% if dd.wipeout %}<p class="wr-foot">Nobody survived &mdash; under the no-tie rule, everyone knocked out this week plays on.</p>{% endif %}
+    </section>
+
+    {% if dd.popular %}{% set t = dd.popular %}
+    <section class="wr-card wr-dropdead wr-alt" data-pool="dropdead">
+      <div class="wr-kicker">💀 Drop Dead &middot; {{ 'Safest bet in town' if t.result == 'win' else 'The crowd\'s pick' }}</div>
+      <div class="wr-hero">{{ chip(t.chip, true) }}</div>
+      {% if t.score %}<div class="wr-sub">{{ t.score }}</div>{% endif %}
+      <div class="wr-big">{{ t.count }}</div>
+      <div class="wr-sub">survivors trusted them &mdash; {{ (100 * t.count / dd.in_play)|round|int }}% of the field</div>
+      <div class="wr-verdict">{{ result(t.result) }}</div>
+    </section>
+    {% endif %}
+
+    {% if dd.graveyard and dd.graveyard is not sameas dd.popular %}{% set t = dd.graveyard %}
+    <section class="wr-card wr-dropdead wr-dark" data-pool="dropdead">
+      <div class="wr-kicker">🪦 Drop Dead &middot; The Graveyard</div>
+      <div class="wr-hero">{{ chip(t.chip, true) }}</div>
+      {% if t.score %}<div class="wr-sub">{{ t.score }}</div>{% endif %}
+      <div class="wr-big">{{ t.count }}</div>
+      <div class="wr-sub">{{ 'season' if t.count == 1 else 'seasons' }} buried by one team</div>
+      <div class="wr-who wr-small">{{ names(t.names) }}</div>
+    </section>
+    {% endif %}
+
+    {% if dd.gutsy %}{% set t = dd.gutsy %}
+    <section class="wr-card wr-dropdead" data-pool="dropdead">
+      <div class="wr-kicker">🎲 Drop Dead &middot; Gutsiest survivor</div>
+      <div class="wr-hero">{{ chip(t.chip, true) }}</div>
+      {% if t.score %}<div class="wr-sub">{{ t.score }}</div>{% endif %}
+      <div class="wr-verdict">{{ result('win') }}</div>
+      <p class="wr-say">The least-picked team that got the job done. {% if t.count == 1 %}One brave soul:{% else %}{{ t.count }} brave souls:{% endif %}</p>
+      <div class="wr-who">{{ names(t.names) }}</div>
+    </section>
+    {% endif %}
+
+    {% if dd.burned %}
+    <section class="wr-card wr-dropdead wr-alt" data-pool="dropdead">
+      <div class="wr-kicker">🔥 Drop Dead &middot; Already burned</div>
+      <div class="wr-sub mt-2">Teams the {{ dd.standing }} survivors have already used up</div>
+      <ul class="wr-rows wr-rows-2">
+        {% for t in dd.burned %}
+        <li><span>{{ chip(t.chip) }}</span><span class="wr-rowbar"><i style="width:{{ t.pct }}%"></i></span><span>{{ t.pct }}%</span></li>
+        {% endfor %}
+      </ul>
+      {% if dd.untouched %}
+      <div class="wr-sep"></div>
+      <div class="wr-kicker">Still untouched by every survivor &middot; {{ dd.untouched }}</div>
+      <div class="wr-chips">{% for c in dd.untouched_chips %}{{ chip(c) }} {% endfor %}{% if dd.untouched > dd.untouched_chips|length %}<span class="wr-more">+{{ dd.untouched - dd.untouched_chips|length }} more</span>{% endif %}</div>
+      {% endif %}
+      <p class="wr-foot">Every team can only be used once. The deeper this list gets, the harder the back half of the season.</p>
+    </section>
+    {% endif %}
+    {% endif %}
+
+    {# ---------------- Loser Pool ---------------- #}
+    {% if ld %}
+    {% if ld.popular %}{% set t = ld.popular %}
+    <section class="wr-card wr-loser" data-pool="loser">
+      <div class="wr-kicker">📉 Loser Pool &middot; The people's loser</div>
+      <div class="wr-hero">{{ chip(t.chip, true) }}</div>
+      {% if t.score %}<div class="wr-sub">{{ t.score }}</div>{% endif %}
+      <div class="wr-big">{{ t.count }}</div>
+      <div class="wr-sub">players bet against them</div>
+      <div class="wr-verdict">{{ result(t.result) }} <b class="{{ 'wr-pos' if t.points > 0 else 'wr-neg' }}">{{ '%+d'|format(t.points) }} each</b></div>
+      <p class="wr-foot">League-wide: {{ ld.correct_pct }}% called their loser right, {{ '%+d'|format(ld.net) }} points net.</p>
+    </section>
+    {% endif %}
+
+    {% if ld.board|length > 1 %}
+    <section class="wr-card wr-loser wr-alt" data-pool="loser">
+      <div class="wr-kicker">📉 Loser Pool &middot; The board</div>
+      <div class="wr-big">{{ '%+g'|format(ld.avg) }}</div>
+      <div class="wr-sub">average points per player this week</div>
+      <ul class="wr-rows wr-rows-3">
+        {% for t in ld.board %}
+        <li><span>{{ chip(t.chip) }}</span><span>{{ plural(t.count, 'pick') }}</span><b class="{{ 'wr-pos' if t.points > 0 else 'wr-neg' }}">{{ '%+d'|format(t.points) }}</b></li>
+        {% endfor %}
+      </ul>
+      <p class="wr-foot">The most-picked losers and what each one paid.</p>
+    </section>
+    {% endif %}
+
+    {% if ld.jackpot or ld.ouch %}
+    <section class="wr-card wr-loser" data-pool="loser">
+      <div class="wr-kicker">📉 Loser Pool &middot; Jackpot &amp; ouch</div>
+      {% if ld.jackpot %}{% set t = ld.jackpot %}
+      <div class="wr-pair">
+        <div class="wr-pair-n wr-pos">{{ '%+d'|format(t.points) }}</div>
+        <div>{{ chip(t.chip) }} <small>lost{% if t.score %} &middot; {{ t.score }}{% endif %}</small><br>{{ names(t.names) }}</div>
+      </div>
+      {% endif %}
+      {% if ld.ouch %}{% set t = ld.ouch %}
+      <div class="wr-pair">
+        <div class="wr-pair-n wr-neg">{{ '%+d'|format(t.points) }}</div>
+        <div>{{ chip(t.chip) }} <small>{% if t.result == 'loss' %}didn't lose{% endif %}{% if t.score %} &middot; {{ t.score }}{% endif %}</small><br>{{ names(t.names) }}</div>
+      </div>
+      {% endif %}
+      <p class="wr-foot">The biggest single-week haul, and the most expensive miss.</p>
+    </section>
+    {% endif %}
+
+    {% if ld.leaders %}
+    <section class="wr-card wr-loser wr-alt" data-pool="loser">
+      <div class="wr-kicker">👑 Loser Pool &middot; Season leaderboard</div>
+      <h3 class="wr-poster wr-poster-sm">After {{ league.label }}</h3>
+      <ol class="wr-board">
+        {% for r in ld.leaders.rows %}
+        <li><span class="wr-board-pl">{{ ordinal(r.place) }}</span><b>{{ r.user }}</b><span>{{ r.label }}</span></li>
+        {% endfor %}
+      </ol>
+      {% if ld.leaders.more %}<p class="wr-say">+{{ ld.leaders.more }} more in the top three places.</p>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if ld.movers %}
+    <section class="wr-card wr-loser" data-pool="loser">
+      <div class="wr-kicker">📈 Loser Pool &middot; On the move</div>
+      {% if ld.movers.up %}{% set m = ld.movers.up %}
+      <div class="wr-move up"><div class="wr-move-n">&#9650; {{ m.by }}</div>
+        <div><b>{{ m.user }}</b><br><small>{{ ordinal(m.from) }} &rarr; {{ ordinal(m.to) }} &middot; {{ m.label }}</small></div></div>
+      {% endif %}
+      {% if ld.movers.down %}{% set m = ld.movers.down %}
+      <div class="wr-move down"><div class="wr-move-n">&#9660; {{ m.by }}</div>
+        <div><b>{{ m.user }}</b><br><small>{{ ordinal(m.from) }} &rarr; {{ ordinal(m.to) }} &middot; {{ m.label }}</small></div></div>
+      {% endif %}
+      <p class="wr-foot">Biggest jump and slide in the season standings this week.</p>
+    </section>
+    {% endif %}
+    {% endif %}
+
+    {# ---------------- Across the league ---------------- #}
+    {% if league.hot_team %}{% set h = league.hot_team %}
+    <section class="wr-card wr-intro">
+      <div class="wr-kicker">Across all three pools</div>
+      <h3 class="wr-poster wr-poster-sm">Team of the week</h3>
+      <div class="wr-hero">{{ chip(h.chip, true) }}</div>
+      <div class="wr-big">{{ h.total }}</div>
+      <div class="wr-sub">times they showed up on a pick sheet</div>
+      <ul class="wr-mini wr-mini-plain">
+        {% if h.gridiron %}<li><span>🏈 Taken on the spread</span><b>{{ h.gridiron }}</b></li>{% endif %}
+        {% if h.dropdead %}<li><span>💀 Trusted to win</span><b>{{ h.dropdead }}</b></li>{% endif %}
+        {% if h.loser %}<li><span>📉 Picked to lose</span><b>{{ h.loser }}</b></li>{% endif %}
+      </ul>
+      <p class="wr-foot">That's a wrap on {{ league.label }}. See you next week.</p>
+    </section>
+    {% endif %}
+
+  </div>
+  <button type="button" class="wr-nav wr-next" aria-label="Next card">&#8250;</button>
+  <div class="wr-dots" id="wr-dots" aria-hidden="true"></div>
+</div>
+
+<p class="text-muted small text-center mt-3 mb-0">
+  Each week's Wrapped publishes on its own once that week's last game is final.
+  {% if next_week and next_week.number != number %}Next up: {{ next_week.label }}.{% endif %}
+</p>
+{% endif %}
+
+<style>
+.wr { position: relative; margin: 0 -12px; }
+.wr-track {
+  display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 8px max(12px, calc(50% - 210px)) 18px; scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; outline: none;
+}
+.wr-track::-webkit-scrollbar { display: none; }
+.wr-card {
+  flex: 0 0 min(420px, calc(100vw - 48px)); scroll-snap-align: center;
+  min-height: 560px; border-radius: 22px; padding: 26px 24px 22px;
+  color: #fff; position: relative; overflow: hidden; isolation: isolate;
+  display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 10px 30px rgba(20, 12, 4, .25);
+  font-family: var(--body-font);
+  transition: transform .25s ease, opacity .25s ease;
+}
+.wr-js .wr-card { opacity: .45; transform: scale(.94); }
+.wr-js .wr-card.on { opacity: 1; transform: none; }
+.wr-card::before, .wr-card::after {
+  content: ""; position: absolute; border-radius: 50%; z-index: -1; pointer-events: none;
+}
+.wr-card::before { width: 340px; height: 340px; right: -120px; top: -110px; background: rgba(255,255,255,.08); }
+.wr-card::after  { width: 220px; height: 220px; left: -90px; bottom: -80px; background: rgba(0,0,0,.18); }
+.wr-intro    { background: linear-gradient(160deg, #ff7900 0%, #b8450c 38%, #2a1d14 78%, #0a0a08 100%); }
+.wr-you      { background: linear-gradient(165deg, #1f6f8b 0%, #0d3b66 45%, #071c33 100%); }
+.wr-gridiron { background: linear-gradient(165deg, #ff8a1f 0%, #cc6100 45%, #5a2a08 100%); }
+.wr-gridiron.wr-alt  { background: linear-gradient(165deg, #34302b 0%, #1b1916 60%, #0a0a08 100%); }
+.wr-gridiron.wr-alt::before { background: rgba(255,121,0,.28); }
+.wr-gridiron.wr-dark { background: linear-gradient(165deg, #5a2a08 0%, #2b1406 55%, #0a0a08 100%); }
+.wr-dropdead { background: linear-gradient(165deg, #e5141a 0%, #970606 50%, #2a0303 100%); }
+.wr-dropdead.wr-alt  { background: linear-gradient(165deg, #2b2b2b 0%, #141414 60%, #050505 100%); }
+.wr-dropdead.wr-alt::before { background: rgba(213,10,10,.35); }
+.wr-dropdead.wr-dark { background: linear-gradient(165deg, #3a0606 0%, #160202 60%, #000 100%); }
+.wr-loser    { background: linear-gradient(165deg, #f2b632 0%, #c47a0a 45%, #4a2c04 100%); color: #1a1208; }
+.wr-loser.wr-alt { background: linear-gradient(165deg, #1a1208 0%, #0d0904 70%, #000 100%); color: #fff; }
+.wr-loser.wr-alt::before { background: rgba(242,182,50,.3); }
+
+.wr-kicker { font-family: var(--display-font); text-transform: uppercase; letter-spacing: .1em; font-size: .78rem; font-weight: 600; opacity: .85; }
+.wr-poster { font-family: var(--poster-font); font-size: 3.1rem; line-height: 1; margin: 18px 0 10px; color: #fff; }
+.wr-poster span { color: #ffd29e; }
+.wr-loser:not(.wr-alt) .wr-poster { color: #1a1208; }
+.wr-poster-sm { font-size: 2rem; margin: 10px 0 6px; }
+.wr-big { font-family: var(--poster-font); font-size: 4.6rem; line-height: 1; margin-top: 14px; letter-spacing: -.01em; }
+.wr-num { font-family: var(--poster-font); font-size: 2rem; line-height: 1.05; }
+.wr-lbl { font-family: var(--display-font); text-transform: uppercase; font-size: .72rem; letter-spacing: .08em; opacity: .8; }
+.wr-sub { font-size: .98rem; opacity: .9; }
+.wr-hero { margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.wr-line-big { font-family: var(--poster-font); font-size: 2.2rem; line-height: 1.05; }
+.wr-stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: auto; padding-top: 16px; text-align: center; }
+.wr-intro .wr-stats3 { background: rgba(0,0,0,.25); border-radius: 14px; padding: 16px 8px; }
+.wr-foot { margin: auto 0 0; padding-top: 14px; font-size: .9rem; opacity: .85; }
+.wr-say  { margin: 16px 0 2px; font-size: 1rem; }
+.wr-who  { font-size: 1.25rem; line-height: 1.35; }
+.wr-who.wr-small { font-size: 1rem; }
+.wr-names b { font-weight: 700; }
+.wr-more { opacity: .75; font-size: .9em; white-space: nowrap; }
+.wr-sep { height: 1px; background: rgba(255,255,255,.25); margin: 16px 0 10px; }
+
+.wr-chip { display: inline-block; padding: .18em .6em; border-radius: 999px; background: rgba(255,255,255,.92); color: #1a1208; font-family: var(--display-font); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border: 2px solid rgba(255,255,255,.75); white-space: nowrap; }
+.wr-chip-big { font-size: 2rem; padding: .1em .55em; }
+
+.wr-res { display: inline-block; font-family: var(--display-font); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; padding: .25em .7em; border-radius: 999px; vertical-align: middle; }
+.wr-win  { background: #1f9d55; color: #fff; }
+.wr-loss { background: #111; color: #ff6b6b; border: 1px solid #ff6b6b; }
+.wr-push { background: #6c757d; color: #fff; }
+.wr-pend { background: rgba(255,255,255,.25); color: inherit; }
+.wr-verdict { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: .95rem; }
+.wr-verdict .wr-res { font-size: 1rem; padding: .35em 1em; }
+.wr-pos { color: #5fe39a; }
+.wr-neg { color: #ff8080; }
+.wr-loser:not(.wr-alt) .wr-pos { color: #0b6b34; }
+.wr-loser:not(.wr-alt) .wr-neg { color: #8a0f19; }
+
+.wr-split { margin-top: 18px; }
+.wr-split-head { display: flex; justify-content: space-between; font-family: var(--display-font); text-transform: uppercase; letter-spacing: .05em; font-size: .85rem; font-weight: 600; }
+.wr-split-head.wr-dim { font-weight: 500; opacity: .8; font-size: .78rem; }
+.wr-bar { height: 14px; border-radius: 999px; background: rgba(0,0,0,.35); overflow: hidden; margin: 5px 0; }
+.wr-bar i { display: block; height: 100%; background: #fff; border-radius: 999px; }
+.wr-bar-life i { background: #5fe39a; }
+
+.wr-rows { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+.wr-rows li { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr auto auto; gap: 8px; align-items: center; font-size: .92rem; }
+.wr-rowbar { height: 8px; border-radius: 999px; background: rgba(0,0,0,.3); overflow: hidden; }
+.wr-rowbar i { display: block; height: 100%; background: #fff; }
+
+.wr-you-block { margin-top: 14px; padding: 12px 14px; background: rgba(255,255,255,.08); border-radius: 14px; }
+.wr-you-pool { font-family: var(--display-font); text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; opacity: .85; margin-bottom: 4px; }
+.wr-you .wr-big { font-size: 2.8rem; margin-top: 2px; }
+.wr-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wr-line small { opacity: .8; }
+.wr-mini { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 5px; font-size: .9rem; }
+.wr-mini li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.wr-mini .wr-chip { font-size: .78rem; }
+.wr-mini small { opacity: .75; }
+.wr-mini-r { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.wr-mini-plain { margin-top: 16px; font-size: 1rem; }
+.wr-mini-plain li { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.15); }
+.wr-note { margin-top: 8px; font-size: .88rem; opacity: .9; }
+
+.wr-move { display: flex; align-items: center; gap: 16px; margin-top: 22px; font-size: 1.1rem; }
+.wr-move-n { font-family: var(--poster-font); font-size: 2.6rem; min-width: 110px; }
+.wr-move.up .wr-move-n { color: #5fe39a; }
+.wr-move.down .wr-move-n { color: #ff8080; }
+.wr-loser:not(.wr-alt) .wr-move.up .wr-move-n { color: #0b6b34; }
+.wr-loser:not(.wr-alt) .wr-move.down .wr-move-n { color: #8a0f19; }
+.wr-pair { display: flex; gap: 16px; align-items: center; margin-top: 22px; }
+.wr-pair-n { font-family: var(--poster-font); font-size: 2.6rem; min-width: 90px; }
+
+.wr-nav {
+  position: absolute; top: 290px; transform: translateY(-50%); z-index: 2;
+  width: 46px; height: 46px; border-radius: 50%; border: 0;
+  background: #fff; color: #34302b; font-size: 2rem; line-height: 1;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25); display: flex; align-items: center; justify-content: center; padding-bottom: 4px;
+}
+.wr-nav:disabled { opacity: .3; }
+.wr-prev { left: max(8px, calc(50% - 280px)); }
+.wr-next { right: max(8px, calc(50% - 280px)); }
+.wr-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+.wr-dots button { width: 9px; height: 9px; padding: 0; border-radius: 50%; border: 0; background: #cdbfb0; }
+.wr-dots button.on { background: var(--gridiron-accent); width: 24px; border-radius: 999px; }
+.wr-picker select { min-width: 220px; }
+.wr-dots button[data-pool=gridiron].on { background: #ff7900; }
+.wr-dots button[data-pool=dropdead] { background: #e9b7b7; }
+.wr-dots button[data-pool=dropdead].on { background: #d50a0a; }
+.wr-dots button[data-pool=loser] { background: #ecd29a; }
+.wr-dots button[data-pool=loser].on { background: #c47a0a; }
+.wr-board { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 4px; }
+.wr-board li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.14); font-size: 1.05rem; }
+.wr-board li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-board-pl { font-family: var(--poster-font); font-size: 1.15rem; color: #ffd29e; }
+.wr-loser .wr-board-pl { color: #f2b632; }
+.wr-rows-2 li { grid-template-columns: auto 1fr auto; }
+.wr-rows-3 li { grid-template-columns: auto 1fr auto; font-size: 1rem; }
+.wr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.wr-chips .wr-chip { font-size: .8rem; }
+
+@media (max-width: 575.98px) {
+  .wr-nav { display: none; }
+  .wr-card { min-height: 520px; padding: 22px 20px 20px; }
+  .wr-big { font-size: 3.8rem; }
+  .wr-poster { font-size: 2.6rem; }
+  .wr-picker, .wr-picker select { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .wr-track { scroll-behavior: auto; } }
+@media print { .wr-nav, .wr-dots { display: none !important; } .wr-track { flex-wrap: wrap; overflow: visible; } }
+</style>
+
+<script>
+(function () {
+  var track = document.getElementById('wr-track');
+  if (!track) return;
+  var cards = Array.prototype.slice.call(track.querySelectorAll('.wr-card'));
+  var prev = document.querySelector('.wr-prev'), next = document.querySelector('.wr-next');
+  var dotsBox = document.getElementById('wr-dots');
+  document.getElementById('wr').classList.add('wr-js');
+  cards.forEach(function (c, i) { c.addEventListener('click', function () { if (!c.classList.contains('on')) go(i); }); });
+  var dots = cards.map(function (card, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Card ' + (i + 1));
+    if (card.dataset.pool) b.dataset.pool = card.dataset.pool;
+    b.addEventListener('click', function () { go(i); });
+    dotsBox.appendChild(b);
+    return b;
+  });
+  function current() {
+    var mid = track.scrollLeft + track.clientWidth / 2, best = 0, bestD = Infinity;
+    cards.forEach(function (c, i) {
+      var d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    return best;
+  }
+  function go(i) {
+    i = Math.max(0, Math.min(cards.length - 1, i));
+    var c = cards[i];
+    track.scrollTo({ left: c.offsetLeft - (track.clientWidth - c.offsetWidth) / 2 });
+  }
+  function paint() {
+    var i = current();
+    dots.forEach(function (d, j) { d.classList.toggle('on', i === j); });
+    cards.forEach(function (c, j) { c.classList.toggle('on', i === j); });
+    if (prev) prev.disabled = i === 0;
+    if (next) next.disabled = i === cards.length - 1;
+  }
+  prev && prev.addEventListener('click', function () { go(current() - 1); });
+  next && next.addEventListener('click', function () { go(current() + 1); });
+  track.addEventListener('scroll', function () { window.requestAnimationFrame(paint); }, { passive: true });
+  document.addEventListener('keydown', function (e) {
+    if (e.target.closest && e.target.closest('input, select, textarea')) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(current() + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(current() - 1); }
+  });
+  paint();
+})();
+</script>
+{% endblock %}

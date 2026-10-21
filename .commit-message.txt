@@ -1,8 +1,23 @@
-Drop Dead payout page
+Data page: weekly Wrapped recap
 
-Adds PAYOUTS_DROPDEAD (83 initial investments $1,660 + buy-backs $1,410
-- $100 admin = $2,970; 70/20/10 = $2,079 / $594 / $297) and
-templates/payouts_dropdead.html. Payouts button now shows on the Drop Dead card.
+New "Data" nav link (/data). A Spotify-Wrapped style, swipeable card recap
+of each finished week across all three pools, about half of it Gridiron:
+  Gridiron (9) - crowd favorite, how the league leaned, game of the week,
+    Lone Wolf / road less traveled, upset of the week (or biggest cover),
+    biggest bust, top of the week + 0-5 club, season leaderboard, movers.
+  Drop Dead (5) - body count, most popular pick, Graveyard, gutsiest
+    survivor, teams the survivors have already burned.
+  Loser (5) - people's loser, the board, jackpot & ouch, leaderboard, movers.
+  Plus intro totals, a "Your week" card, and team of the week. Usernames shown.
+
+Behind a passcode while in preview (DATA_PASSCODE_DEFAULT in
+blueprints/main.py, overridable by the data_passcode Setting); past the
+passcode the most recent week shows as soon as its deadline has passed.
+
+Read-only: wrapped.py only SELECTs. A week publishes on its own once its
+deadline has passed and every game is final (fallback: 7 days after the
+deadline if a game never goes final). Admins can preview earlier.
+Tests: tests/test_wrapped.py.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01HhxqEPmoV8Vxkoc2KXcWpD
+Claude-Session: https://claude.ai/code/session_017ztJ5corRwWgx9WbHDagnu

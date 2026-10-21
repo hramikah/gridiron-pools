@@ -269,10 +269,17 @@ PAYOUTS_LOSER = {
     "splits": [("70%", 1099), ("20%", 314), ("10%", 157)],
 }
 
-# Drop Dead is deliberately absent: its pot depends on buy-backs, which are
-# still open, so there is no schedule to show yet. Add it here and extend
-# PAYOUT_POOLS when there is.
-PAYOUT_POOLS = ("gridiron", "loser")
+# Drop Dead: 83 initial entries at $20 plus buy-backs, less admin.
+PAYOUTS_DROPDEAD = {
+    "players": 83,
+    "gross": 1660,
+    "buybacks": 1410,
+    "admin_fees": 100,
+    "net": 2970,
+    "splits": [("1st Place 70%", 2079), ("2nd Place 20%", 594), ("3rd Place 10%", 297)],
+}
+
+PAYOUT_POOLS = ("gridiron", "dropdead", "loser")
 
 
 @bp.route("/payouts/<pool>")
@@ -292,6 +299,14 @@ def payouts(pool):
             awards=PAYOUTS_GRIDIRON_AWARDS,
             admin_fee=PAYOUTS_GRIDIRON_ADMIN_FEE,
             total=PAYOUTS_GRIDIRON_TOTAL,
+        )
+    if pool == "dropdead":
+        return render_template(
+            "payouts_dropdead.html",
+            pool=pool,
+            pool_label=POOL_LABELS[pool],
+            season_year=season_year,
+            **PAYOUTS_DROPDEAD,
         )
     return render_template(
         "payouts_loser.html",

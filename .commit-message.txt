@@ -1,19 +1,8 @@
-Payout pages for Gridiron Investments and the Loser Pool
+Drop Dead payout page
 
-New /payouts/<pool> route with the approved 2026 schedules as constants in
-blueprints/main.py: 16 Gridiron places ($11,900) plus the $200 admin line at the
-foot of that table and the five awards ($1,000), totalling $13,100 against
-131 entries at $100; the Loser
-pot at 81 x $20 = $1,620 less $50 admin = $1,570, split 70/20/10 as
-$1,099 / $314 / $157.
+Adds PAYOUTS_DROPDEAD (83 initial investments $1,660 + buy-backs $1,410
+- $100 admin = $2,970; 70/20/10 = $2,079 / $594 / $297) and
+templates/payouts_dropdead.html. Payouts button now shows on the Drop Dead card.
 
-A Payouts button sits right of How to Play on the home pool cards, gated on
-PAYOUT_POOLS, so Drop Dead stays without one while its buy-backs are TBD.
-
-Also carries the Last Place Award tie-break: gridiron_awards() decided on
-fewest wins alone, so 1-8-1 and 1-9-0 shared it. Rule 12 breaks that tie on
-the most losses; the key is now (wins, -losses, -ties) with best="min", so the
-1-9-0 takes it outright. Adds tests/test_last_place_award.py.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01WtFapL7yksBMuivN9gBHMq
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HhxqEPmoV8Vxkoc2KXcWpD

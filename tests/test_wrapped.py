@@ -66,3 +66,45 @@ def test_building_the_week_writes_nothing(make_week, make_entry, submit):
     assert data["gridiron"]["popular"]["count"] == 3
     assert not db.session.new and not db.session.dirty and not db.session.deleted
     assert _counts() == before
+
+
+def _walk(obj):
+    if isinstance(obj, dict):
+        for v in obj.values():
+            yield from _walk(v)
+    elif isinstance(obj, (list, tuple, set)):
+        for v in obj:
+            yield from _walk(v)
+    else:
+        yield obj
+
+
+def test_cached_week_holds_no_database_objects(make_week, make_entry, submit, team):
+    """league_week is cached across requests. A database object in it breaks
+    the NEXT visitor's page (DetachedInstanceError) -- the first live 500."""
+    wrapped._cache.clear()
+    week = make_week(1, games=6)
+    submit(make_entry("alice"), week, 5)
+    _finish(week)
+    bills = team("Buffalo", "Bills")
+    for pool in ("dropdead", "loser"):
+        w = make_week(1, games=0, pool=pool)
+        g = Game(week_id=w.id, pool=pool, sport="nfl", home_team="Buffalo Bills",
+                 away_team="Away X", home_team_id=bills.id, home_score=20,
+                 away_score=10, is_final=True)
+        db.session.add(g)
+        e = make_entry(f"{pool}-bob", pool=pool)
+        db.session.add(Pick(entry_id=e.id, week_id=w.id, pool=pool, team_id=bills.id,
+                            result="win", points=1))
+    db.session.commit()
+
+    data = wrapped.league_week(SEASON, 1)
+    assert not [o for o in _walk(data) if isinstance(o, db.Model)]
+
+    # A later request: new session, data served from the cache.
+    db.session.remove()
+    cached = wrapped.league_week(SEASON, 1)
+    for name in ("dropdead-bob", "loser-bob"):
+        user = User.query.filter_by(username=name).first()
+        mine = wrapped.your_week(SEASON, cached, user)
+        assert mine and next(iter(mine.values()))["chip"]["name"] == "Bills"

@@ -148,6 +148,19 @@ def _chip(full_name):
     }
 
 
+def _plain_pick(p, teams):
+    """A Drop Dead / Loser pick as plain data. Everything league_week returns
+    is cached across requests, and a database object kept past the request
+    that loaded it can no longer load anything -- the cause of the 500s on
+    the first live deploy. So nothing cached may be a database object."""
+    return {
+        "team_id": p.team_id,
+        "chip": _team_chip(teams.get(p.team_id)),
+        "result": p.result,
+        "points": int(p.points or 0),
+    }
+
+
 def _team_chip(team):
     if team is None:
         return {"name": "?", "fill": None, "ink": None}
@@ -558,7 +571,7 @@ def _dropdead(season_year, week):
         # Under the no-tie rule a week that knocks out everyone left revives them.
         "wipeout": bool(picks) and survived == 0 and not week.is_preseason,
         "preseason": week.is_preseason,
-        "_pick_by_entry": {p.entry_id: p for p in picks},
+        "_pick_by_entry": {p.entry_id: _plain_pick(p, teams) for p in picks},
         "_team_counts": {tid: len(s["users"]) for tid, s in by_team.items()},
     }
 
@@ -619,7 +632,7 @@ def _loser(season_year, week):
         "board": teams_list[:5],
         "avg": round(net / len(picks), 1) if picks else 0,
         **_loser_season(season_year, week.number),
-        "_pick_by_entry": {p.entry_id: p for p in picks},
+        "_pick_by_entry": {p.entry_id: _plain_pick(p, teams) for p in picks},
         "_team_counts": {tid: len(s["users"]) for tid, s in by_team.items()},
         "_week_place": week_place,
     }
@@ -765,10 +778,10 @@ def your_week(season_year, league, user):
         p = dd["_pick_by_entry"].get(e.id)
         if p is None:
             continue
-        same = dd["_team_counts"].get(p.team_id, 1)
+        same = dd["_team_counts"].get(p["team_id"], 1)
         out["dropdead"] = {
-            "chip": _team_chip(p.team),
-            "result": p.result,
+            "chip": p["chip"],
+            "result": p["result"],
             "same": same - 1,
             "pct": _pct(same, len(dd["_pick_by_entry"])),
         }
@@ -781,11 +794,11 @@ def your_week(season_year, league, user):
         p = ld["_pick_by_entry"].get(e.id)
         if p is None:
             continue
-        same = ld["_team_counts"].get(p.team_id, 1)
+        same = ld["_team_counts"].get(p["team_id"], 1)
         out["loser"] = {
-            "chip": _team_chip(p.team),
-            "result": p.result,
-            "points": int(p.points or 0),
+            "chip": p["chip"],
+            "result": p["result"],
+            "points": p["points"],
             "same": same - 1,
             "place": ld["_week_place"].get(e.id),
             "field": ld["players"],

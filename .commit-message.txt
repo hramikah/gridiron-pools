@@ -1,23 +1,14 @@
-Data page: weekly Wrapped recap
+Fix Data page 500: no database objects in the Wrapped cache
 
-New "Data" nav link (/data). A Spotify-Wrapped style, swipeable card recap
-of each finished week across all three pools, about half of it Gridiron:
-  Gridiron (9) - crowd favorite, how the league leaned, game of the week,
-    Lone Wolf / road less traveled, upset of the week (or biggest cover),
-    biggest bust, top of the week + 0-5 club, season leaderboard, movers.
-  Drop Dead (5) - body count, most popular pick, Graveyard, gutsiest
-    survivor, teams the survivors have already burned.
-  Loser (5) - people's loser, the board, jackpot & ouch, leaderboard, movers.
-  Plus intro totals, a "Your week" card, and team of the week. Usernames shown.
+league_week() is cached for 10 minutes across requests, and it held Pick
+rows. The next visitor's "Your week" card lazy-loaded pick.team from a row
+whose session was gone -> DetachedInstanceError -> Internal Server Error for
+anyone who wasn't the request that filled the cache. Picks are now stored as
+plain dicts; new test checks the cached data holds no database objects and
+that a second request served from the cache works.
 
-Behind a passcode while in preview (DATA_PASSCODE_DEFAULT in
-blueprints/main.py, overridable by the data_passcode Setting); past the
-passcode the most recent week shows as soon as its deadline has passed.
-
-Read-only: wrapped.py only SELECTs. A week publishes on its own once its
-deadline has passed and every game is final (fallback: 7 days after the
-deadline if a game never goes final). Admins can preview earlier.
-Tests: tests/test_wrapped.py.
+Also adds check-data-page.command / check-data-page2.command: read-only
+diagnostics (the second runs the page against a /tmp copy of the live DB).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_017ztJ5corRwWgx9WbHDagnu

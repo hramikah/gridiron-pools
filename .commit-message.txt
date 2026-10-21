@@ -1,14 +1,13 @@
-Fix Data page 500: no database objects in the Wrapped cache
+Weekly Recap: open to everyone, button on the Make a Pick page
 
-league_week() is cached for 10 minutes across requests, and it held Pick
-rows. The next visitor's "Your week" card lazy-loaded pick.team from a row
-whose session was gone -> DetachedInstanceError -> Internal Server Error for
-anyone who wasn't the request that filled the cache. Picks are now stored as
-plain dicts; new test checks the cached data holds no database objects and
-that a second request served from the cache works.
-
-Also adds check-data-page.command / check-data-page2.command: read-only
-diagnostics (the second runs the page against a /tmp copy of the live DB).
+- Passcode removed (DATA_PASSCODE_DEFAULT = ""); players see weeks whose
+  games are all final, admins can still preview.
+- Standout "Weekly Recap" button under the welcome banner on the home /
+  Make a Pick page, naming the newest recap ("Week 6 Wrapped is out").
+  Hidden until a recap exists; any error building it just hides the button.
+- Page retitled "Weekly Recap" (URL stays /data). The navbar link is removed:
+  the button is the way in, and the extra link pushed the admin navbar past
+  its width at 1200-1399px.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_017ztJ5corRwWgx9WbHDagnu

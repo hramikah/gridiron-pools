@@ -90,8 +90,20 @@ def index():
                         "buyback": dropdead_buyback_available(e, dd_week),
                     }
 
+    # The newest Weekly Recap, for the button at the top of the page. Never
+    # allowed to break the home page: if anything goes wrong it just hides.
+    recap_label = None
+    if current_user.is_authenticated:
+        try:
+            published = [label for _n, label, st in week_menu(season_year) if st == "published"]
+            recap_label = published[-1] if published else None
+        except Exception:
+            current_app.logger.exception("weekly recap button")
+            recap_label = None
+
     return render_template(
         "home.html",
+        recap_label=recap_label,
         my_entries=my_entries,
         standing=standing,
         season_year=season_year,
@@ -320,10 +332,10 @@ def payouts(pool):
     )
 
 
-# The Data page sits behind a passcode while it's being previewed. The
-# "data_passcode" Setting overrides this; set it to an empty value (or make
-# this "" and deploy) to open the page to every signed-in player.
-DATA_PASSCODE_DEFAULT = "2222"
+# The Data page (Weekly Recap) can sit behind a passcode while it's being
+# previewed. Empty = open to every signed-in player (opened 2026-10-21). Put a
+# code back here, or in the "data_passcode" Setting, to lock it again.
+DATA_PASSCODE_DEFAULT = ""
 
 
 @bp.route("/data", methods=["GET", "POST"])

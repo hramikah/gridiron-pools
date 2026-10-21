@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Data{% if league %} - {{ league.label }} Wrapped{% endif %}{% endblock %}
+{% block title %}Weekly Recap{% if league %} - {{ league.label }} Wrapped{% endif %}{% endblock %}
 {#
   Weekly Wrapped. Every number on this page comes from wrapped.py, which only
   reads the database. Cards are a horizontal scroll-snap strip: swipe on a
@@ -31,7 +31,7 @@
 {% macro plural(n, word, words=None) -%}{{ n }} {{ word if n == 1 else (words or word ~ 's') }}{%- endmacro %}
 
 <div class="page-header header-gridiron d-flex flex-wrap align-items-center justify-content-between gap-2">
-  <h2><span class="pool-icon">📊</span>Data</h2>
+  <h2><span class="pool-icon">📊</span>Weekly Recap</h2>
   {% if menu %}
   <form class="wr-picker" method="get" onsubmit="return false;">
     <label for="wr-week" class="visually-hidden">Week</label>

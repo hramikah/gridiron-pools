@@ -14,6 +14,35 @@
   <p class="mb-0">Pick 'em pools for the {{ season_year }} NFL season. Join any or all three &mdash; each is its own entry.</p>
 </div>
 
+{% if recap_label %}
+<a href="{{ url_for('main.data') }}" class="recap-cta mb-4">
+  <span class="recap-cta-icon">📊</span>
+  <span class="recap-cta-text">
+    <span class="recap-cta-title">Weekly Recap</span>
+    <span class="recap-cta-sub">{{ recap_label }} Wrapped is out &mdash; see how the league played it</span>
+  </span>
+  <span class="recap-cta-go">View &rarr;</span>
+</a>
+<style>
+.recap-cta { display: flex; align-items: center; gap: 16px; padding: 16px 22px; border-radius: 18px; text-decoration: none; color: #fff;
+  background: linear-gradient(110deg, #ff7900 0%, #d50a0a 55%, #2a1d14 100%); box-shadow: 0 8px 24px rgba(160, 50, 0, .3);
+  transition: transform .15s ease, box-shadow .15s ease; }
+.recap-cta:hover, .recap-cta:focus { color: #fff; transform: translateY(-2px); box-shadow: 0 12px 28px rgba(160, 50, 0, .4); }
+.recap-cta-icon { font-size: 2.2rem; line-height: 1; }
+.recap-cta-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.recap-cta-title { font-family: var(--poster-font); font-size: 1.7rem; line-height: 1.1; }
+.recap-cta-sub { font-size: .95rem; opacity: .92; }
+.recap-cta-go { font-family: var(--display-font); text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+  background: #fff; color: #b8450c; border-radius: 999px; padding: 8px 18px; white-space: nowrap; }
+@media (max-width: 575.98px) {
+  .recap-cta { padding: 14px 16px; gap: 12px; }
+  .recap-cta-title { font-size: 1.35rem; }
+  .recap-cta-sub { font-size: .85rem; }
+  .recap-cta-go { padding: 6px 12px; font-size: .8rem; }
+}
+</style>
+{% endif %}
+
 {% macro pool_card(pool, icon, title, blurb, rules_ep, standings_ep, pick_ep, pick_label) %}
   {% set joined = my_entries.get(pool) %}
   <div class="col-md-4">

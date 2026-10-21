@@ -48,7 +48,6 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('main.standings') }}">Master Standings</a></li>
           {% if current_user.is_authenticated %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('main.reports') }}">Weekly Picks</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('main.data') }}">Data</a></li>
           {% endif %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('main.scores') }}">Final Scores</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('main.help_index') }}">Help</a></li>

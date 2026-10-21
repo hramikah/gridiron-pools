@@ -260,8 +260,9 @@ def get_current_week(season_year, pool):
     """The active week players see for this pool.
 
     If an admin has pinned the current week (the ``active_week`` setting), that
-    week number wins for every pool. Otherwise it auto-detects: the next week
-    whose deadline hasn't passed, else the pool's most recent week."""
+    week number wins for every pool. Otherwise it auto-detects: the week whose
+    betting window is open; else the week that just closed, until its last
+    game is final, and then the next week; else the next week on the schedule."""
     override = get_setting("active_week")
     if override:
         try:
@@ -306,6 +307,25 @@ def get_current_week(season_year, pool):
         .first()
     )
     if just_closed:
+        # ...until every game of that week is final. Then the week is over
+        # and the league moves straight on to the next one, even before its
+        # betting window opens or its games are posted -- normally early
+        # Tuesday, on the first score update after Monday Night Football.
+        # (Commissioner's call, 2026-10-21; it used to wait for Wednesday
+        # noon.) A week that never gets a final score simply holds until the
+        # next week's window opens, as before.
+        if week_is_complete(just_closed):
+            following = (
+                Week.query.filter(
+                    Week.season_year == season_year,
+                    Week.pool == pool,
+                    Week.pick_deadline > just_closed.pick_deadline,
+                )
+                .order_by(Week.pick_deadline.asc())
+                .first()
+            )
+            if following:
+                return following
         return just_closed
 
     # Nothing has closed yet either: show the next week on the schedule, so a

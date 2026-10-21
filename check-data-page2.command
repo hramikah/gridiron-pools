@@ -40,14 +40,14 @@ for uid in picks:
     c = a.test_client()
     with c.session_transaction(base_url="https://localhost") as s:
         s["_user_id"] = str(uid); s["_fresh"] = True
-    for method, path in (("GET", "/data"), ("POST", "/data"), ("GET", "/data"), ("GET", "/data/6"), ("GET", "/data/5"), ("GET", "/data/1")):
+    for method, path in (("GET", "/"), ("GET", "/data"), ("GET", "/data/6"), ("GET", "/data/5"), ("GET", "/data/1")):
         try:
             if method == "POST":
                 r = c.post(path, data={"passcode": "2222"}, base_url="https://localhost")
             else:
                 r = c.get(path, base_url="https://localhost")
             body = r.get_data(as_text=True)
-            print(uid, method, path, r.status_code, "cards=%d" % body.count("<section class=\"wr-card"), "locked" if "name=\"passcode\"" in body else "")
+            print(uid, method, path, r.status_code, "cards=%d" % body.count("<section class=\"wr-card"), "locked" if "name=\"passcode\"" in body else "", "RECAP-BUTTON" if "recap-cta-sub" in body else "")
         except Exception:
             print(uid, method, path, "EXCEPTION"); traceback.print_exc()
 PYEOF

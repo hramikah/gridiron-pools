@@ -1,13 +1,12 @@
-Weekly Recap: open to everyone, button on the Make a Pick page
+Advance to the next week as soon as the last game is final
 
-- Passcode removed (DATA_PASSCODE_DEFAULT = ""); players see weeks whose
-  games are all final, admins can still preview.
-- Standout "Weekly Recap" button under the welcome banner on the home /
-  Make a Pick page, naming the newest recap ("Week 6 Wrapped is out").
-  Hidden until a recap exists; any error building it just hides the button.
-- Page retitled "Weekly Recap" (URL stays /data). The navbar link is removed:
-  the button is the way in, and the extra link pushed the admin navbar past
-  its width at 1200-1399px.
+get_current_week used to hold on the week that just closed until the next
+week's betting window opened (Wednesday noon). It now moves on as soon as
+every game of the closed week has a final score -- normally early Tuesday,
+on the first score update after Monday Night Football -- even if the new
+week's games aren't posted yet (commissioner's call). An admin-pinned week
+still wins; a week whose games never all go final holds as before.
+Tests: tests/test_week_advance.py.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_017ztJ5corRwWgx9WbHDagnu
